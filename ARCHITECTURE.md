@@ -57,31 +57,35 @@ scada/
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   └── app/
-│       ├── main.py           # FastAPI app + lifespan
+│       ├── main.py           # FastAPI app + lifespan + routers
 │       ├── config.py         # Pydantic Settings
+│       ├── alembic.ini       # Alembic config
+│       ├── alembic/
+│       │   ├── env.py        # Async Alembic env
+│       │   └── versions/     # Migration files
 │       ├── api/
 │       │   ├── __init__.py
-│       │   ├── sites.py      # CRUD объектов
-│       │   ├── devices.py    # CRUD устройств
-│       │   ├── metrics.py    # Текущие показания + история
-│       │   ├── maintenance.py # ТО
-│       │   └── bitrix.py     # Б24 webhooks
+│       │   ├── sites.py      # ✅ CRUD объектов
+│       │   ├── devices.py    # ✅ CRUD устройств
+│       │   ├── metrics.py    # (Phase 2) Текущие показания + история
+│       │   ├── maintenance.py # (Phase 3) ТО
+│       │   └── bitrix.py     # (Phase 4) Б24 webhooks
 │       ├── models/
-│       │   ├── __init__.py
-│       │   ├── base.py       # Base, engine, session
-│       │   ├── site.py
-│       │   ├── device.py
-│       │   ├── maintenance.py
-│       │   └── alarm.py
+│       │   ├── __init__.py   # ✅ Re-exports
+│       │   ├── base.py       # ✅ Base, engine, async_session
+│       │   ├── site.py       # ✅ Site model
+│       │   ├── device.py     # ✅ Device, DeviceType, ModbusProtocol
+│       │   ├── maintenance.py # (Phase 3)
+│       │   └── alarm.py      # (Phase 2)
 │       ├── services/
 │       │   ├── __init__.py
-│       │   ├── modbus_poller.py
-│       │   ├── bitrix_client.py
-│       │   ├── maintenance_scheduler.py
-│       │   └── notification.py
+│       │   ├── modbus_poller.py        # (Phase 2)
+│       │   ├── bitrix_client.py        # (Phase 4)
+│       │   ├── maintenance_scheduler.py # (Phase 3)
+│       │   └── notification.py         # (Phase 5)
 │       └── core/
 │           ├── __init__.py
-│           └── websocket.py
+│           └── websocket.py   # (Phase 2)
 │
 ├── frontend/
 │   └── scada-v3.html
@@ -106,13 +110,13 @@ scada/
 
 ## Фазы разработки
 
-### Фаза 1 — Скелет (текущая)
+### Фаза 1 — Скелет (завершена)
 - [x] Структура проекта
-- [ ] FastAPI scaffold + healthcheck
-- [ ] SQLAlchemy модели (sites, devices)
-- [ ] Alembic миграции
-- [ ] CRUD sites/devices
-- [ ] Docker compose up — всё работает
+- [x] FastAPI scaffold + healthcheck
+- [x] SQLAlchemy модели (sites, devices)
+- [x] Alembic миграции (async, autogenerate)
+- [x] CRUD sites/devices (GET/POST/PATCH/DELETE)
+- [x] Docker compose up — всё работает
 
 ### Фаза 2 — Modbus + Realtime
 - [ ] Modbus poller (TCP для HGM9520N)

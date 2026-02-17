@@ -1,16 +1,19 @@
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
+from models import engine
+from api.sites import router as sites_router
+from api.devices import router as devices_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     print(f"SCADA Backend starting... DEBUG={settings.DEBUG}")
     yield
-    # Shutdown
+    await engine.dispose()
     print("SCADA Backend shutting down...")
 
 
@@ -28,13 +31,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(sites_router)
+app.include_router(devices_router)
+
 
 @app.get("/health")
 async def health():
     return {"status": "ok", "version": "0.1.0"}
-
-
-@app.get("/api/sites")
-async def list_sites():
-    # TODO: Phase 1 — подключить к БД
-    return {"sites": [], "message": "API работает. БД пока не подключена."}
