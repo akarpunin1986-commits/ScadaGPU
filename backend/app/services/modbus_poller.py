@@ -439,7 +439,11 @@ class HGM9560Reader(BaseReader):
         if self._reader is None:
             return
         try:
-            await asyncio.wait_for(self._reader.read(1024), timeout=0.1)
+            stale = await asyncio.wait_for(self._reader.read(1024), timeout=0.05)
+            if stale:
+                logger.debug("HGM9560: flushed %d stale bytes", len(stale))
+            if not stale:
+                raise ConnectionError("HGM9560: connection closed by peer (EOF on flush)")
         except asyncio.TimeoutError:
             pass
 
@@ -455,19 +459,45 @@ class HGM9560Reader(BaseReader):
 
         await asyncio.sleep(self.INTER_FRAME_DELAY)
 
-        expected_bytes = 3 + count * 2 + 2
-        try:
-            data = await asyncio.wait_for(
-                self._reader.read(expected_bytes + 16),
-                timeout=settings.MODBUS_TIMEOUT,
+        expected_bytes = 3 + count * 2 + 2  # slave + fc + bytecount + data + crc
+        response = b""
+        deadline = asyncio.get_event_loop().time() + settings.MODBUS_TIMEOUT
+
+        while asyncio.get_event_loop().time() < deadline:
+            remaining_time = deadline - asyncio.get_event_loop().time()
+            if remaining_time <= 0:
+                break
+            try:
+                chunk = await asyncio.wait_for(
+                    self._reader.read(256),
+                    timeout=min(remaining_time, 0.5),
+                )
+                if not chunk:
+                    raise ConnectionError("HGM9560: connection closed by peer")
+                response += chunk
+
+                if len(response) >= 5:
+                    if response[1] == 0x03:
+                        frame_len = 3 + response[2] + 2
+                        if len(response) >= frame_len:
+                            response = response[:frame_len]
+                            break
+                    elif response[1] & 0x80:
+                        if len(response) >= 5:
+                            break
+            except asyncio.TimeoutError:
+                if response:
+                    break
+                return None
+
+        if len(response) < 5:
+            logger.warning(
+                "HGM9560 incomplete response for block @%d: got %d bytes: %s",
+                start, len(response), response.hex() if response else "empty",
             )
-        except asyncio.TimeoutError:
             return None
 
-        if not data:
-            return None
-
-        return parse_read_registers_response(data)
+        return parse_read_registers_response(response)
 
     async def read_all(self) -> dict:
         if self._writer is None or self._reader is None:
@@ -494,6 +524,9 @@ class HGM9560Reader(BaseReader):
                 except Exception as exc:
                     logger.debug("Parse error %s.%s: %s", block_name, field_name, exc)
                     result[field_name] = None
+
+        if not result:
+            logger.warning("HGM9560 device=%s: all blocks returned empty", self.device_id)
 
         if "genset_status" in result:
             code = result["genset_status"]
@@ -548,19 +581,82 @@ class ModbusPoller:
                 dev.id, dev.name, dev.ip_address, dev.port, dev.protocol.value,
             )
 
+        self._reload_requested = False
+        self._reload_task = asyncio.create_task(self._listen_reload())
+
         while self._running:
+            if self._reload_requested:
+                self._reload_requested = False
+                await self.reload_devices()
             await self._poll_cycle()
             await asyncio.sleep(settings.POLL_INTERVAL)
 
     async def stop(self) -> None:
         logger.info("ModbusPoller stopping...")
         self._running = False
+        if hasattr(self, '_reload_task'):
+            self._reload_task.cancel()
         for reader in self._readers.values():
             try:
                 await reader.disconnect()
             except Exception as exc:
                 logger.debug("Disconnect error: %s", exc)
         self._readers.clear()
+
+    async def reload_devices(self) -> None:
+        """Hot-reload: re-read devices from DB and recreate readers."""
+        logger.info("ModbusPoller: reloading devices from DB...")
+
+        new_devices = await self._load_devices()
+        new_device_map = {d.id: d for d in new_devices}
+
+        removed_ids = set(self._readers.keys()) - set(new_device_map.keys())
+        for rid in removed_ids:
+            logger.info("Removing reader for deleted device %s", rid)
+            try:
+                await self._readers[rid].disconnect()
+            except Exception:
+                pass
+            del self._readers[rid]
+
+        for dev in new_devices:
+            existing_reader = self._readers.get(dev.id)
+            if existing_reader:
+                if (existing_reader.ip != dev.ip_address
+                        or existing_reader.port != dev.port
+                        or existing_reader.slave_id != dev.slave_id):
+                    logger.info(
+                        "Device %s config changed (%s:%s -> %s:%s), reconnecting",
+                        dev.id, existing_reader.ip, existing_reader.port,
+                        dev.ip_address, dev.port,
+                    )
+                    try:
+                        await existing_reader.disconnect()
+                    except Exception:
+                        pass
+                    self._readers[dev.id] = _make_reader(dev)
+            else:
+                logger.info(
+                    "New device %s (%s) at %s:%s [%s]",
+                    dev.id, dev.name, dev.ip_address, dev.port, dev.protocol.value,
+                )
+                self._readers[dev.id] = _make_reader(dev)
+
+        logger.info("ModbusPoller: reload complete. Active readers: %d", len(self._readers))
+
+    async def _listen_reload(self) -> None:
+        """Listen to Redis channel poller:reload for hot-reload signals."""
+        try:
+            pubsub = self.redis.pubsub()
+            await pubsub.subscribe("poller:reload")
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    logger.info("Received reload signal")
+                    self._reload_requested = True
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:
+            logger.error("Reload listener error: %s", exc)
 
     async def _poll_cycle(self) -> None:
         tasks = [
@@ -572,7 +668,11 @@ class ModbusPoller:
     async def _poll_device(self, device_id: int, reader: BaseReader) -> None:
         try:
             data = await reader.read_all()
-            await self._publish(device_id, reader.device, data, online=True)
+            if not data:
+                logger.warning("Device %s: read_all returned empty data", device_id)
+                await self._publish(device_id, reader.device, {}, online=False, error="no data received")
+            else:
+                await self._publish(device_id, reader.device, data, online=True)
         except Exception as exc:
             logger.error(
                 "Poll error device=%s (%s): %s",

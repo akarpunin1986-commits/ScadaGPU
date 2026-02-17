@@ -616,6 +616,12 @@
                             <label class="text-xs text-slate-400">Порт</label>
                             <input id="cfg-g1-port" type="number" value="${s.g1?.port || 502}" class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm" placeholder="502">
                         </div>
+                        <button onclick="testConnection('g1')" id="test-g1-btn"
+                            class="mt-2 w-full py-1.5 bg-slate-600 hover:bg-slate-500 rounded text-xs font-medium flex items-center justify-center gap-2">
+                            <span id="test-g1-icon">🔌</span>
+                            <span id="test-g1-text">Проверить связь</span>
+                        </button>
+                        <div id="test-g1-result" class="mt-1 text-xs hidden"></div>
                     </div>
                     
                     <!-- Generator 2 -->
@@ -638,6 +644,12 @@
                             <label class="text-xs text-slate-400">Порт</label>
                             <input id="cfg-g2-port" type="number" value="${s.g2?.port || 502}" class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm" placeholder="502">
                         </div>
+                        <button onclick="testConnection('g2')" id="test-g2-btn"
+                            class="mt-2 w-full py-1.5 bg-slate-600 hover:bg-slate-500 rounded text-xs font-medium flex items-center justify-center gap-2">
+                            <span id="test-g2-icon">🔌</span>
+                            <span id="test-g2-text">Проверить связь</span>
+                        </button>
+                        <div id="test-g2-result" class="mt-1 text-xs hidden"></div>
                     </div>
                     
                     <!-- SPR -->
@@ -670,6 +682,12 @@
                                 </select>
                             </div>
                         </div>
+                        <button onclick="testConnection('spr')" id="test-spr-btn"
+                            class="mt-2 w-full py-1.5 bg-slate-600 hover:bg-slate-500 rounded text-xs font-medium flex items-center justify-center gap-2">
+                            <span id="test-spr-icon">🔌</span>
+                            <span id="test-spr-text">Проверить связь</span>
+                        </button>
+                        <div id="test-spr-result" class="mt-1 text-xs hidden"></div>
                     </div>
                     
                     <button onclick="saveSettings()" class="w-full py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">Сохранить настройки</button>
@@ -736,6 +754,65 @@
             } catch (e) {
                 console.warn('_syncDevice failed for', slot, e);
             }
+        }
+
+        async function testConnection(slot) {
+            const btn = $('test-' + slot + '-btn');
+            const icon = $('test-' + slot + '-icon');
+            const text = $('test-' + slot + '-text');
+            const result = $('test-' + slot + '-result');
+
+            const ip = $('cfg-' + slot + '-ip').value.trim();
+            const port = parseInt($('cfg-' + slot + '-port').value) || 502;
+            const unit = parseInt($('cfg-' + slot + '-unit').value) || 1;
+
+            if (!ip) {
+                result.textContent = 'Введите IP адрес';
+                result.className = 'mt-1 text-xs text-yellow-400';
+                result.classList.remove('hidden');
+                return;
+            }
+
+            const protocol = (slot === 'spr') ? 'rtu_over_tcp' : 'tcp';
+
+            btn.disabled = true;
+            icon.textContent = '⏳';
+            text.textContent = 'Проверка...';
+            result.classList.add('hidden');
+
+            try {
+                const resp = await api.post('/api/devices/test-connection', {
+                    ip_address: ip,
+                    port: port,
+                    slave_id: unit,
+                    protocol: protocol,
+                });
+
+                if (resp.success) {
+                    icon.textContent = '✅';
+                    text.textContent = 'Связь OK';
+                    result.textContent = resp.message;
+                    result.className = 'mt-1 text-xs text-green-400';
+                } else {
+                    icon.textContent = '❌';
+                    text.textContent = 'Ошибка';
+                    result.textContent = resp.message;
+                    result.className = 'mt-1 text-xs text-red-400';
+                }
+            } catch (e) {
+                icon.textContent = '❌';
+                text.textContent = 'Ошибка';
+                result.textContent = 'API error: ' + e.message;
+                result.className = 'mt-1 text-xs text-red-400';
+            }
+
+            result.classList.remove('hidden');
+            btn.disabled = false;
+
+            setTimeout(() => {
+                icon.textContent = '🔌';
+                text.textContent = 'Проверить связь';
+            }, 5000);
         }
 
         // ======================== WEBSOCKET METRICS ========================
