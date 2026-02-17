@@ -1,0 +1,2599 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SCADA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { font-family: system-ui, sans-serif; }
+        .power-line { stroke: #334155; stroke-width: 3; }
+        .power-line.active { stroke: #22c55e; filter: drop-shadow(0 0 4px #22c55e); stroke-dasharray: 8 4; animation: flow 0.6s linear infinite; }
+        @keyframes flow { to { stroke-dashoffset: -12; } }
+        .card { background: #1e293b; border: 1px solid #334155; }
+        .card.warning { border-color: #eab308; }
+        .card.alarm { border-color: #ef4444; animation: pulse 1s infinite; }
+        @keyframes pulse { 50% { border-color: #7f1d1d; } }
+        .busbar { background: linear-gradient(90deg, #22c55e, #16a34a); height: 6px; }
+        .busbar.offline { background: #475569; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .dot-green { background: #22c55e; }
+        .dot-yellow { background: #eab308; }
+        .dot-red { background: #ef4444; }
+        .dot-gray { background: #64748b; }
+        
+        /* Custom scrollbar */
+        .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+        .scrollbar-thin::-webkit-scrollbar-track { background: #1e293b; border-radius: 2px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+    
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-slate-800 border-r border-slate-700 flex flex-col">
+            <div class="p-3 border-b border-slate-700">
+                <div class="flex items-center gap-2 mb-3">
+                    <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    <span class="font-semibold">SCADA</span>
+                </div>
+                <div class="flex gap-2 mb-2">
+                    <button onclick="addSite()" class="flex-1 py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">+ Добавить</button>
+                    <button onclick="openMultiscreen()" class="py-2 px-3 bg-slate-700 hover:bg-slate-600 rounded text-sm" title="Мультиэкран">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+                    </button>
+                </div>
+                <button onclick="openMaintenanceTemplates()" class="w-full py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm flex items-center justify-center gap-2 mb-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                    Регламенты ТО
+                </button>
+                <button onclick="openBitrixSettings()" class="w-full py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 rounded text-sm flex items-center justify-center gap-2 text-blue-400">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                    Битрикс24
+                </button>
+            </div>
+            <div class="flex-1 overflow-auto p-2" id="sitesList"></div>
+        </aside>
+
+        <!-- Main -->
+        <main class="flex-1 overflow-auto">
+            <!-- Empty state -->
+            <div id="emptyState" class="flex items-center justify-center h-full">
+                <div class="text-center text-slate-500">
+                    <p class="mb-2">Нет объектов</p>
+                    <button onclick="addSite()" class="text-green-500 hover:text-green-400">+ Добавить</button>
+                </div>
+            </div>
+            
+            <!-- Dashboard -->
+            <div id="dashboard" class="hidden p-4 space-y-4">
+                <!-- Header -->
+                <div class="flex items-center justify-between">
+                    <h1 id="siteName" class="text-lg font-semibold">—</h1>
+                    <span id="clock" class="text-sm text-slate-500"></span>
+                </div>
+                
+                <!-- Summary cards -->
+                <div class="grid grid-cols-4 gap-3">
+                    <div class="card rounded-lg p-3">
+                        <div class="text-xs text-slate-500">Мощность</div>
+                        <div class="text-xl font-semibold text-green-400"><span id="totalP">—</span> кВт</div>
+                    </div>
+                    <div class="card rounded-lg p-3">
+                        <div class="text-xs text-slate-500">Напряжение</div>
+                        <div class="text-xl font-semibold"><span id="totalU">—</span> В</div>
+                    </div>
+                    <div class="card rounded-lg p-3">
+                        <div class="text-xs text-slate-500">Генераторы</div>
+                        <div class="text-xl font-semibold"><span id="activeGen">0</span>/2</div>
+                    </div>
+                    <div id="statusCard" class="card rounded-lg p-3 cursor-pointer hover:border-slate-500" onclick="openAllAlarms()">
+                        <div class="text-xs text-slate-500">Состояние</div>
+                        <div id="statusText" class="flex items-center gap-2 text-sm">
+                            <span class="dot dot-green"></span> Норма
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Schema -->
+                <div class="card rounded-xl p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <span class="text-sm text-slate-400">Однолинейная схема</span>
+                        <div class="flex gap-2">
+                            <button onclick="toggleDemo()" id="demoBtn" class="px-3 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded">▶ Демо</button>
+                            <button onclick="openSettings()" class="px-3 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded flex items-center gap-1">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                Настройки
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="flex flex-col gap-4">
+                        <!-- Generators Row -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <!-- Generator 1 -->
+                            <div id="card-g1" class="card rounded-lg p-3">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <span id="dot-g1" class="dot dot-gray"></span>
+                                        <span class="text-sm font-medium">Генератор 1</span>
+                                    </div>
+                                    <span class="text-xs text-slate-500">ID:<span id="uid-g1">1</span></span>
+                                </div>
+                                <div id="alerts-g1" class="flex gap-1 mb-2 flex-wrap cursor-pointer" onclick="openDeviceAlarms('g1')"></div>
+                                <div class="grid grid-cols-2 gap-1 text-xs">
+                                    <div>P: <span id="g1-p" class="text-green-400">—</span> кВт</div>
+                                    <div>U: <span id="g1-u">—</span> В</div>
+                                    <div>I: <span id="g1-i">—</span> А</div>
+                                    <div>f: <span id="g1-f">—</span> Гц</div>
+                                </div>
+                                <div class="mt-2 pt-2 border-t border-slate-700 text-xs text-slate-500 flex justify-between">
+                                    <span id="g1-status">Офлайн</span>
+                                    <span>Моточасы: <span id="g1-hours" class="text-slate-300">—</span> ч</span>
+                                </div>
+                                <!-- TO Progress -->
+                                <div id="g1-to-section" class="mt-2 pt-2 border-t border-slate-700">
+                                    <div class="flex items-center justify-between text-xs mb-1">
+                                        <span id="g1-to-name" class="text-slate-400">ТО-1</span>
+                                        <span id="g1-to-remain" class="text-slate-400">— ч</span>
+                                    </div>
+                                    <div class="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                        <div id="g1-to-bar" class="h-full bg-green-500 rounded-full transition-all" style="width: 0%"></div>
+                                    </div>
+                                    <div id="g1-to-warn" class="hidden mt-1.5 text-xs text-yellow-400 flex items-center gap-1">
+                                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                                        <span id="g1-to-warn-text">ТО скоро</span>
+                                    </div>
+                                    <div id="g1-to-tasks" class="hidden mt-2 text-xs text-slate-500 border-t border-slate-700/50 pt-2"></div>
+                                    <button onclick="openTOManager('g1')" class="w-full mt-2 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs flex items-center justify-center gap-1">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                                        <span id="g1-to-btn-text">Провести ТО</span>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Generator 2 -->
+                            <div id="card-g2" class="card rounded-lg p-3">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <span id="dot-g2" class="dot dot-gray"></span>
+                                        <span class="text-sm font-medium">Генератор 2</span>
+                                    </div>
+                                    <span class="text-xs text-slate-500">ID:<span id="uid-g2">2</span></span>
+                                </div>
+                                <div id="alerts-g2" class="flex gap-1 mb-2 flex-wrap cursor-pointer" onclick="openDeviceAlarms('g2')"></div>
+                                <div class="grid grid-cols-2 gap-1 text-xs">
+                                    <div>P: <span id="g2-p" class="text-green-400">—</span> кВт</div>
+                                    <div>U: <span id="g2-u">—</span> В</div>
+                                    <div>I: <span id="g2-i">—</span> А</div>
+                                    <div>f: <span id="g2-f">—</span> Гц</div>
+                                </div>
+                                <div class="mt-2 pt-2 border-t border-slate-700 text-xs text-slate-500 flex justify-between">
+                                    <span id="g2-status">Офлайн</span>
+                                    <span>Моточасы: <span id="g2-hours" class="text-slate-300">—</span> ч</span>
+                                </div>
+                                <!-- TO Progress -->
+                                <div id="g2-to-section" class="mt-2 pt-2 border-t border-slate-700">
+                                    <div class="flex items-center justify-between text-xs mb-1">
+                                        <span id="g2-to-name" class="text-slate-400">ТО-1</span>
+                                        <span id="g2-to-remain" class="text-slate-400">— ч</span>
+                                    </div>
+                                    <div class="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                        <div id="g2-to-bar" class="h-full bg-green-500 rounded-full transition-all" style="width: 0%"></div>
+                                    </div>
+                                    <div id="g2-to-warn" class="hidden mt-1.5 text-xs text-yellow-400 flex items-center gap-1">
+                                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                                        <span id="g2-to-warn-text">ТО скоро</span>
+                                    </div>
+                                    <div id="g2-to-tasks" class="hidden mt-2 text-xs text-slate-500 border-t border-slate-700/50 pt-2"></div>
+                                    <button onclick="openTOManager('g2')" class="w-full mt-2 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs flex items-center justify-center gap-1">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                                        <span id="g2-to-btn-text">Провести ТО</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Power Lines from Generators -->
+                        <div class="flex justify-center">
+                            <div class="flex items-center gap-8">
+                                <div id="line-g1-indicator" class="w-16 h-1 bg-slate-600 rounded"></div>
+                                <div class="w-3 h-3 rounded-full bg-slate-600" id="junction-top"></div>
+                                <div id="line-g2-indicator" class="w-16 h-1 bg-slate-600 rounded"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- SPR -->
+                        <div class="flex justify-center">
+                            <div id="card-spr" class="card rounded-lg p-3 border-purple-500/40 w-72">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <span id="dot-spr" class="dot dot-gray"></span>
+                                        <span class="text-sm font-medium text-purple-300">ШПР</span>
+                                    </div>
+                                    <span class="text-xs text-slate-500">ID:<span id="uid-spr">1</span></span>
+                                </div>
+                                <div id="alerts-spr" class="flex gap-1 mb-2 flex-wrap cursor-pointer" onclick="openDeviceAlarms('spr')"></div>
+                                <div class="grid grid-cols-3 gap-2 text-xs text-center">
+                                    <div>P: <span id="spr-p" class="text-green-400">—</span></div>
+                                    <div>U: <span id="spr-u">—</span></div>
+                                    <div>f: <span id="spr-f">—</span></div>
+                                </div>
+                                <div class="mt-2 pt-2 border-t border-slate-700 text-xs text-slate-500 text-center">
+                                    <span id="spr-status">Офлайн</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Power Line to Busbar -->
+                        <div class="flex justify-center">
+                            <div id="line-spr-indicator" class="w-1 h-8 bg-slate-600 rounded"></div>
+                        </div>
+                        
+                        <!-- Busbar -->
+                        <div class="px-4">
+                            <div class="text-xs text-slate-500 text-center mb-1">Шина 0.4 кВ</div>
+                            <div id="busbar" class="busbar offline rounded-full"></div>
+                        </div>
+                        
+                        <!-- Power Line to Load -->
+                        <div class="flex justify-center">
+                            <div id="line-load-indicator" class="w-1 h-8 bg-slate-600 rounded"></div>
+                        </div>
+                        
+                        <!-- Load -->
+                        <div class="flex justify-center">
+                            <div class="text-center">
+                                <svg class="w-6 h-6 mx-auto text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                                <span class="text-xs text-slate-500">Нагрузка</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Events -->
+                <div class="card rounded-xl p-4">
+                    <div class="text-sm text-slate-400 mb-2">Журнал событий</div>
+                    <div id="eventsList" class="text-xs space-y-1 max-h-32 overflow-auto"></div>
+                </div>
+            </div>
+            
+            <!-- Multiscreen View -->
+            <div id="multiscreen" class="hidden h-full flex flex-col">
+                <div class="p-4 border-b border-slate-700 flex items-center justify-between bg-slate-800">
+                    <div class="flex items-center gap-3">
+                        <button onclick="closeMultiscreen()" class="p-2 hover:bg-slate-700 rounded">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                        </button>
+                        <span class="font-semibold">Мультиэкран</span>
+                        <span id="multiCount" class="text-sm text-slate-400"></span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <select id="multiLayout" onchange="renderMultiscreen()" class="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm">
+                            <option value="auto">Авто</option>
+                            <option value="1">1 колонка</option>
+                            <option value="2">2 колонки</option>
+                            <option value="3">3 колонки</option>
+                            <option value="4">4 колонки</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="multiGrid" class="flex-1 p-2 overflow-auto"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4" onclick="if(event.target===this)closeModal()">
+        <div class="bg-slate-800 rounded-xl w-full max-w-md max-h-[90vh] overflow-auto">
+            <div class="p-4 border-b border-slate-700 flex items-center justify-between">
+                <h3 id="modalTitle" class="font-medium">Заголовок</h3>
+                <button onclick="closeModal()" class="p-1 hover:bg-slate-700 rounded">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div id="modalContent" class="p-4"></div>
+        </div>
+    </div>
+
+    <script>
+        // ============ STATE ============
+        let sites = {};
+        let currentSite = null;
+        let events = [];
+        let alarms = {};
+        let demoInterval = null;
+        let demoStep = 0;
+
+        // ============ DOM HELPERS ============
+        const $ = id => document.getElementById(id);
+        
+        function save() {
+            localStorage.setItem('scada3_sites', JSON.stringify(sites));
+            localStorage.setItem('scada3_events', JSON.stringify(events));
+            localStorage.setItem('scada3_alarms', JSON.stringify(alarms));
+        }
+        
+        function load() {
+            try {
+                sites = JSON.parse(localStorage.getItem('scada3_sites')) || {};
+                events = JSON.parse(localStorage.getItem('scada3_events')) || [];
+                alarms = JSON.parse(localStorage.getItem('scada3_alarms')) || {};
+                toData = JSON.parse(localStorage.getItem('scada3_to')) || {};
+            } catch(e) {
+                sites = {}; events = []; alarms = {}; toData = {};
+            }
+        }
+
+        // ============ SITES ============
+        function renderSites() {
+            const list = $('sitesList');
+            const ids = Object.keys(sites);
+            
+            if (ids.length === 0) {
+                list.innerHTML = '<div class="text-center text-slate-500 text-sm py-4">Пусто</div>';
+                return;
+            }
+            
+            list.innerHTML = ids.map(id => {
+                const s = sites[id];
+                const active = id === currentSite;
+                return `
+                    <div class="group flex items-center gap-2 p-2 rounded cursor-pointer mb-1 ${active ? 'bg-slate-700' : 'hover:bg-slate-700/50'}" onclick="selectSite('${id}')">
+                        <span class="dot ${active ? 'dot-green' : 'dot-gray'}"></span>
+                        <span class="flex-1 text-sm truncate">${s.name}</span>
+                        <button onclick="event.stopPropagation(); editSite('${id}')" class="p-1 opacity-0 group-hover:opacity-100 hover:bg-slate-600 rounded" title="Редактировать">
+                            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
+                        <button onclick="event.stopPropagation(); deleteSite('${id}')" class="p-1 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 rounded" title="Удалить">
+                            <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function addSite() {
+            const name = 'Объект ' + (Object.keys(sites).length + 1);
+            const id = 'site_' + Date.now();
+            sites[id] = { name, g1: { unit: 1 }, g2: { unit: 2 }, spr: { unit: 1 } };
+            alarms[id] = { g1: { active: [], archived: [] }, g2: { active: [], archived: [] }, spr: { active: [], archived: [] } };
+            save();
+            renderSites();
+            selectSite(id);
+            addEvent('Создан: ' + name);
+        }
+        
+        function deleteSite(id) {
+            const name = sites[id].name;
+            delete sites[id];
+            delete alarms[id];
+            save();
+            
+            if (currentSite === id) {
+                const remaining = Object.keys(sites);
+                if (remaining.length > 0) {
+                    selectSite(remaining[0]);
+                } else {
+                    currentSite = null;
+                    $('dashboard').classList.add('hidden');
+                    $('emptyState').classList.remove('hidden');
+                }
+            }
+            renderSites();
+            addEvent('Удалён: ' + name);
+        }
+        
+        function selectSite(id) {
+            currentSite = id;
+            $('emptyState').classList.add('hidden');
+            $('dashboard').classList.remove('hidden');
+            $('siteName').textContent = sites[id].name;
+            $('uid-g1').textContent = sites[id].g1?.unit || 1;
+            $('uid-g2').textContent = sites[id].g2?.unit || 2;
+            $('uid-spr').textContent = sites[id].spr?.unit || 1;
+            renderSites();
+            renderAlarms();
+            renderEvents();
+            setPower(false, false);
+            
+            // Load TO progress (demo values for now)
+            initTOData(id, 'g1');
+            initTOData(id, 'g2');
+            // Set demo hours to show TO feature
+            setDemoHours(237, 485);
+        }
+
+        // ============ MODAL ============
+        function openModal() {
+            $('modal').classList.remove('hidden');
+            $('modal').classList.add('flex');
+        }
+        
+        function closeModal() {
+            $('modal').classList.add('hidden');
+            $('modal').classList.remove('flex');
+        }
+        
+        function editSite(id) {
+            const s = sites[id];
+            $('modalTitle').textContent = 'Редактировать объект';
+            $('modalContent').innerHTML = `
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-xs text-slate-400">Название объекта</label>
+                        <input id="edit-name" value="${s.name}" class="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400">Адрес (опционально)</label>
+                        <input id="edit-addr" value="${s.address || ''}" class="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" placeholder="ул. Примерная, 1">
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="saveEditSite('${id}')" class="flex-1 py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">Сохранить</button>
+                        <button onclick="closeModal()" class="flex-1 py-2 bg-slate-600 hover:bg-slate-500 rounded text-sm">Отмена</button>
+                    </div>
+                </div>
+            `;
+            openModal();
+        }
+        
+        function saveEditSite(id) {
+            const name = $('edit-name').value.trim();
+            if (!name) return;
+            sites[id].name = name;
+            sites[id].address = $('edit-addr').value.trim();
+            save();
+            renderSites();
+            if (currentSite === id) {
+                $('siteName').textContent = name;
+            }
+            closeModal();
+            addEvent('Изменён: ' + name);
+        }
+        
+        function openSettings() {
+            if (!currentSite) return;
+            const s = sites[currentSite];
+            $('modalTitle').textContent = 'Настройки контроллеров';
+            $('modalContent').innerHTML = `
+                <div class="space-y-4">
+                    <!-- Generator 1 -->
+                    <div class="p-3 bg-slate-700/50 rounded-lg">
+                        <div class="font-medium text-sm mb-3 flex items-center gap-2">
+                            <span class="dot dot-green"></span>
+                            Генератор 1 (HGM9520N)
+                        </div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="col-span-2">
+                                <label class="text-xs text-slate-400">IP адрес</label>
+                                <input id="cfg-g1-ip" value="${s.g1?.ip || ''}" class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm" placeholder="192.168.1.10">
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-400">Unit ID</label>
+                                <input id="cfg-g1-unit" type="number" value="${s.g1?.unit || 1}" min="1" max="247" class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm">
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <label class="text-xs text-slate-400">Порт</label>
+                            <input id="cfg-g1-port" type="number" value="${s.g1?.port || 502}" class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm" placeholder="502">
+                        </div>
+                    </div>
+                    
+                    <!-- Generator 2 -->
+                    <div class="p-3 bg-slate-700/50 rounded-lg">
+                        <div class="font-medium text-sm mb-3 flex items-center gap-2">
+                            <span class="dot dot-green"></span>
+                            Генератор 2 (HGM9520N)
+                        </div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="col-span-2">
+                                <label class="text-xs text-slate-400">IP адрес</label>
+                                <input id="cfg-g2-ip" value="${s.g2?.ip || ''}" class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm" placeholder="192.168.1.11">
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-400">Unit ID</label>
+                                <input id="cfg-g2-unit" type="number" value="${s.g2?.unit || 2}" min="1" max="247" class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm">
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <label class="text-xs text-slate-400">Порт</label>
+                            <input id="cfg-g2-port" type="number" value="${s.g2?.port || 502}" class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm" placeholder="502">
+                        </div>
+                    </div>
+                    
+                    <!-- SPR -->
+                    <div class="p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                        <div class="font-medium text-sm mb-3 flex items-center gap-2 text-purple-300">
+                            <span class="dot dot-green"></span>
+                            ШПР (HGM9560) — RS485
+                        </div>
+                        <div class="text-xs text-yellow-400 mb-2">⚠ Требуется конвертер RS485 → Ethernet</div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="col-span-2">
+                                <label class="text-xs text-slate-400">IP конвертера</label>
+                                <input id="cfg-spr-ip" value="${s.spr?.ip || ''}" class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm" placeholder="192.168.1.100">
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-400">Unit ID</label>
+                                <input id="cfg-spr-unit" type="number" value="${s.spr?.unit || 1}" min="1" max="247" class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 mt-2">
+                            <div>
+                                <label class="text-xs text-slate-400">Порт</label>
+                                <input id="cfg-spr-port" type="number" value="${s.spr?.port || 502}" class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm">
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-400">Baudrate</label>
+                                <select id="cfg-spr-baud" class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm">
+                                    <option value="9600" ${s.spr?.baud == 9600 ? 'selected' : ''}>9600</option>
+                                    <option value="19200" ${s.spr?.baud == 19200 ? 'selected' : ''}>19200</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button onclick="saveSettings()" class="w-full py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">Сохранить настройки</button>
+                </div>
+            `;
+            openModal();
+        }
+        
+        function saveSettings() {
+            if (!currentSite) return;
+            const s = sites[currentSite];
+            
+            s.g1 = {
+                ip: $('cfg-g1-ip').value.trim(),
+                port: parseInt($('cfg-g1-port').value) || 502,
+                unit: parseInt($('cfg-g1-unit').value) || 1
+            };
+            
+            s.g2 = {
+                ip: $('cfg-g2-ip').value.trim(),
+                port: parseInt($('cfg-g2-port').value) || 502,
+                unit: parseInt($('cfg-g2-unit').value) || 2
+            };
+            
+            s.spr = {
+                ip: $('cfg-spr-ip').value.trim(),
+                port: parseInt($('cfg-spr-port').value) || 502,
+                unit: parseInt($('cfg-spr-unit').value) || 1,
+                baud: parseInt($('cfg-spr-baud').value) || 9600
+            };
+            
+            save();
+            
+            // Update UI
+            $('uid-g1').textContent = s.g1.unit;
+            $('uid-g2').textContent = s.g2.unit;
+            $('uid-spr').textContent = s.spr.unit;
+            
+            closeModal();
+            addEvent('Настройки сохранены');
+        }
+        
+        function openDeviceAlarms(dev) {
+            if (!currentSite) return;
+            initAlarms(currentSite);
+            
+            const names = { g1: 'Генератор 1', g2: 'Генератор 2', spr: 'ШПР' };
+            const devAlarms = alarms[currentSite][dev];
+            const activeList = devAlarms.active || [];
+            const archivedList = devAlarms.archived || [];
+            
+            const formatTime = ts => {
+                const d = new Date(ts);
+                return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+            };
+            
+            const renderAlarm = (a, isArchived) => {
+                const color = a.type === 'alarm' ? 'red' : 'yellow';
+                return `
+                    <div class="flex items-start gap-2 p-2 rounded bg-${color}-500/10 border border-${color}-500/20">
+                        <span class="text-${color}-400">${warnIcon}</span>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-mono text-${color}-400">${a.code}</span>
+                                <span class="text-sm">${a.text}</span>
+                            </div>
+                            <div class="text-xs text-slate-500 mt-1">
+                                ${formatTime(a.time)}
+                                ${isArchived && a.resolved ? ' → ' + formatTime(a.resolved) : ''}
+                            </div>
+                        </div>
+                        ${!isArchived ? `<button onclick="resolveAlarmFromModal('${dev}', ${a.id})" class="text-xs text-slate-400 hover:text-green-400 px-2 py-1 bg-slate-700 rounded" title="Устранить">✓</button>` : ''}
+                    </div>
+                `;
+            };
+            
+            const activeHtml = activeList.length > 0
+                ? activeList.map(a => renderAlarm(a, false)).join('')
+                : '<div class="text-center text-green-400/70 py-4 text-sm">✓ Нет активных событий</div>';
+            
+            const archivedHtml = archivedList.length > 0
+                ? archivedList.slice(0, 15).map(a => renderAlarm(a, true)).join('')
+                : '<div class="text-center text-slate-500 py-4 text-sm">Архив пуст</div>';
+            
+            $('modalTitle').textContent = names[dev] + ' — События';
+            $('modalContent').innerHTML = `
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-red-400">Активные</span>
+                            <span class="text-xs text-slate-500">${activeList.length}</span>
+                        </div>
+                        <div class="space-y-2 max-h-40 overflow-auto">${activeHtml}</div>
+                    </div>
+                    
+                    <div class="border-t border-slate-700 pt-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-orange-400">Архив</span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-slate-500">${archivedList.length}</span>
+                                ${archivedList.length > 0 ? `<button onclick="clearArchive('${dev}')" class="text-xs text-slate-500 hover:text-red-400">Очистить</button>` : ''}
+                            </div>
+                        </div>
+                        <div class="space-y-2 max-h-48 overflow-auto">${archivedHtml}</div>
+                    </div>
+                </div>
+            `;
+            openModal();
+        }
+        
+        function resolveAlarmFromModal(dev, alarmId) {
+            resolveAlarm(dev, alarmId);
+            openDeviceAlarms(dev); // Refresh modal
+        }
+        
+        function clearArchive(dev) {
+            if (!currentSite) return;
+            initAlarms(currentSite);
+            alarms[currentSite][dev].archived = [];
+            save();
+            renderAlarms();
+            openDeviceAlarms(dev); // Refresh modal
+        }
+        
+        function openAllAlarms() {
+            if (!currentSite) return;
+            initAlarms(currentSite);
+            
+            const names = { g1: 'Генератор 1', g2: 'Генератор 2', spr: 'ШПР' };
+            
+            const formatTime = ts => {
+                const d = new Date(ts);
+                return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+            };
+            
+            let allActive = [];
+            let allArchived = [];
+            
+            ['g1', 'g2', 'spr'].forEach(dev => {
+                const devAlarms = alarms[currentSite][dev];
+                devAlarms.active.forEach(a => allActive.push({ ...a, device: dev, deviceName: names[dev] }));
+                devAlarms.archived.forEach(a => allArchived.push({ ...a, device: dev, deviceName: names[dev] }));
+            });
+            
+            // Sort by time (newest first)
+            allActive.sort((a, b) => new Date(b.time) - new Date(a.time));
+            allArchived.sort((a, b) => new Date(b.time) - new Date(a.time));
+            
+            const renderAlarm = (a, isArchived) => {
+                const color = a.type === 'alarm' ? 'red' : 'yellow';
+                return `
+                    <div class="flex items-start gap-2 p-2 rounded bg-${color}-500/10 border border-${color}-500/20">
+                        <span class="text-${color}-400">${warnIcon}</span>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="text-xs bg-slate-600 px-1.5 py-0.5 rounded">${a.deviceName}</span>
+                                <span class="text-xs font-mono text-${color}-400">${a.code}</span>
+                                <span class="text-sm">${a.text}</span>
+                            </div>
+                            <div class="text-xs text-slate-500 mt-1">
+                                ${formatTime(a.time)}
+                                ${isArchived && a.resolved ? ' → ' + formatTime(a.resolved) : ''}
+                            </div>
+                        </div>
+                        ${!isArchived ? `<button onclick="resolveAlarmFromAll('${a.device}', ${a.id})" class="text-xs text-slate-400 hover:text-green-400 px-2 py-1 bg-slate-700 rounded" title="Устранить">✓</button>` : ''}
+                    </div>
+                `;
+            };
+            
+            const activeHtml = allActive.length > 0
+                ? allActive.map(a => renderAlarm(a, false)).join('')
+                : '<div class="text-center text-green-400/70 py-4 text-sm">✓ Нет активных событий</div>';
+            
+            const archivedHtml = allArchived.length > 0
+                ? allArchived.slice(0, 20).map(a => renderAlarm(a, true)).join('')
+                : '<div class="text-center text-slate-500 py-4 text-sm">Архив пуст</div>';
+            
+            $('modalTitle').textContent = 'Все события';
+            $('modalContent').innerHTML = `
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-red-400 flex items-center gap-2">${warnIcon} Активные</span>
+                            <span class="text-xs text-slate-500">${allActive.length}</span>
+                        </div>
+                        <div class="space-y-2 max-h-48 overflow-auto">${activeHtml}</div>
+                    </div>
+                    
+                    <div class="border-t border-slate-700 pt-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-orange-400 flex items-center gap-2">${warnIcon} Архив</span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-slate-500">${allArchived.length}</span>
+                                ${allArchived.length > 0 ? `<button onclick="clearAllArchives()" class="text-xs text-slate-500 hover:text-red-400">Очистить всё</button>` : ''}
+                            </div>
+                        </div>
+                        <div class="space-y-2 max-h-56 overflow-auto">${archivedHtml}</div>
+                    </div>
+                </div>
+            `;
+            openModal();
+        }
+        
+        function resolveAlarmFromAll(dev, alarmId) {
+            resolveAlarm(dev, alarmId);
+            openAllAlarms(); // Refresh modal
+        }
+        
+        function clearAllArchives() {
+            if (!currentSite) return;
+            initAlarms(currentSite);
+            ['g1', 'g2', 'spr'].forEach(dev => {
+                alarms[currentSite][dev].archived = [];
+            });
+            save();
+            renderAlarms();
+            openAllAlarms(); // Refresh modal
+        }
+
+        // ============ TO MANAGER ============
+        const TO_INTERVALS = [
+            { name: 'ТО-1', hours: 250, color: 'green' },
+            { name: 'ТО-2', hours: 500, color: 'blue' },
+            { name: 'ТО-3', hours: 1000, color: 'purple' },
+            { name: 'ТО-4', hours: 2000, color: 'orange' }
+        ];
+        
+        let toData = {};
+        
+        function loadTOData() {
+            try {
+                toData = JSON.parse(localStorage.getItem('scada3_to')) || {};
+            } catch(e) {
+                toData = {};
+            }
+        }
+        
+        function saveTOData() {
+            localStorage.setItem('scada3_to', JSON.stringify(toData));
+        }
+        
+        function initTOData(siteId, dev) {
+            if (!toData[siteId]) toData[siteId] = {};
+            if (!toData[siteId][dev]) {
+                toData[siteId][dev] = {
+                    lastTO: null,
+                    hoursAtLastTO: 0,
+                    history: []
+                };
+            }
+        }
+        
+        function updateTOProgress(dev, currentHours) {
+            if (!currentSite) return;
+            initTOData(currentSite, dev);
+            loadMaintenanceTemplates();
+            
+            const data = toData[currentSite][dev];
+            const hoursSinceTO = currentHours - data.hoursAtLastTO;
+            
+            // Get template
+            const template = maintenanceTemplates['default'] || DEFAULT_TEMPLATES['default'];
+            const intervals = template.intervals;
+            
+            // Find next TO
+            let nextTO = intervals[0];
+            let nextTOIndex = 0;
+            for (let i = 0; i < intervals.length; i++) {
+                if (hoursSinceTO < intervals[i].hours) {
+                    nextTO = intervals[i];
+                    nextTOIndex = i;
+                    break;
+                }
+                // If exceeded all, show last one as overdue
+                if (i === intervals.length - 1) {
+                    nextTO = intervals[i];
+                    nextTOIndex = i;
+                }
+            }
+            
+            const remaining = nextTO.hours - hoursSinceTO;
+            const percent = Math.min(100, (hoursSinceTO / nextTO.hours) * 100);
+            
+            // Update UI elements
+            const nameEl = $(dev + '-to-name');
+            const remainEl = $(dev + '-to-remain');
+            const barEl = $(dev + '-to-bar');
+            const warnEl = $(dev + '-to-warn');
+            const warnTextEl = $(dev + '-to-warn-text');
+            const tasksEl = $(dev + '-to-tasks');
+            const btnTextEl = $(dev + '-to-btn-text');
+            
+            // Update name
+            if (nameEl) nameEl.textContent = nextTO.name;
+            
+            // Update remaining
+            if (remainEl) {
+                if (remaining <= 0) {
+                    remainEl.textContent = 'просрочено на ' + Math.abs(remaining) + ' ч';
+                    remainEl.className = 'text-red-400 font-medium';
+                } else {
+                    remainEl.textContent = 'через ' + remaining + ' ч';
+                    remainEl.className = remaining <= 20 ? 'text-yellow-400' : 'text-slate-400';
+                }
+            }
+            
+            // Update progress bar
+            if (barEl) {
+                barEl.style.width = percent + '%';
+                if (remaining <= 0) {
+                    barEl.className = 'h-full bg-red-500 rounded-full transition-all animate-pulse';
+                } else if (remaining <= 20) {
+                    barEl.className = 'h-full bg-yellow-500 rounded-full transition-all';
+                } else {
+                    barEl.className = 'h-full bg-green-500 rounded-full transition-all';
+                }
+            }
+            
+            // Update warning
+            if (warnEl && warnTextEl) {
+                if (remaining <= 0) {
+                    warnEl.classList.remove('hidden', 'text-yellow-400');
+                    warnEl.classList.add('text-red-400');
+                    warnTextEl.textContent = `${nextTO.name} просрочено! Требуется обслуживание`;
+                } else if (remaining <= 20) {
+                    warnEl.classList.remove('hidden', 'text-red-400');
+                    warnEl.classList.add('text-yellow-400');
+                    warnTextEl.textContent = `${nextTO.name} через ${remaining} ч`;
+                } else {
+                    warnEl.classList.add('hidden');
+                }
+            }
+            
+            // Show tasks preview when TO is due soon
+            if (tasksEl) {
+                if (remaining <= 50) {
+                    const criticalTasks = nextTO.tasks.filter(t => t.critical);
+                    const otherTasks = nextTO.tasks.filter(t => !t.critical);
+                    
+                    tasksEl.classList.remove('hidden');
+                    tasksEl.innerHTML = `
+                        <div class="text-slate-400 mb-1">Работы ${nextTO.name}:</div>
+                        <div class="max-h-16 hover:max-h-48 overflow-y-auto transition-all duration-300 space-y-0.5 pr-1 scrollbar-thin">
+                            ${criticalTasks.map(t => `<div class="text-red-400">• ${t.text}</div>`).join('')}
+                            ${otherTasks.map(t => `<div class="text-slate-400">• ${t.text}</div>`).join('')}
+                        </div>
+                        <div class="text-slate-500 mt-1 text-center hover:hidden">↕ наведите для просмотра всех ${nextTO.tasks.length} работ</div>
+                    `;
+                } else {
+                    tasksEl.classList.add('hidden');
+                }
+            }
+            
+            // Update button text
+            if (btnTextEl) {
+                if (remaining <= 0) {
+                    btnTextEl.textContent = '⚠ Выполнить ' + nextTO.name;
+                    btnTextEl.parentElement.className = 'w-full mt-2 py-1.5 bg-red-600 hover:bg-red-700 rounded text-xs flex items-center justify-center gap-1 animate-pulse';
+                } else if (remaining <= 20) {
+                    btnTextEl.textContent = 'Выполнить ' + nextTO.name;
+                    btnTextEl.parentElement.className = 'w-full mt-2 py-1.5 bg-yellow-600 hover:bg-yellow-700 rounded text-xs flex items-center justify-center gap-1';
+                } else {
+                    btnTextEl.textContent = 'Техобслуживание';
+                    btnTextEl.parentElement.className = 'w-full mt-2 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs flex items-center justify-center gap-1';
+                }
+            }
+        }
+        
+        function openTOManager(dev) {
+            if (!currentSite) return;
+            initTOData(currentSite, dev);
+            loadMaintenanceTemplates();
+            
+            const names = { g1: 'Генератор 1', g2: 'Генератор 2' };
+            const data = toData[currentSite][dev];
+            const currentHours = parseInt($(dev + '-hours')?.textContent) || 0;
+            const hoursSinceTO = currentHours - data.hoursAtLastTO;
+            
+            // Get template (use default for now, later can be per-generator)
+            const template = maintenanceTemplates['default'] || DEFAULT_TEMPLATES['default'];
+            const intervals = template.intervals;
+            
+            // Build TO intervals display
+            let intervalsHtml = intervals.map((to, idx) => {
+                const remaining = to.hours - hoursSinceTO;
+                const percent = Math.min(100, Math.max(0, (hoursSinceTO / to.hours) * 100));
+                const status = remaining <= 0 ? 'просрочено' : remaining <= 20 ? 'скоро' : 'норма';
+                const statusColor = remaining <= 0 ? 'red' : remaining <= 20 ? 'yellow' : 'green';
+                
+                return `
+                    <div class="p-3 bg-slate-700/50 rounded-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-medium">${to.name}</span>
+                            <span class="text-xs text-${statusColor}-400">${status}</span>
+                        </div>
+                        <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                            <span>Интервал: ${to.hours} ч</span>
+                            <span>Осталось: <span class="text-${statusColor}-400">${remaining > 0 ? remaining + ' ч' : '—'}</span></span>
+                        </div>
+                        <div class="h-2 bg-slate-600 rounded-full overflow-hidden">
+                            <div class="h-full bg-${statusColor}-500 rounded-full" style="width: ${percent}%"></div>
+                        </div>
+                        <div class="mt-2 text-xs text-slate-500">${to.tasks.length} работ • ${to.tasks.filter(t => t.critical).length} критичных</div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Build history
+            let historyHtml = '';
+            if (data.history && data.history.length > 0) {
+                historyHtml = data.history.slice(0, 10).map(h => `
+                    <div class="flex items-center justify-between py-2 border-b border-slate-700 last:border-0">
+                        <div>
+                            <span class="font-medium">${h.type}</span>
+                            <span class="text-xs text-slate-500 ml-2">${h.hours} ч</span>
+                            ${h.completedTasks ? `<span class="text-xs text-green-400 ml-2">✓ ${h.completedTasks}/${h.totalTasks}</span>` : ''}
+                        </div>
+                        <span class="text-xs text-slate-500">${new Date(h.date).toLocaleDateString('ru-RU')}</span>
+                    </div>
+                `).join('');
+            } else {
+                historyHtml = '<div class="text-center text-slate-500 py-4">История пуста</div>';
+            }
+            
+            $('modalTitle').textContent = names[dev] + ' — Техобслуживание';
+            $('modalContent').innerHTML = `
+                <div class="space-y-4">
+                    <!-- Current hours -->
+                    <div class="p-4 bg-slate-700/50 rounded-lg text-center">
+                        <div class="text-xs text-slate-400 mb-1">Текущие моточасы</div>
+                        <div class="text-3xl font-bold">${currentHours} <span class="text-lg text-slate-400">ч</span></div>
+                        <div class="text-xs text-slate-500 mt-1">После последнего ТО: ${hoursSinceTO} ч</div>
+                    </div>
+                    
+                    <!-- TO Intervals -->
+                    <div>
+                        <div class="text-sm text-slate-400 mb-2">Регламент: ${template.name}</div>
+                        <div class="space-y-2 max-h-40 overflow-auto">${intervalsHtml}</div>
+                    </div>
+                    
+                    <!-- Perform TO -->
+                    <div class="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                        <div class="text-sm font-medium text-green-400 mb-2">Провести ТО</div>
+                        <div class="flex gap-2">
+                            <select id="to-type" class="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm">
+                                ${intervals.map((to, idx) => `<option value="${idx}">${to.name} (${to.hours} ч)</option>`).join('')}
+                            </select>
+                            <button onclick="openTOChecklist('${dev}')" class="px-4 py-1.5 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">Начать</button>
+                        </div>
+                    </div>
+                    
+                    <!-- History -->
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-slate-400">История ТО</span>
+                            ${data.history && data.history.length > 0 ? `<button onclick="clearTOHistory('${dev}')" class="text-xs text-slate-500 hover:text-red-400">Очистить</button>` : ''}
+                        </div>
+                        <div class="max-h-32 overflow-auto">${historyHtml}</div>
+                    </div>
+                </div>
+            `;
+            openModal();
+        }
+        
+        function openTOChecklist(dev) {
+            if (!currentSite) return;
+            loadMaintenanceTemplates();
+            
+            const names = { g1: 'Генератор 1', g2: 'Генератор 2' };
+            const toIdx = parseInt($('to-type').value);
+            const template = maintenanceTemplates['default'] || DEFAULT_TEMPLATES['default'];
+            const interval = template.intervals[toIdx];
+            const currentHours = parseInt($(dev + '-hours')?.textContent) || 0;
+            
+            let tasksHtml = interval.tasks.map((task, idx) => `
+                <label class="flex items-start gap-3 p-2 rounded hover:bg-slate-700/50 cursor-pointer ${task.critical ? 'bg-red-500/5' : ''}">
+                    <input type="checkbox" id="task-${idx}" class="mt-1 w-4 h-4 rounded bg-slate-600 border-slate-500" ${task.critical ? 'required' : ''}>
+                    <div class="flex-1">
+                        <span class="text-sm">${task.text}</span>
+                        ${task.critical ? '<span class="ml-2 text-xs text-red-400">обязательно</span>' : ''}
+                    </div>
+                </label>
+            `).join('');
+            
+            $('modalTitle').textContent = `${interval.name} — ${names[dev]}`;
+            $('modalContent').innerHTML = `
+                <div class="space-y-4">
+                    <div class="p-3 bg-slate-700/50 rounded-lg flex items-center justify-between">
+                        <span class="text-sm">Моточасы:</span>
+                        <span class="font-bold">${currentHours} ч</span>
+                    </div>
+                    
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-slate-400">Чеклист работ</span>
+                            <button onclick="selectAllTasks(${interval.tasks.length})" class="text-xs text-green-400 hover:text-green-300">Выбрать все</button>
+                        </div>
+                        <div class="space-y-1 max-h-60 overflow-auto" id="checklist">
+                            ${tasksHtml}
+                        </div>
+                    </div>
+                    
+                    <div class="p-2 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs text-yellow-400">
+                        ⚠ После подтверждения счётчик моточасов "после ТО" будет сброшен
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <button onclick="completeTOChecklist('${dev}', ${toIdx})" class="flex-1 py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">✓ Подтвердить ТО</button>
+                        <button onclick="openTOManager('${dev}')" class="flex-1 py-2 bg-slate-600 hover:bg-slate-500 rounded text-sm">Отмена</button>
+                    </div>
+                </div>
+            `;
+            openModal();
+        }
+        
+        function selectAllTasks(count) {
+            for (let i = 0; i < count; i++) {
+                const cb = $('task-' + i);
+                if (cb) cb.checked = true;
+            }
+        }
+        
+        function completeTOChecklist(dev, toIdx) {
+            if (!currentSite) return;
+            
+            loadMaintenanceTemplates();
+            const template = maintenanceTemplates['default'] || DEFAULT_TEMPLATES['default'];
+            const interval = template.intervals[toIdx];
+            
+            // Check critical tasks
+            let completedTasks = 0;
+            let criticalMissing = false;
+            
+            interval.tasks.forEach((task, idx) => {
+                const cb = $('task-' + idx);
+                if (cb && cb.checked) {
+                    completedTasks++;
+                } else if (task.critical) {
+                    criticalMissing = true;
+                }
+            });
+            
+            if (criticalMissing) {
+                alert('Необходимо выполнить все критичные работы!');
+                return;
+            }
+            
+            // Record TO
+            initTOData(currentSite, dev);
+            const currentHours = parseInt($(dev + '-hours')?.textContent) || 0;
+            
+            toData[currentSite][dev].lastTO = new Date().toISOString();
+            toData[currentSite][dev].hoursAtLastTO = currentHours;
+            toData[currentSite][dev].history = toData[currentSite][dev].history || [];
+            toData[currentSite][dev].history.unshift({
+                type: interval.name,
+                hours: currentHours,
+                date: new Date().toISOString(),
+                completedTasks: completedTasks,
+                totalTasks: interval.tasks.length
+            });
+            
+            if (toData[currentSite][dev].history.length > 50) {
+                toData[currentSite][dev].history = toData[currentSite][dev].history.slice(0, 50);
+            }
+            
+            saveTOData();
+            updateTOProgress(dev, currentHours);
+            addEvent(`${interval.name} выполнено: ${dev === 'g1' ? 'Генератор 1' : 'Генератор 2'} (${completedTasks}/${interval.tasks.length} работ)`);
+            
+            openTOManager(dev);
+        }
+        
+        function clearTOHistory(dev) {
+            if (!currentSite) return;
+            initTOData(currentSite, dev);
+            toData[currentSite][dev].history = [];
+            saveTOData();
+            openTOManager(dev);
+        }
+        
+        // Demo: simulate hours for testing
+        function setDemoHours(g1Hours, g2Hours) {
+            $('g1-hours').textContent = g1Hours;
+            $('g2-hours').textContent = g2Hours;
+            updateTOProgress('g1', g1Hours);
+            updateTOProgress('g2', g2Hours);
+        }
+
+        // ============ MAINTENANCE TEMPLATES ============
+        let maintenanceTemplates = {};
+        
+        // Default templates
+        const DEFAULT_TEMPLATES = {
+            'default': {
+                name: 'Стандартный регламент',
+                intervals: [
+                    {
+                        id: 'to1',
+                        name: 'ТО-1',
+                        hours: 250,
+                        tasks: [
+                            { id: 1, text: 'Замена моторного масла', critical: true },
+                            { id: 2, text: 'Замена масляного фильтра', critical: true },
+                            { id: 3, text: 'Проверка уровня охлаждающей жидкости', critical: true },
+                            { id: 4, text: 'Проверка натяжения приводных ремней', critical: false },
+                            { id: 5, text: 'Проверка состояния аккумулятора', critical: false },
+                            { id: 6, text: 'Проверка затяжки клемм аккумулятора', critical: false },
+                            { id: 7, text: 'Визуальный осмотр на утечки масла', critical: false },
+                            { id: 8, text: 'Визуальный осмотр на утечки ОЖ', critical: false },
+                            { id: 9, text: 'Визуальный осмотр на утечки топлива', critical: false },
+                            { id: 10, text: 'Проверка показаний приборов', critical: false }
+                        ]
+                    },
+                    {
+                        id: 'to2',
+                        name: 'ТО-2',
+                        hours: 500,
+                        tasks: [
+                            // Все работы ТО-1
+                            { id: 1, text: 'Замена моторного масла', critical: true },
+                            { id: 2, text: 'Замена масляного фильтра', critical: true },
+                            { id: 3, text: 'Проверка уровня охлаждающей жидкости', critical: true },
+                            { id: 4, text: 'Проверка натяжения приводных ремней', critical: false },
+                            { id: 5, text: 'Проверка состояния аккумулятора', critical: false },
+                            { id: 6, text: 'Проверка затяжки клемм аккумулятора', critical: false },
+                            { id: 7, text: 'Визуальный осмотр на утечки масла', critical: false },
+                            { id: 8, text: 'Визуальный осмотр на утечки ОЖ', critical: false },
+                            { id: 9, text: 'Визуальный осмотр на утечки топлива', critical: false },
+                            { id: 10, text: 'Проверка показаний приборов', critical: false },
+                            // Дополнительные работы ТО-2
+                            { id: 11, text: 'Замена воздушного фильтра', critical: true },
+                            { id: 12, text: 'Замена топливного фильтра', critical: true },
+                            { id: 13, text: 'Проверка состояния топливных шлангов', critical: false },
+                            { id: 14, text: 'Проверка форсунок на подтекание', critical: false },
+                            { id: 15, text: 'Проверка давления масла на холостом ходу', critical: false },
+                            { id: 16, text: 'Проверка давления масла под нагрузкой', critical: false },
+                            { id: 17, text: 'Слив отстоя из топливного бака', critical: false },
+                            { id: 18, text: 'Очистка сапуна двигателя', critical: false }
+                        ]
+                    },
+                    {
+                        id: 'to3',
+                        name: 'ТО-3',
+                        hours: 1000,
+                        tasks: [
+                            // Все работы ТО-1
+                            { id: 1, text: 'Замена моторного масла', critical: true },
+                            { id: 2, text: 'Замена масляного фильтра', critical: true },
+                            { id: 3, text: 'Проверка уровня охлаждающей жидкости', critical: true },
+                            { id: 4, text: 'Проверка натяжения приводных ремней', critical: false },
+                            { id: 5, text: 'Проверка состояния аккумулятора', critical: false },
+                            { id: 6, text: 'Проверка затяжки клемм аккумулятора', critical: false },
+                            { id: 7, text: 'Визуальный осмотр на утечки масла', critical: false },
+                            { id: 8, text: 'Визуальный осмотр на утечки ОЖ', critical: false },
+                            { id: 9, text: 'Визуальный осмотр на утечки топлива', critical: false },
+                            { id: 10, text: 'Проверка показаний приборов', critical: false },
+                            // Все работы ТО-2
+                            { id: 11, text: 'Замена воздушного фильтра', critical: true },
+                            { id: 12, text: 'Замена топливного фильтра', critical: true },
+                            { id: 13, text: 'Проверка состояния топливных шлангов', critical: false },
+                            { id: 14, text: 'Проверка форсунок на подтекание', critical: false },
+                            { id: 15, text: 'Проверка давления масла на холостом ходу', critical: false },
+                            { id: 16, text: 'Проверка давления масла под нагрузкой', critical: false },
+                            { id: 17, text: 'Слив отстоя из топливного бака', critical: false },
+                            { id: 18, text: 'Очистка сапуна двигателя', critical: false },
+                            // Дополнительные работы ТО-3
+                            { id: 19, text: 'Замена охлаждающей жидкости полностью', critical: true },
+                            { id: 20, text: 'Промывка системы охлаждения', critical: true },
+                            { id: 21, text: 'Регулировка тепловых зазоров клапанов', critical: true },
+                            { id: 22, text: 'Проверка компрессии в цилиндрах', critical: true },
+                            { id: 23, text: 'Проверка турбокомпрессора на люфт', critical: false },
+                            { id: 24, text: 'Проверка турбокомпрессора на подтекание масла', critical: false },
+                            { id: 25, text: 'Проверка генератора: напряжение заряда', critical: false },
+                            { id: 26, text: 'Проверка генератора: ток заряда', critical: false },
+                            { id: 27, text: 'Проверка стартера: ток потребления', critical: false },
+                            { id: 28, text: 'Очистка радиатора снаружи', critical: false },
+                            { id: 29, text: 'Проверка термостата', critical: false },
+                            { id: 30, text: 'Проверка работы вентилятора охлаждения', critical: false }
+                        ]
+                    },
+                    {
+                        id: 'to4',
+                        name: 'ТО-4',
+                        hours: 2000,
+                        tasks: [
+                            // Все работы ТО-1
+                            { id: 1, text: 'Замена моторного масла', critical: true },
+                            { id: 2, text: 'Замена масляного фильтра', critical: true },
+                            { id: 3, text: 'Проверка уровня охлаждающей жидкости', critical: true },
+                            { id: 4, text: 'Проверка натяжения приводных ремней', critical: false },
+                            { id: 5, text: 'Проверка состояния аккумулятора', critical: false },
+                            { id: 6, text: 'Проверка затяжки клемм аккумулятора', critical: false },
+                            { id: 7, text: 'Визуальный осмотр на утечки масла', critical: false },
+                            { id: 8, text: 'Визуальный осмотр на утечки ОЖ', critical: false },
+                            { id: 9, text: 'Визуальный осмотр на утечки топлива', critical: false },
+                            { id: 10, text: 'Проверка показаний приборов', critical: false },
+                            // Все работы ТО-2
+                            { id: 11, text: 'Замена воздушного фильтра', critical: true },
+                            { id: 12, text: 'Замена топливного фильтра', critical: true },
+                            { id: 13, text: 'Проверка состояния топливных шлангов', critical: false },
+                            { id: 14, text: 'Проверка форсунок на подтекание', critical: false },
+                            { id: 15, text: 'Проверка давления масла на холостом ходу', critical: false },
+                            { id: 16, text: 'Проверка давления масла под нагрузкой', critical: false },
+                            { id: 17, text: 'Слив отстоя из топливного бака', critical: false },
+                            { id: 18, text: 'Очистка сапуна двигателя', critical: false },
+                            // Все работы ТО-3
+                            { id: 19, text: 'Замена охлаждающей жидкости полностью', critical: true },
+                            { id: 20, text: 'Промывка системы охлаждения', critical: true },
+                            { id: 21, text: 'Регулировка тепловых зазоров клапанов', critical: true },
+                            { id: 22, text: 'Проверка компрессии в цилиндрах', critical: true },
+                            { id: 23, text: 'Проверка турбокомпрессора на люфт', critical: false },
+                            { id: 24, text: 'Проверка турбокомпрессора на подтекание масла', critical: false },
+                            { id: 25, text: 'Проверка генератора: напряжение заряда', critical: false },
+                            { id: 26, text: 'Проверка генератора: ток заряда', critical: false },
+                            { id: 27, text: 'Проверка стартера: ток потребления', critical: false },
+                            { id: 28, text: 'Очистка радиатора снаружи', critical: false },
+                            { id: 29, text: 'Проверка термостата', critical: false },
+                            { id: 30, text: 'Проверка работы вентилятора охлаждения', critical: false },
+                            // Дополнительные работы ТО-4
+                            { id: 31, text: 'Замена ремня ГРМ', critical: true },
+                            { id: 32, text: 'Замена натяжного ролика ГРМ', critical: true },
+                            { id: 33, text: 'Замена водяного насоса (помпы)', critical: true },
+                            { id: 34, text: 'Замена приводных ремней', critical: true },
+                            { id: 35, text: 'Проверка состояния шкивов', critical: false },
+                            { id: 36, text: 'Проверка опор двигателя', critical: false },
+                            { id: 37, text: 'Проверка выхлопной системы на герметичность', critical: false },
+                            { id: 38, text: 'Проверка состояния глушителя', critical: false },
+                            { id: 39, text: 'Диагностика блока управления двигателем', critical: false },
+                            { id: 40, text: 'Считывание и сброс ошибок ЭБУ', critical: false },
+                            { id: 41, text: 'Проверка всех датчиков двигателя', critical: false },
+                            { id: 42, text: 'Проверка электропроводки на повреждения', critical: false },
+                            { id: 43, text: 'Протяжка всех крепёжных соединений', critical: false },
+                            { id: 44, text: 'Замена антифриза в расширительном бачке', critical: false },
+                            { id: 45, text: 'Полный осмотр двигателя с фиксацией состояния', critical: true }
+                        ]
+                    }
+                ]
+            }
+        };
+        
+        function loadMaintenanceTemplates() {
+            try {
+                const saved = JSON.parse(localStorage.getItem('scada3_templates'));
+                // Check if saved templates have old format (tasks with "Все работы")
+                if (saved && saved.default && saved.default.intervals) {
+                    const hasOldFormat = saved.default.intervals.some(interval => 
+                        interval.tasks && interval.tasks.some(task => 
+                            task.text && task.text.includes('Все работы')
+                        )
+                    );
+                    if (hasOldFormat) {
+                        // Reset to new format
+                        maintenanceTemplates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+                        saveMaintenanceTemplates();
+                        return;
+                    }
+                }
+                maintenanceTemplates = saved || JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+            } catch(e) {
+                maintenanceTemplates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+            }
+        }
+        
+        function saveMaintenanceTemplates() {
+            localStorage.setItem('scada3_templates', JSON.stringify(maintenanceTemplates));
+        }
+        
+        function openMaintenanceTemplates() {
+            loadMaintenanceTemplates();
+            
+            const templateIds = Object.keys(maintenanceTemplates);
+            
+            let templatesHtml = templateIds.map(id => {
+                const t = maintenanceTemplates[id];
+                return `
+                    <div class="p-3 bg-slate-700/50 rounded-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-medium">${t.name}</span>
+                            <div class="flex gap-1">
+                                <button onclick="editTemplate('${id}')" class="p-1 hover:bg-slate-600 rounded text-slate-400 hover:text-white">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                </button>
+                                ${id !== 'default' ? `
+                                <button onclick="deleteTemplate('${id}')" class="p-1 hover:bg-red-500/20 rounded text-slate-400 hover:text-red-400">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-1">
+                            ${t.intervals.map(i => `
+                                <span class="px-2 py-0.5 bg-slate-600 rounded text-xs">${i.name}: ${i.hours}ч</span>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            $('modalTitle').textContent = 'Регламенты ТО';
+            $('modalContent').innerHTML = `
+                <div class="space-y-3 mb-4 max-h-64 overflow-auto">
+                    ${templatesHtml}
+                </div>
+                
+                <div class="space-y-2">
+                    <button onclick="createNewTemplate()" class="w-full py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-medium flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        Создать вручную
+                    </button>
+                    
+                    <button onclick="openImportTemplate()" class="w-full py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm font-medium flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                        Импорт из PDF/Word (AI)
+                    </button>
+                    
+                    <button onclick="resetToDefaults()" class="w-full py-2 bg-slate-600 hover:bg-slate-500 rounded text-sm text-slate-300">
+                        Сбросить к стандартным
+                    </button>
+                </div>
+            `;
+            openModal();
+        }
+        
+        // ============ AI IMPORT ============
+        function openImportTemplate() {
+            $('modalTitle').textContent = 'Импорт регламента (AI)';
+            $('modalContent').innerHTML = `
+                <div class="space-y-4">
+                    <div class="p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                        <div class="flex items-center gap-2 mb-2">
+                            <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                            <span class="font-medium text-purple-300">AI-парсер регламентов</span>
+                        </div>
+                        <p class="text-xs text-slate-400">
+                            Загрузите PDF или Word файл с регламентом ТО. 
+                            AI проанализирует документ и автоматически создаст структурированный регламент.
+                        </p>
+                    </div>
+                    
+                    <div>
+                        <label class="text-xs text-slate-400">Файл регламента</label>
+                        <div class="mt-1 border-2 border-dashed border-slate-600 rounded-lg p-4 text-center hover:border-purple-500 transition cursor-pointer" onclick="$('import-file').click()">
+                            <input type="file" id="import-file" accept=".pdf,.doc,.docx,.txt" class="hidden" onchange="handleFileSelect(this)">
+                            <svg class="w-8 h-8 mx-auto text-slate-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                            <p class="text-sm text-slate-400" id="file-label">Нажмите для выбора файла</p>
+                            <p class="text-xs text-slate-500 mt-1">PDF, Word или TXT</p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="text-xs text-slate-400">Или вставьте текст регламента</label>
+                        <textarea id="import-text" class="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm h-32 resize-none" placeholder="Вставьте текст регламента ТО..."></textarea>
+                    </div>
+                    
+                    <div id="import-status" class="hidden">
+                        <div class="flex items-center gap-2 p-3 bg-slate-700/50 rounded">
+                            <div class="animate-spin w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full"></div>
+                            <span class="text-sm text-slate-300">AI анализирует документ...</span>
+                        </div>
+                    </div>
+                    
+                    <div id="import-result" class="hidden"></div>
+                    
+                    <div class="flex gap-2">
+                        <button onclick="parseWithAI()" id="parse-btn" class="flex-1 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm font-medium">
+                            🤖 Распознать с AI
+                        </button>
+                        <button onclick="openMaintenanceTemplates()" class="flex-1 py-2 bg-slate-600 hover:bg-slate-500 rounded text-sm">
+                            Назад
+                        </button>
+                    </div>
+                </div>
+            `;
+            openModal();
+        }
+        
+        let importedFileContent = '';
+        
+        function handleFileSelect(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            $('file-label').textContent = file.name;
+            
+            // Read file content
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                if (file.name.endsWith('.txt')) {
+                    importedFileContent = e.target.result;
+                    $('import-text').value = importedFileContent;
+                } else {
+                    // For PDF/Word, we'll send as base64
+                    importedFileContent = e.target.result;
+                }
+            };
+            
+            if (file.name.endsWith('.txt')) {
+                reader.readAsText(file);
+            } else {
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        async function parseWithAI() {
+            const text = $('import-text').value.trim();
+            
+            if (!text && !importedFileContent) {
+                alert('Загрузите файл или вставьте текст регламента');
+                return;
+            }
+            
+            $('import-status').classList.remove('hidden');
+            $('parse-btn').disabled = true;
+            
+            const content = text || importedFileContent;
+            
+            // Simulate AI parsing (in production, this would call Claude API via backend)
+            // For demo, we'll use a simple parser
+            setTimeout(() => {
+                const parsed = simulateAIParsing(content);
+                showParseResult(parsed);
+            }, 1500);
+        }
+        
+        function simulateAIParsing(content) {
+            // This simulates what Claude API would return
+            // In production, send to backend which calls Claude API
+            
+            // Try to extract TO intervals from text
+            const result = {
+                name: 'Импортированный регламент',
+                intervals: []
+            };
+            
+            // Simple regex patterns to find TO sections
+            const toPatterns = [
+                /ТО[-\s]*1[:\s]*([\s\S]*?)(?=ТО[-\s]*2|$)/gi,
+                /ТО[-\s]*2[:\s]*([\s\S]*?)(?=ТО[-\s]*3|$)/gi,
+                /ТО[-\s]*3[:\s]*([\s\S]*?)(?=ТО[-\s]*4|$)/gi,
+                /ТО[-\s]*4[:\s]*([\s\S]*?)$/gi
+            ];
+            
+            const defaultHours = [250, 500, 1000, 2000];
+            
+            // Extract hours if mentioned
+            const hoursPattern = /(\d+)\s*(?:час|ч\.|моточас)/gi;
+            const foundHours = [];
+            let match;
+            while ((match = hoursPattern.exec(content)) !== null) {
+                foundHours.push(parseInt(match[1]));
+            }
+            
+            // Extract tasks (lines starting with - or • or numbers)
+            const taskPattern = /^[\s]*[-•\d.)\]]+\s*(.+)$/gm;
+            const allTasks = [];
+            while ((match = taskPattern.exec(content)) !== null) {
+                const task = match[1].trim();
+                if (task.length > 3 && task.length < 200) {
+                    allTasks.push(task);
+                }
+            }
+            
+            // Create intervals
+            for (let i = 0; i < 4; i++) {
+                const hours = foundHours[i] || defaultHours[i];
+                const tasksStart = Math.floor(i * allTasks.length / 4);
+                const tasksEnd = Math.floor((i + 1) * allTasks.length / 4);
+                const tasks = allTasks.slice(tasksStart, tasksEnd);
+                
+                if (tasks.length === 0) {
+                    // Add default tasks if none found
+                    tasks.push('Проверка и обслуживание согласно регламенту');
+                }
+                
+                result.intervals.push({
+                    id: 'to' + (i + 1),
+                    name: 'ТО-' + (i + 1),
+                    hours: hours,
+                    tasks: tasks.map((text, idx) => ({
+                        id: idx + 1,
+                        text: text,
+                        critical: idx < 2 // First 2 tasks are critical
+                    }))
+                });
+            }
+            
+            // Try to extract name
+            const nameMatch = content.match(/регламент[:\s]+([^\n]+)/i);
+            if (nameMatch) {
+                result.name = nameMatch[1].trim().substring(0, 50);
+            }
+            
+            return result;
+        }
+        
+        function showParseResult(parsed) {
+            $('import-status').classList.add('hidden');
+            $('parse-btn').disabled = false;
+            
+            const resultDiv = $('import-result');
+            resultDiv.classList.remove('hidden');
+            
+            resultDiv.innerHTML = `
+                <div class="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        <span class="font-medium text-green-400">Регламент распознан!</span>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="text-xs text-slate-400">Название</label>
+                        <input id="parsed-name" value="${parsed.name}" class="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm">
+                    </div>
+                    
+                    <div class="space-y-2 max-h-40 overflow-auto">
+                        ${parsed.intervals.map(i => `
+                            <div class="p-2 bg-slate-700/50 rounded">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-medium text-sm">${i.name}</span>
+                                    <span class="text-xs text-slate-400">${i.hours} ч • ${i.tasks.length} работ</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    
+                    <button onclick="saveImportedTemplate()" class="w-full mt-3 py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">
+                        ✓ Сохранить регламент
+                    </button>
+                </div>
+            `;
+            
+            // Store parsed result for saving
+            window.parsedTemplate = parsed;
+        }
+        
+        function saveImportedTemplate() {
+            if (!window.parsedTemplate) return;
+            
+            const name = $('parsed-name')?.value || window.parsedTemplate.name;
+            window.parsedTemplate.name = name;
+            
+            const id = 'imported_' + Date.now();
+            maintenanceTemplates[id] = window.parsedTemplate;
+            saveMaintenanceTemplates();
+            
+            addEvent('Импортирован регламент: ' + name);
+            openMaintenanceTemplates();
+        }
+
+        // ============ BITRIX24 INTEGRATION ============
+        let bitrixSettings = {
+            enabled: false,
+            webhookUrl: '',
+            hoursBeforeTO: 48,
+            responsibleDefault: '',
+            autoCreateTasks: true,
+            autoCloseTasks: true,
+            notifyOnCreate: true,
+            groupId: ''
+        };
+        
+        function loadBitrixSettings() {
+            try {
+                const saved = JSON.parse(localStorage.getItem('scada3_bitrix'));
+                if (saved) bitrixSettings = { ...bitrixSettings, ...saved };
+            } catch(e) {}
+        }
+        
+        function saveBitrixSettings() {
+            localStorage.setItem('scada3_bitrix', JSON.stringify(bitrixSettings));
+        }
+        
+        function openBitrixSettings() {
+            loadBitrixSettings();
+            
+            const statusClass = bitrixSettings.enabled && bitrixSettings.webhookUrl 
+                ? 'bg-green-500/20 text-green-400 border-green-500/30' 
+                : 'bg-slate-700/50 text-slate-400 border-slate-600';
+            const statusText = bitrixSettings.enabled && bitrixSettings.webhookUrl 
+                ? '● Подключено' 
+                : '○ Не настроено';
+            
+            $('modalTitle').textContent = 'Интеграция с Битрикс24';
+            $('modalContent').innerHTML = `
+                <div class="space-y-4">
+                    <!-- Status -->
+                    <div class="p-3 rounded-lg border ${statusClass} flex items-center justify-between">
+                        <span class="text-sm">${statusText}</span>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <span class="text-xs">Включено</span>
+                            <input type="checkbox" id="bitrix-enabled" ${bitrixSettings.enabled ? 'checked' : ''} 
+                                class="w-4 h-4 rounded bg-slate-600 border-slate-500" onchange="toggleBitrixEnabled()">
+                        </label>
+                    </div>
+                    
+                    <!-- Webhook URL -->
+                    <div>
+                        <label class="text-xs text-slate-400">Webhook URL</label>
+                        <input id="bitrix-webhook" value="${bitrixSettings.webhookUrl}" 
+                            class="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm font-mono"
+                            placeholder="https://your-domain.bitrix24.ru/rest/1/xxxxx/">
+                        <p class="text-xs text-slate-500 mt-1">Создайте входящий вебхук в Битрикс24 → Разработчикам → Другое → Входящий вебхук</p>
+                    </div>
+                    
+                    <!-- Task Settings -->
+                    <div class="p-3 bg-slate-700/30 rounded-lg space-y-3">
+                        <div class="text-sm text-slate-300 font-medium">Настройки задач</div>
+                        
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-xs text-slate-400">Создавать за (часов)</label>
+                                <input id="bitrix-hours" type="number" value="${bitrixSettings.hoursBeforeTO}" min="1" max="168"
+                                    class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm">
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-400">ID группы/проекта</label>
+                                <input id="bitrix-group" value="${bitrixSettings.groupId}"
+                                    class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm"
+                                    placeholder="Опционально">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="text-xs text-slate-400">ID ответственного по умолчанию</label>
+                            <input id="bitrix-responsible" value="${bitrixSettings.responsibleDefault}"
+                                class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm"
+                                placeholder="1">
+                            <p class="text-xs text-slate-500 mt-1">ID пользователя в Битрикс24 (можно найти в профиле)</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Automation -->
+                    <div class="p-3 bg-slate-700/30 rounded-lg space-y-2">
+                        <div class="text-sm text-slate-300 font-medium">Автоматизация</div>
+                        
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" id="bitrix-auto-create" ${bitrixSettings.autoCreateTasks ? 'checked' : ''}
+                                class="w-4 h-4 rounded bg-slate-600 border-slate-500">
+                            <span class="text-sm">Автоматически создавать задачи при приближении ТО</span>
+                        </label>
+                        
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" id="bitrix-auto-close" ${bitrixSettings.autoCloseTasks ? 'checked' : ''}
+                                class="w-4 h-4 rounded bg-slate-600 border-slate-500">
+                            <span class="text-sm">Закрывать задачу при выполнении ТО в SCADA</span>
+                        </label>
+                        
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" id="bitrix-notify" ${bitrixSettings.notifyOnCreate ? 'checked' : ''}
+                                class="w-4 h-4 rounded bg-slate-600 border-slate-500">
+                            <span class="text-sm">Уведомлять ответственного при создании задачи</span>
+                        </label>
+                    </div>
+                    
+                    <!-- Per-site settings link -->
+                    <button onclick="openBitrixSiteSettings()" class="w-full py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        Ответственные по объектам
+                    </button>
+                    
+                    <!-- Test & Save -->
+                    <div class="flex gap-2">
+                        <button onclick="testBitrixConnection()" class="flex-1 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium">
+                            🔗 Проверить подключение
+                        </button>
+                        <button onclick="saveBitrixSettingsForm()" class="flex-1 py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">
+                            💾 Сохранить
+                        </button>
+                    </div>
+                </div>
+            `;
+            openModal();
+        }
+        
+        function toggleBitrixEnabled() {
+            const enabled = $('bitrix-enabled').checked;
+            bitrixSettings.enabled = enabled;
+            saveBitrixSettings();
+            openBitrixSettings(); // Refresh UI
+        }
+        
+        function saveBitrixSettingsForm() {
+            bitrixSettings.enabled = $('bitrix-enabled').checked;
+            bitrixSettings.webhookUrl = $('bitrix-webhook').value.trim();
+            bitrixSettings.hoursBeforeTO = parseInt($('bitrix-hours').value) || 48;
+            bitrixSettings.groupId = $('bitrix-group').value.trim();
+            bitrixSettings.responsibleDefault = $('bitrix-responsible').value.trim();
+            bitrixSettings.autoCreateTasks = $('bitrix-auto-create').checked;
+            bitrixSettings.autoCloseTasks = $('bitrix-auto-close').checked;
+            bitrixSettings.notifyOnCreate = $('bitrix-notify').checked;
+            
+            saveBitrixSettings();
+            addEvent('Настройки Битрикс24 сохранены');
+            closeModal();
+        }
+        
+        async function testBitrixConnection() {
+            const webhookUrl = $('bitrix-webhook').value.trim();
+            if (!webhookUrl) {
+                alert('Введите Webhook URL');
+                return;
+            }
+            
+            // Show loading
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = '⏳ Проверка...';
+            btn.disabled = true;
+            
+            try {
+                // Test with profile.get method
+                const response = await fetch(webhookUrl + 'profile/', {
+                    method: 'GET'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.result) {
+                        alert(`✅ Подключение успешно!\n\nПользователь: ${data.result.NAME} ${data.result.LAST_NAME}\nID: ${data.result.ID}`);
+                        $('bitrix-responsible').value = data.result.ID;
+                    } else {
+                        alert('❌ Ошибка: неверный ответ от Битрикс24');
+                    }
+                } else {
+                    alert('❌ Ошибка подключения: ' + response.status);
+                }
+            } catch (e) {
+                alert('❌ Ошибка: ' + e.message + '\n\nВозможно, нужно настроить CORS или использовать backend.');
+            }
+            
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+        
+        function openBitrixSiteSettings() {
+            const siteIds = Object.keys(sites);
+            
+            if (siteIds.length === 0) {
+                alert('Сначала добавьте объекты');
+                return;
+            }
+            
+            let sitesHtml = siteIds.map(id => {
+                const s = sites[id];
+                const responsible = s.bitrixResponsible || bitrixSettings.responsibleDefault || '';
+                return `
+                    <div class="p-3 bg-slate-700/50 rounded-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-medium">${s.name}</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-xs text-slate-400">ID ответственного</label>
+                                <input id="resp-${id}" value="${responsible}" 
+                                    class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm"
+                                    placeholder="${bitrixSettings.responsibleDefault || 'ID'}">
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-400">ID группы</label>
+                                <input id="group-${id}" value="${s.bitrixGroup || ''}" 
+                                    class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm"
+                                    placeholder="${bitrixSettings.groupId || 'ID'}">
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            $('modalTitle').textContent = 'Ответственные по объектам';
+            $('modalContent').innerHTML = `
+                <div class="space-y-3 max-h-80 overflow-auto mb-4">
+                    ${sitesHtml}
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="saveBitrixSiteSettings()" class="flex-1 py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">Сохранить</button>
+                    <button onclick="openBitrixSettings()" class="flex-1 py-2 bg-slate-600 hover:bg-slate-500 rounded text-sm">Назад</button>
+                </div>
+            `;
+            openModal();
+        }
+        
+        function saveBitrixSiteSettings() {
+            Object.keys(sites).forEach(id => {
+                sites[id].bitrixResponsible = $('resp-' + id)?.value.trim() || '';
+                sites[id].bitrixGroup = $('group-' + id)?.value.trim() || '';
+            });
+            save();
+            addEvent('Ответственные по объектам сохранены');
+            openBitrixSettings();
+        }
+        
+        // Function to create task in Bitrix24 (will be called by backend)
+        function createBitrixTask(siteId, deviceId, toInterval) {
+            if (!bitrixSettings.enabled || !bitrixSettings.webhookUrl) {
+                console.log('Bitrix24 not configured');
+                return null;
+            }
+            
+            const site = sites[siteId];
+            const deviceNames = { g1: 'Генератор 1', g2: 'Генератор 2' };
+            const responsible = site.bitrixResponsible || bitrixSettings.responsibleDefault;
+            const groupId = site.bitrixGroup || bitrixSettings.groupId;
+            
+            // Build checklist from tasks
+            const checklistItems = toInterval.tasks.map((task, idx) => ({
+                TITLE: task.text,
+                IS_COMPLETE: 'N',
+                SORT_INDEX: idx
+            }));
+            
+            const taskData = {
+                fields: {
+                    TITLE: `${toInterval.name} — ${deviceNames[deviceId]} — ${site.name}`,
+                    DESCRIPTION: `Требуется проведение ${toInterval.name} (${toInterval.hours} моточасов)\n\nОбъект: ${site.name}\nУстройство: ${deviceNames[deviceId]}\n\nСоздано автоматически системой SCADA`,
+                    RESPONSIBLE_ID: responsible,
+                    GROUP_ID: groupId || undefined,
+                    PRIORITY: '2', // High
+                    DEADLINE: new Date(Date.now() + bitrixSettings.hoursBeforeTO * 3600000).toISOString(),
+                    TAGS: ['SCADA', 'ТО', toInterval.name, site.name],
+                    // Checklist will be added separately
+                }
+            };
+            
+            return { taskData, checklistItems };
+        }
+        
+        // Preview task that would be created
+        function previewBitrixTask(dev) {
+            if (!currentSite) return;
+            loadMaintenanceTemplates();
+            loadBitrixSettings();
+            
+            const site = sites[currentSite];
+            const template = maintenanceTemplates['default'] || DEFAULT_TEMPLATES['default'];
+            const toIdx = 0; // Next TO
+            const interval = template.intervals[toIdx];
+            
+            const taskPreview = createBitrixTask(currentSite, dev, interval);
+            
+            if (!taskPreview) {
+                alert('Битрикс24 не настроен');
+                return;
+            }
+            
+            const deviceNames = { g1: 'Генератор 1', g2: 'Генератор 2' };
+            
+            $('modalTitle').textContent = 'Превью задачи Битрикс24';
+            $('modalContent').innerHTML = `
+                <div class="space-y-4">
+                    <div class="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                        <div class="font-medium mb-2">${taskPreview.taskData.fields.TITLE}</div>
+                        <div class="text-sm text-slate-400 whitespace-pre-line">${taskPreview.taskData.fields.DESCRIPTION}</div>
+                    </div>
+                    
+                    <div>
+                        <div class="text-sm text-slate-400 mb-2">Чеклист (${taskPreview.checklistItems.length} пунктов)</div>
+                        <div class="max-h-48 overflow-auto space-y-1">
+                            ${taskPreview.checklistItems.map(item => `
+                                <div class="flex items-center gap-2 p-2 bg-slate-700/50 rounded text-sm">
+                                    <span class="w-4 h-4 border border-slate-500 rounded"></span>
+                                    ${item.TITLE}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-3 text-sm">
+                        <div class="p-2 bg-slate-700/50 rounded">
+                            <div class="text-xs text-slate-500">Ответственный ID</div>
+                            <div>${site.bitrixResponsible || bitrixSettings.responsibleDefault || '—'}</div>
+                        </div>
+                        <div class="p-2 bg-slate-700/50 rounded">
+                            <div class="text-xs text-slate-500">Группа ID</div>
+                            <div>${site.bitrixGroup || bitrixSettings.groupId || '—'}</div>
+                        </div>
+                    </div>
+                    
+                    <button onclick="closeModal()" class="w-full py-2 bg-slate-600 hover:bg-slate-500 rounded text-sm">Закрыть</button>
+                </div>
+            `;
+            openModal();
+        }
+        
+        function createNewTemplate() {
+            const id = 'template_' + Date.now();
+            maintenanceTemplates[id] = {
+                name: 'Новый регламент',
+                intervals: [
+                    { id: 'to1', name: 'ТО-1', hours: 250, tasks: [] }
+                ]
+            };
+            saveMaintenanceTemplates();
+            editTemplate(id);
+        }
+        
+        function deleteTemplate(id) {
+            delete maintenanceTemplates[id];
+            saveMaintenanceTemplates();
+            openMaintenanceTemplates();
+        }
+        
+        function resetToDefaults() {
+            maintenanceTemplates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+            saveMaintenanceTemplates();
+            openMaintenanceTemplates();
+        }
+        
+        let currentEditTemplate = null;
+        let currentEditInterval = null;
+        
+        function editTemplate(id) {
+            currentEditTemplate = id;
+            const t = maintenanceTemplates[id];
+            
+            let intervalsHtml = t.intervals.map((interval, idx) => `
+                <div class="p-3 bg-slate-700/50 rounded-lg">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="font-medium text-green-400">${interval.name}</span>
+                            <span class="text-xs text-slate-400">${interval.hours} ч</span>
+                        </div>
+                        <div class="flex gap-1">
+                            <button onclick="editInterval('${id}', ${idx})" class="px-2 py-1 bg-slate-600 hover:bg-slate-500 rounded text-xs">Редактировать</button>
+                            ${t.intervals.length > 1 ? `
+                            <button onclick="deleteInterval('${id}', ${idx})" class="p-1 hover:bg-red-500/20 rounded text-red-400">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                    <div class="text-xs text-slate-400">
+                        ${interval.tasks.length} работ${getTasksEnding(interval.tasks.length)}
+                        ${interval.tasks.filter(t => t.critical).length > 0 ? 
+                            ` • <span class="text-red-400">${interval.tasks.filter(t => t.critical).length} критичных</span>` : ''}
+                    </div>
+                </div>
+            `).join('');
+            
+            $('modalTitle').textContent = 'Редактирование: ' + t.name;
+            $('modalContent').innerHTML = `
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-xs text-slate-400">Название регламента</label>
+                        <input id="template-name" value="${t.name}" class="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm">
+                    </div>
+                    
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-slate-400">Интервалы ТО</span>
+                            <button onclick="addInterval('${id}')" class="text-xs text-green-400 hover:text-green-300">+ Добавить</button>
+                        </div>
+                        <div class="space-y-2 max-h-48 overflow-auto">
+                            ${intervalsHtml}
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <button onclick="saveTemplate('${id}')" class="flex-1 py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">Сохранить</button>
+                        <button onclick="openMaintenanceTemplates()" class="flex-1 py-2 bg-slate-600 hover:bg-slate-500 rounded text-sm">Назад</button>
+                    </div>
+                </div>
+            `;
+            openModal();
+        }
+        
+        function getTasksEnding(count) {
+            if (count === 1) return 'а';
+            if (count >= 2 && count <= 4) return 'ы';
+            return '';
+        }
+        
+        function saveTemplate(id) {
+            const name = $('template-name').value.trim();
+            if (name) {
+                maintenanceTemplates[id].name = name;
+                saveMaintenanceTemplates();
+            }
+            openMaintenanceTemplates();
+        }
+        
+        function addInterval(templateId) {
+            const t = maintenanceTemplates[templateId];
+            const lastInterval = t.intervals[t.intervals.length - 1];
+            const newHours = lastInterval ? lastInterval.hours * 2 : 250;
+            const newNum = t.intervals.length + 1;
+            
+            t.intervals.push({
+                id: 'to' + newNum,
+                name: 'ТО-' + newNum,
+                hours: newHours,
+                tasks: []
+            });
+            saveMaintenanceTemplates();
+            editTemplate(templateId);
+        }
+        
+        function deleteInterval(templateId, idx) {
+            maintenanceTemplates[templateId].intervals.splice(idx, 1);
+            saveMaintenanceTemplates();
+            editTemplate(templateId);
+        }
+        
+        function editInterval(templateId, idx) {
+            currentEditTemplate = templateId;
+            currentEditInterval = idx;
+            
+            const t = maintenanceTemplates[templateId];
+            const interval = t.intervals[idx];
+            
+            let tasksHtml = interval.tasks.map((task, taskIdx) => `
+                <div class="flex items-center gap-2 p-2 bg-slate-700/50 rounded ${task.critical ? 'border-l-2 border-red-500' : ''}">
+                    <span class="flex-1 text-sm">${task.text}</span>
+                    <button onclick="toggleTaskCritical('${templateId}', ${idx}, ${taskIdx})" class="p-1 rounded ${task.critical ? 'text-red-400 bg-red-500/20' : 'text-slate-400 hover:bg-slate-600'}" title="Критичная работа">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                    </button>
+                    <button onclick="deleteTask('${templateId}', ${idx}, ${taskIdx})" class="p-1 hover:bg-red-500/20 rounded text-slate-400 hover:text-red-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+            `).join('');
+            
+            if (interval.tasks.length === 0) {
+                tasksHtml = '<div class="text-center text-slate-500 py-4 text-sm">Нет работ</div>';
+            }
+            
+            $('modalTitle').textContent = interval.name + ' — ' + t.name;
+            $('modalContent').innerHTML = `
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-xs text-slate-400">Название</label>
+                            <input id="interval-name" value="${interval.name}" class="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm">
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-400">Интервал (ч)</label>
+                            <input id="interval-hours" type="number" value="${interval.hours}" class="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-slate-400">Перечень работ</span>
+                            <span class="text-xs text-slate-500">${interval.tasks.length} работ</span>
+                        </div>
+                        <div class="space-y-1 max-h-40 overflow-auto mb-2">
+                            ${tasksHtml}
+                        </div>
+                        <div class="flex gap-2">
+                            <input id="new-task" class="flex-1 bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm" placeholder="Новая работа...">
+                            <button onclick="addTask('${templateId}', ${idx})" class="px-3 py-2 bg-green-600 hover:bg-green-700 rounded text-sm">+</button>
+                        </div>
+                    </div>
+                    
+                    <div class="p-2 bg-slate-700/30 rounded text-xs text-slate-400">
+                        <span class="text-red-400">▌</span> — критичная работа (обязательна для выполнения)
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <button onclick="saveInterval('${templateId}', ${idx})" class="flex-1 py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">Сохранить</button>
+                        <button onclick="editTemplate('${templateId}')" class="flex-1 py-2 bg-slate-600 hover:bg-slate-500 rounded text-sm">Назад</button>
+                    </div>
+                </div>
+            `;
+            openModal();
+            
+            // Enter to add task
+            $('new-task').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') addTask(templateId, idx);
+            });
+        }
+        
+        function saveInterval(templateId, idx) {
+            const interval = maintenanceTemplates[templateId].intervals[idx];
+            interval.name = $('interval-name').value.trim() || interval.name;
+            interval.hours = parseInt($('interval-hours').value) || interval.hours;
+            saveMaintenanceTemplates();
+            editTemplate(templateId);
+        }
+        
+        function addTask(templateId, idx) {
+            const text = $('new-task').value.trim();
+            if (!text) return;
+            
+            const interval = maintenanceTemplates[templateId].intervals[idx];
+            interval.tasks.push({
+                id: Date.now(),
+                text: text,
+                critical: false
+            });
+            saveMaintenanceTemplates();
+            editInterval(templateId, idx);
+        }
+        
+        function deleteTask(templateId, intervalIdx, taskIdx) {
+            maintenanceTemplates[templateId].intervals[intervalIdx].tasks.splice(taskIdx, 1);
+            saveMaintenanceTemplates();
+            editInterval(templateId, intervalIdx);
+        }
+        
+        function toggleTaskCritical(templateId, intervalIdx, taskIdx) {
+            const task = maintenanceTemplates[templateId].intervals[intervalIdx].tasks[taskIdx];
+            task.critical = !task.critical;
+            saveMaintenanceTemplates();
+            editInterval(templateId, intervalIdx);
+        }
+
+        // ============ POWER FLOW ============
+        function setPower(g1, g2) {
+            const any = g1 || g2;
+            
+            // Update line indicators
+            const g1Line = $('line-g1-indicator');
+            const g2Line = $('line-g2-indicator');
+            const junction = $('junction-top');
+            const sprLine = $('line-spr-indicator');
+            const loadLine = $('line-load-indicator');
+            
+            if (g1Line) g1Line.className = g1 ? 'w-16 h-1 bg-green-500 rounded shadow-lg shadow-green-500/50' : 'w-16 h-1 bg-slate-600 rounded';
+            if (g2Line) g2Line.className = g2 ? 'w-16 h-1 bg-green-500 rounded shadow-lg shadow-green-500/50' : 'w-16 h-1 bg-slate-600 rounded';
+            if (junction) junction.className = any ? 'w-3 h-3 rounded-full bg-green-500 shadow-lg shadow-green-500/50' : 'w-3 h-3 rounded-full bg-slate-600';
+            if (sprLine) sprLine.className = any ? 'w-1 h-8 bg-green-500 rounded shadow-lg shadow-green-500/50' : 'w-1 h-8 bg-slate-600 rounded';
+            if (loadLine) loadLine.className = any ? 'w-1 h-8 bg-green-500 rounded shadow-lg shadow-green-500/50' : 'w-1 h-8 bg-slate-600 rounded';
+            
+            $('dot-g1').className = 'dot ' + (g1 ? 'dot-green' : 'dot-gray');
+            $('dot-g2').className = 'dot ' + (g2 ? 'dot-green' : 'dot-gray');
+            $('dot-spr').className = 'dot ' + (any ? 'dot-green' : 'dot-gray');
+            
+            $('g1-status').textContent = g1 ? 'Работа' : 'Офлайн';
+            $('g2-status').textContent = g2 ? 'Работа' : 'Офлайн';
+            $('spr-status').textContent = any ? 'Синхрон.' : 'Офлайн';
+            
+            $('busbar').classList.toggle('offline', !any);
+            $('activeGen').textContent = (g1 ? 1 : 0) + (g2 ? 1 : 0);
+        }
+        
+        function setDeviceStatus(dev, status) {
+            const dot = $('dot-' + dev);
+            const text = $(dev + '-status');
+            const card = $('card-' + dev);
+            
+            const map = {
+                offline: ['dot-gray', 'Офлайн'],
+                running: ['dot-green', 'Работа'],
+                warning: ['dot-yellow', 'Внимание'],
+                alarm: ['dot-red', 'Авария'],
+                sync: ['dot-green', 'Синхрон.']
+            };
+            
+            const [dotClass, statusText] = map[status] || map.offline;
+            dot.className = 'dot ' + dotClass;
+            text.textContent = statusText;
+            
+            card.classList.remove('alarm', 'warning');
+            if (status === 'alarm') card.classList.add('alarm');
+            if (status === 'warning') card.classList.add('warning');
+        }
+
+        // ============ ALARMS ============
+        const warnIcon = `<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>`;
+        
+        function initAlarms(siteId) {
+            if (!alarms[siteId]) {
+                alarms[siteId] = { g1: { active: [], archived: [] }, g2: { active: [], archived: [] }, spr: { active: [], archived: [] } };
+            }
+        }
+        
+        function addAlarm(dev, type, code, text) {
+            if (!currentSite) return;
+            initAlarms(currentSite);
+            alarms[currentSite][dev].active.push({ id: Date.now(), type, code, text, time: new Date().toISOString() });
+            save();
+            renderAlarms();
+            addEvent(`[${code}] ${text}`);
+        }
+        
+        function resolveAlarm(dev, alarmId) {
+            if (!currentSite) return;
+            initAlarms(currentSite);
+            const devAlarms = alarms[currentSite][dev];
+            const idx = devAlarms.active.findIndex(a => a.id === alarmId);
+            if (idx !== -1) {
+                const alarm = devAlarms.active.splice(idx, 1)[0];
+                alarm.resolved = new Date().toISOString();
+                devAlarms.archived.unshift(alarm);
+                if (devAlarms.archived.length > 20) devAlarms.archived.pop();
+                save();
+                renderAlarms();
+            }
+        }
+        
+        function renderAlarms() {
+            if (!currentSite) return;
+            initAlarms(currentSite);
+            
+            let totalA = 0, totalW = 0, totalArch = 0;
+            
+            ['g1', 'g2', 'spr'].forEach(dev => {
+                const devAlarms = alarms[currentSite][dev];
+                const a = devAlarms.active.filter(x => x.type === 'alarm').length;
+                const w = devAlarms.active.filter(x => x.type === 'warning').length;
+                const arch = devAlarms.archived.length;
+                
+                totalA += a;
+                totalW += w;
+                totalArch += arch;
+                
+                let html = '';
+                if (a > 0) html += `<span class="flex items-center gap-1 px-1.5 py-0.5 bg-red-500/20 text-red-400 text-xs rounded">${warnIcon}${a}</span>`;
+                if (w > 0) html += `<span class="flex items-center gap-1 px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded">${warnIcon}${w}</span>`;
+                if (arch > 0) html += `<span class="flex items-center gap-1 px-1.5 py-0.5 bg-orange-500/20 text-orange-400 text-xs rounded">${warnIcon}+${arch}</span>`;
+                
+                $('alerts-' + dev).innerHTML = html;
+                
+                const card = $('card-' + dev);
+                card.classList.remove('alarm', 'warning');
+                if (a > 0) card.classList.add('alarm');
+                else if (w > 0 || arch > 0) card.classList.add('warning');
+            });
+            
+            // Global status
+            const statusCard = $('statusCard');
+            const statusText = $('statusText');
+            statusCard.classList.remove('alarm', 'warning');
+            
+            if (totalA > 0) {
+                statusText.innerHTML = `<span class="dot dot-red"></span><span class="text-red-400">Авария</span><span class="ml-2 text-xs">${warnIcon} ${totalA}</span>`;
+                statusCard.classList.add('alarm');
+            } else if (totalW > 0) {
+                statusText.innerHTML = `<span class="dot dot-yellow"></span><span class="text-yellow-400">Внимание</span><span class="ml-2 text-xs">${warnIcon} ${totalW}</span>`;
+                statusCard.classList.add('warning');
+            } else if (totalArch > 0) {
+                statusText.innerHTML = `<span class="dot dot-yellow"></span><span class="text-slate-300">Архив</span><span class="ml-2 text-xs text-orange-400">${warnIcon} +${totalArch}</span>`;
+            } else {
+                statusText.innerHTML = `<span class="dot dot-green"></span><span>Норма</span>`;
+            }
+        }
+
+        // ============ EVENTS ============
+        function addEvent(msg) {
+            const time = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            events.unshift({ time, msg, site: currentSite });
+            if (events.length > 50) events.pop();
+            save();
+            renderEvents();
+        }
+        
+        function renderEvents() {
+            const list = $('eventsList');
+            const filtered = events.filter(e => e.site === currentSite).slice(0, 15);
+            if (filtered.length === 0) {
+                list.innerHTML = '<div class="text-slate-500">Нет событий</div>';
+                return;
+            }
+            list.innerHTML = filtered.map(e => `<div class="text-slate-400"><span class="text-slate-600">${e.time}</span> ${e.msg}</div>`).join('');
+        }
+
+        // ============ DEMO ============
+        function toggleDemo() {
+            if (demoInterval) {
+                clearInterval(demoInterval);
+                demoInterval = null;
+                $('demoBtn').textContent = '▶ Демо';
+                setPower(false, false);
+                setDeviceStatus('g1', 'offline');
+                setDeviceStatus('g2', 'offline');
+                setDeviceStatus('spr', 'offline');
+            } else {
+                $('demoBtn').textContent = '⏹ Стоп';
+                demoStep = 0;
+                runDemoStep();
+                demoInterval = setInterval(runDemoStep, 2500);
+            }
+        }
+        
+        function runDemoStep() {
+            if (!currentSite) return;
+            initAlarms(currentSite);
+            
+            demoStep = (demoStep + 1) % 12;
+            
+            switch(demoStep) {
+                case 1:
+                    setPower(true, true);
+                    setDeviceStatus('g1', 'running');
+                    setDeviceStatus('g2', 'running');
+                    setDeviceStatus('spr', 'sync');
+                    break;
+                case 2:
+                    addAlarm('g1', 'warning', 'W01', 'Высокая температура ОЖ');
+                    setDeviceStatus('g1', 'warning');
+                    break;
+                case 3:
+                    addAlarm('g1', 'warning', 'W02', 'Низкое давление масла');
+                    break;
+                case 4:
+                    addAlarm('g1', 'alarm', 'A01', 'Перегрев двигателя!');
+                    setPower(false, true);
+                    setDeviceStatus('g1', 'alarm');
+                    break;
+                case 5:
+                    const a1 = alarms[currentSite].g1.active.find(x => x.type === 'alarm');
+                    if (a1) resolveAlarm('g1', a1.id);
+                    setDeviceStatus('g1', 'warning');
+                    break;
+                case 6:
+                    alarms[currentSite].g1.active.slice().forEach(a => resolveAlarm('g1', a.id));
+                    setPower(true, true);
+                    setDeviceStatus('g1', 'running');
+                    break;
+                case 7:
+                    addAlarm('g2', 'warning', 'W03', 'Вибрация выше нормы');
+                    setDeviceStatus('g2', 'warning');
+                    break;
+                case 8:
+                    alarms[currentSite].g2.active.slice().forEach(a => resolveAlarm('g2', a.id));
+                    setDeviceStatus('g2', 'running');
+                    break;
+                case 9:
+                    addAlarm('spr', 'warning', 'S01', 'Рассинхронизация частоты');
+                    setDeviceStatus('spr', 'warning');
+                    break;
+                case 10:
+                    addAlarm('spr', 'alarm', 'S02', 'Ошибка синхронизации!');
+                    setPower(false, false);
+                    setDeviceStatus('spr', 'alarm');
+                    setDeviceStatus('g1', 'offline');
+                    setDeviceStatus('g2', 'offline');
+                    break;
+                case 11:
+                    alarms[currentSite].spr.active.slice().forEach(a => resolveAlarm('spr', a.id));
+                    setPower(true, true);
+                    setDeviceStatus('g1', 'running');
+                    setDeviceStatus('g2', 'running');
+                    setDeviceStatus('spr', 'sync');
+                    break;
+                case 0:
+                    // Reset cycle
+                    break;
+            }
+        }
+
+        // ============ MULTISCREEN ============
+        let multiSelected = new Set();
+        
+        function openMultiscreen() {
+            const ids = Object.keys(sites);
+            if (ids.length === 0) {
+                addEvent('Нет объектов для отображения');
+                return;
+            }
+            
+            // Show selection modal
+            $('modalTitle').textContent = 'Мультиэкран — выбор объектов';
+            
+            let html = '<div class="space-y-2 max-h-64 overflow-auto mb-4">';
+            ids.forEach(id => {
+                const s = sites[id];
+                const checked = multiSelected.has(id) ? 'checked' : '';
+                html += `
+                    <label class="flex items-center gap-3 p-2 rounded hover:bg-slate-700 cursor-pointer">
+                        <input type="checkbox" id="multi-${id}" ${checked} onchange="toggleMultiSelect('${id}')" class="w-4 h-4 rounded bg-slate-600 border-slate-500">
+                        <span class="flex-1">${s.name}</span>
+                        ${s.address ? `<span class="text-xs text-slate-500">${s.address}</span>` : ''}
+                    </label>
+                `;
+            });
+            html += '</div>';
+            
+            html += `
+                <div class="flex gap-2">
+                    <button onclick="selectAllMulti()" class="flex-1 py-2 bg-slate-600 hover:bg-slate-500 rounded text-sm">Выбрать все</button>
+                    <button onclick="deselectAllMulti()" class="flex-1 py-2 bg-slate-600 hover:bg-slate-500 rounded text-sm">Снять все</button>
+                </div>
+                <button onclick="startMultiscreen()" class="w-full mt-3 py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">
+                    Показать (${multiSelected.size})
+                </button>
+            `;
+            
+            $('modalContent').innerHTML = html;
+            openModal();
+        }
+        
+        function toggleMultiSelect(id) {
+            if (multiSelected.has(id)) {
+                multiSelected.delete(id);
+            } else {
+                multiSelected.add(id);
+            }
+            // Update button text
+            const btn = $('modalContent').querySelector('button:last-child');
+            if (btn) btn.textContent = `Показать (${multiSelected.size})`;
+        }
+        
+        function selectAllMulti() {
+            Object.keys(sites).forEach(id => {
+                multiSelected.add(id);
+                const cb = $('multi-' + id);
+                if (cb) cb.checked = true;
+            });
+            const btn = $('modalContent').querySelector('button:last-child');
+            if (btn) btn.textContent = `Показать (${multiSelected.size})`;
+        }
+        
+        function deselectAllMulti() {
+            multiSelected.clear();
+            Object.keys(sites).forEach(id => {
+                const cb = $('multi-' + id);
+                if (cb) cb.checked = false;
+            });
+            const btn = $('modalContent').querySelector('button:last-child');
+            if (btn) btn.textContent = `Показать (${multiSelected.size})`;
+        }
+        
+        function startMultiscreen() {
+            if (multiSelected.size === 0) {
+                return;
+            }
+            closeModal();
+            
+            // Hide other views
+            $('emptyState').classList.add('hidden');
+            $('dashboard').classList.add('hidden');
+            $('multiscreen').classList.remove('hidden');
+            
+            $('multiCount').textContent = `${multiSelected.size} объектов`;
+            
+            renderMultiscreen();
+        }
+        
+        function closeMultiscreen() {
+            $('multiscreen').classList.add('hidden');
+            
+            // Show appropriate view
+            if (currentSite && sites[currentSite]) {
+                $('dashboard').classList.remove('hidden');
+            } else {
+                const ids = Object.keys(sites);
+                if (ids.length > 0) {
+                    selectSite(ids[0]);
+                } else {
+                    $('emptyState').classList.remove('hidden');
+                }
+            }
+        }
+        
+        function renderMultiscreen() {
+            const grid = $('multiGrid');
+            const layout = $('multiLayout').value;
+            const selected = Array.from(multiSelected).filter(id => sites[id]);
+            
+            if (selected.length === 0) {
+                grid.innerHTML = '<div class="flex items-center justify-center h-full text-slate-500">Нет выбранных объектов</div>';
+                return;
+            }
+            
+            // Calculate columns
+            let cols;
+            if (layout === 'auto') {
+                if (selected.length === 1) cols = 1;
+                else if (selected.length === 2) cols = 2;
+                else if (selected.length <= 4) cols = 2;
+                else if (selected.length <= 6) cols = 3;
+                else cols = 4;
+            } else {
+                cols = parseInt(layout);
+            }
+            
+            grid.style.display = 'grid';
+            grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+            grid.style.gap = '8px';
+            
+            grid.innerHTML = selected.map(id => {
+                const s = sites[id];
+                initAlarms(id);
+                const siteAlarms = alarms[id] || { g1: { active: [], archived: [] }, g2: { active: [], archived: [] }, spr: { active: [], archived: [] } };
+                
+                let totalActive = 0;
+                let totalArchived = 0;
+                let hasAlarm = false;
+                let hasWarning = false;
+                
+                ['g1', 'g2', 'spr'].forEach(dev => {
+                    const devA = siteAlarms[dev] || { active: [], archived: [] };
+                    totalActive += devA.active.length;
+                    totalArchived += devA.archived.length;
+                    if (devA.active.some(a => a.type === 'alarm')) hasAlarm = true;
+                    if (devA.active.some(a => a.type === 'warning')) hasWarning = true;
+                });
+                
+                const borderClass = hasAlarm ? 'border-red-500' : hasWarning ? 'border-yellow-500' : 'border-slate-600';
+                const statusDot = hasAlarm ? 'dot-red' : hasWarning ? 'dot-yellow' : 'dot-green';
+                
+                return `
+                    <div class="card rounded-lg p-3 border ${borderClass} cursor-pointer hover:border-slate-500" onclick="selectSiteFromMulti('${id}')">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="dot ${statusDot}"></span>
+                                <span class="font-medium text-sm truncate">${s.name}</span>
+                            </div>
+                            ${totalActive > 0 ? `<span class="flex items-center gap-1 px-1.5 py-0.5 bg-red-500/20 text-red-400 text-xs rounded">${warnIcon}${totalActive}</span>` : ''}
+                            ${totalArchived > 0 && totalActive === 0 ? `<span class="flex items-center gap-1 px-1.5 py-0.5 bg-orange-500/20 text-orange-400 text-xs rounded">${warnIcon}+${totalArchived}</span>` : ''}
+                        </div>
+                        
+                        <div class="grid grid-cols-3 gap-1 text-xs">
+                            <div class="bg-slate-700/50 rounded p-1.5 text-center">
+                                <div class="text-slate-500">Г1</div>
+                                <div class="font-medium ${getDeviceStatusColor(id, 'g1')}">${getDeviceStatusText(id, 'g1')}</div>
+                            </div>
+                            <div class="bg-slate-700/50 rounded p-1.5 text-center">
+                                <div class="text-slate-500">Г2</div>
+                                <div class="font-medium ${getDeviceStatusColor(id, 'g2')}">${getDeviceStatusText(id, 'g2')}</div>
+                            </div>
+                            <div class="bg-slate-700/50 rounded p-1.5 text-center">
+                                <div class="text-purple-400">ШПР</div>
+                                <div class="font-medium ${getDeviceStatusColor(id, 'spr')}">${getDeviceStatusText(id, 'spr')}</div>
+                            </div>
+                        </div>
+                        
+                        ${s.address ? `<div class="mt-2 text-xs text-slate-500 truncate">${s.address}</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function getDeviceStatusColor(siteId, dev) {
+            initAlarms(siteId);
+            const devAlarms = alarms[siteId]?.[dev]?.active || [];
+            if (devAlarms.some(a => a.type === 'alarm')) return 'text-red-400';
+            if (devAlarms.some(a => a.type === 'warning')) return 'text-yellow-400';
+            return 'text-green-400';
+        }
+        
+        function getDeviceStatusText(siteId, dev) {
+            initAlarms(siteId);
+            const devAlarms = alarms[siteId]?.[dev]?.active || [];
+            if (devAlarms.some(a => a.type === 'alarm')) return 'АВАР';
+            if (devAlarms.some(a => a.type === 'warning')) return 'ВНІМ';
+            return 'ОК';
+        }
+        
+        function selectSiteFromMulti(id) {
+            closeMultiscreen();
+            selectSite(id);
+        }
+
+        // ============ CLOCK ============
+        setInterval(() => {
+            $('clock').textContent = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        }, 1000);
+
+        // ============ INIT ============
+        load();
+        loadMaintenanceTemplates();
+        loadBitrixSettings();
+        renderSites();
+        
+        const ids = Object.keys(sites);
+        if (ids.length > 0) {
+            selectSite(ids[0]);
+        }
+    </script>
+</body>
+</html>

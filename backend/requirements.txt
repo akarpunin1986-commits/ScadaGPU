@@ -1,0 +1,20 @@
+# Web framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+
+# Database
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.1
+
+# Redis
+redis==5.2.1
+
+# Settings
+pydantic-settings==2.7.1
+
+# Modbus (Phase 2)
+# pymodbus==3.7.4
+
+# HTTP client (Phase 4 — Bitrix)
+# httpx==0.28.1
