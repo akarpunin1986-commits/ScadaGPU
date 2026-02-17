@@ -522,6 +522,8 @@
             // Load TO progress (demo values for now)
             initTOData(id, 'g1');
             initTOData(id, 'g2');
+            // Load maintenance alerts from backend
+            loadMaintenanceAlerts();
             // Сбросить показания при смене site (WS обновит через ~2 сек)
             _resetMetricsDisplay();
         }
@@ -779,6 +781,8 @@
                         for (const m of msg.data) {
                             applyMetrics(m);
                         }
+                    } else if (msg.type === 'maintenance_alert') {
+                        applyMaintenanceAlert(msg);
                     } else if (msg.device_id !== undefined) {
                         applyMetrics(msg);
                     }
@@ -845,7 +849,14 @@
 
             if (hours && m.run_hours != null) {
                 hours.textContent = m.run_hours;
+                // TO progress now driven by backend alerts (Phase 3 scheduler)
+                // Keep updating local TO data for the openTOManager to work
                 updateTOProgress(slot, m.run_hours);
+                // Backend alert overlay (takes visual priority)
+                const did = m.device_id;
+                if (maintenanceAlerts[did]) {
+                    applyDeviceMaintenanceAlert(did);
+                }
             }
         }
 
@@ -1100,6 +1111,9 @@
         ];
         
         let toData = {};
+
+        // ---- Maintenance alerts from backend (Phase 3) ----
+        let maintenanceAlerts = {};
         
         function loadTOData() {
             try {
@@ -1239,7 +1253,315 @@
                 }
             }
         }
-        
+
+        // ===========================================================================
+        // Maintenance Alerts from Backend (Phase 3)
+        // ===========================================================================
+
+        async function loadMaintenanceAlerts() {
+            try {
+                const alerts = await api.get('/api/alerts');
+                maintenanceAlerts = {};
+                for (const a of alerts) {
+                    maintenanceAlerts[a.device_id] = a;
+                }
+                applyAllMaintenanceAlerts();
+                console.log('[TO] Loaded', alerts.length, 'maintenance alerts from backend');
+            } catch (e) {
+                console.warn('[TO] Failed to load alerts:', e);
+            }
+        }
+
+        function applyMaintenanceAlert(msg) {
+            const action = msg.action;
+            const alert = msg.alert;
+
+            if (!alert || !alert.device_id) return;
+
+            if (action === 'resolved') {
+                delete maintenanceAlerts[alert.device_id];
+            } else {
+                maintenanceAlerts[alert.device_id] = alert;
+            }
+
+            applyDeviceMaintenanceAlert(alert.device_id);
+            updateMaintenanceStatusBadge();
+        }
+
+        function applyAllMaintenanceAlerts() {
+            for (const deviceId of Object.keys(maintenanceAlerts)) {
+                applyDeviceMaintenanceAlert(parseInt(deviceId));
+            }
+            for (const did of Object.keys(deviceSlotIndex)) {
+                if (!maintenanceAlerts[did]) {
+                    applyDeviceMaintenanceAlert(parseInt(did));
+                }
+            }
+            updateMaintenanceStatusBadge();
+        }
+
+        function applyDeviceMaintenanceAlert(deviceId) {
+            const entry = deviceSlotIndex[deviceId];
+            if (!entry) return;
+            if (entry.siteKey !== currentSite) return;
+
+            const slot = entry.slot;
+            const alert = maintenanceAlerts[deviceId];
+
+            const nameEl = $(slot + '-to-name');
+            const remainEl = $(slot + '-to-remain');
+            const barEl = $(slot + '-to-bar');
+            const warnEl = $(slot + '-to-warn');
+            const warnTextEl = $(slot + '-to-warn-text');
+
+            if (!alert) {
+                if (nameEl) nameEl.textContent = 'ТО';
+                if (remainEl) {
+                    remainEl.textContent = 'норма';
+                    remainEl.className = 'text-slate-400';
+                }
+                if (barEl) {
+                    barEl.style.width = '0%';
+                    barEl.className = 'h-full bg-green-500 rounded-full transition-all';
+                }
+                if (warnEl) warnEl.classList.add('hidden');
+                _removeAlertBadge(slot);
+                return;
+            }
+
+            const severity = alert.severity;
+            const remaining = alert.hours_remaining;
+            const intervalName = alert.interval_name;
+            const intervalHours = alert.interval_hours;
+
+            if (nameEl) nameEl.textContent = intervalName;
+
+            if (remainEl) {
+                if (severity === 'overdue') {
+                    remainEl.textContent = 'просрочено на ' + Math.abs(Math.round(remaining)) + ' ч';
+                    remainEl.className = 'text-red-400 font-medium';
+                } else {
+                    remainEl.textContent = 'через ' + Math.round(remaining) + ' ч';
+                    remainEl.className = severity === 'critical' ? 'text-orange-400' : 'text-yellow-400';
+                }
+            }
+
+            if (barEl) {
+                const hoursAt = alert.hours_remaining !== undefined
+                    ? intervalHours - remaining
+                    : 0;
+                const pct = Math.min(100, Math.max(0, (hoursAt / intervalHours) * 100));
+                barEl.style.width = pct + '%';
+
+                if (severity === 'overdue') {
+                    barEl.className = 'h-full bg-red-500 rounded-full transition-all animate-pulse';
+                } else if (severity === 'critical') {
+                    barEl.className = 'h-full bg-orange-500 rounded-full transition-all';
+                } else {
+                    barEl.className = 'h-full bg-yellow-500 rounded-full transition-all';
+                }
+            }
+
+            if (warnEl && warnTextEl) {
+                warnEl.classList.remove('hidden', 'text-yellow-400', 'text-orange-400', 'text-red-400');
+                if (severity === 'overdue') {
+                    warnEl.classList.add('text-red-400');
+                    warnTextEl.textContent = intervalName + ' просрочено! Требуется обслуживание';
+                } else if (severity === 'critical') {
+                    warnEl.classList.add('text-orange-400');
+                    warnTextEl.textContent = intervalName + ' через ' + Math.round(remaining) + ' ч';
+                } else {
+                    warnEl.classList.add('text-yellow-400');
+                    warnTextEl.textContent = intervalName + ' через ' + Math.round(remaining) + ' ч';
+                }
+            }
+
+            _setAlertBadge(slot, severity, intervalName, remaining);
+        }
+
+        function _setAlertBadge(slot, severity, intervalName, remaining) {
+            const container = $('alerts-' + slot);
+            if (!container) return;
+
+            const old = container.querySelector('[data-to-badge]');
+            if (old) old.remove();
+
+            const badge = document.createElement('span');
+            badge.setAttribute('data-to-badge', '1');
+            badge.className = _badgeClass(severity);
+            badge.title = severity === 'overdue'
+                ? intervalName + ' просрочено!'
+                : intervalName + ' через ' + Math.round(remaining) + ' ч';
+            badge.innerHTML = '🔧' + (severity === 'overdue' ? '⚠' : '');
+            badge.onclick = (e) => {
+                e.stopPropagation();
+                openMaintenanceAlertModal(slot);
+            };
+            container.appendChild(badge);
+
+            const card = $('card-' + slot);
+            if (card) {
+                card.classList.remove('warning');
+                if (severity === 'overdue' || severity === 'critical') {
+                    if (!card.classList.contains('alarm')) {
+                        card.classList.add('warning');
+                    }
+                }
+            }
+        }
+
+        function _badgeClass(severity) {
+            const base = 'flex items-center gap-1 px-1.5 py-0.5 text-xs rounded cursor-pointer';
+            if (severity === 'overdue') return base + ' bg-red-500/20 text-red-400 animate-pulse';
+            if (severity === 'critical') return base + ' bg-orange-500/20 text-orange-400 animate-pulse';
+            return base + ' bg-yellow-500/20 text-yellow-400';
+        }
+
+        function _removeAlertBadge(slot) {
+            const container = $('alerts-' + slot);
+            if (!container) return;
+            const old = container.querySelector('[data-to-badge]');
+            if (old) old.remove();
+        }
+
+        function updateMaintenanceStatusBadge() {
+            let overdueCount = 0, criticalCount = 0, warningCount = 0;
+            for (const a of Object.values(maintenanceAlerts)) {
+                if (a.severity === 'overdue') overdueCount++;
+                else if (a.severity === 'critical') criticalCount++;
+                else if (a.severity === 'warning') warningCount++;
+            }
+
+            const total = overdueCount + criticalCount + warningCount;
+            if (total === 0) return;
+
+            const statusText = $('statusText');
+            const statusCard = $('statusCard');
+            if (!statusText || !statusCard) return;
+
+            const hasDeviceAlarm = statusCard.classList.contains('alarm');
+            if (hasDeviceAlarm) return;
+
+            if (overdueCount > 0) {
+                statusText.innerHTML = `<span class="dot dot-red"></span><span class="text-red-400">ТО просрочено</span><span class="ml-2 text-xs text-red-400">🔧 ${overdueCount}</span>`;
+                statusCard.classList.add('warning');
+            } else if (criticalCount > 0) {
+                statusText.innerHTML = `<span class="dot dot-yellow animate-pulse"></span><span class="text-orange-400">ТО скоро</span><span class="ml-2 text-xs text-orange-400">🔧 ${criticalCount}</span>`;
+                statusCard.classList.add('warning');
+            } else if (warningCount > 0) {
+                statusText.innerHTML = `<span class="dot dot-yellow"></span><span class="text-yellow-400">ТО приближается</span><span class="ml-2 text-xs text-yellow-400">🔧 ${warningCount}</span>`;
+            }
+        }
+
+        function openMaintenanceAlertModal(slot) {
+            let deviceId = null;
+            for (const [did, entry] of Object.entries(deviceSlotIndex)) {
+                if (entry.slot === slot && entry.siteKey === currentSite) {
+                    deviceId = parseInt(did);
+                    break;
+                }
+            }
+            if (!deviceId) return;
+
+            const alert = maintenanceAlerts[deviceId];
+            if (!alert) return;
+
+            const severityLabels = {
+                warning: '<span class="text-yellow-400">⚠ Предупреждение</span>',
+                critical: '<span class="text-orange-400">⚠ Критично</span>',
+                overdue: '<span class="text-red-400">⛔ Просрочено</span>',
+            };
+
+            const statusLabels = {
+                active: 'Активен',
+                acknowledged: 'Подтверждён',
+                resolved: 'Решён',
+            };
+
+            let html = `
+                <div class="space-y-4">
+                    <div class="bg-slate-800 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-lg font-medium">${alert.interval_name}</span>
+                            ${severityLabels[alert.severity] || ''}
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                                <span class="text-slate-500">Устройство:</span>
+                                <span class="ml-2">${alert.device_name}</span>
+                            </div>
+                            <div>
+                                <span class="text-slate-500">Интервал:</span>
+                                <span class="ml-2">${alert.interval_hours} ч</span>
+                            </div>
+                            <div>
+                                <span class="text-slate-500">Моточасы:</span>
+                                <span class="ml-2 text-white font-medium">${Math.round(alert.engine_hours)} ч</span>
+                            </div>
+                            <div>
+                                <span class="text-slate-500">Осталось:</span>
+                                <span class="ml-2 ${alert.severity === 'overdue' ? 'text-red-400' : 'text-yellow-400'} font-medium">
+                                    ${alert.hours_remaining > 0 ? Math.round(alert.hours_remaining) + ' ч' : 'просрочено на ' + Math.abs(Math.round(alert.hours_remaining)) + ' ч'}
+                                </span>
+                            </div>
+                            <div>
+                                <span class="text-slate-500">Статус:</span>
+                                <span class="ml-2">${statusLabels[alert.status] || alert.status}</span>
+                            </div>
+                            <div>
+                                <span class="text-slate-500">Создан:</span>
+                                <span class="ml-2">${new Date(alert.created_at).toLocaleString('ru')}</span>
+                            </div>
+                        </div>
+                        <p class="mt-3 text-sm text-slate-400">${alert.message}</p>
+                    </div>
+
+                    <div class="flex gap-2">
+            `;
+
+            if (alert.status === 'active') {
+                html += `
+                        <button onclick="acknowledgeAlert(${alert.id}, '${slot}')"
+                            class="flex-1 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm font-medium">
+                            ✓ Подтвердить
+                        </button>
+                `;
+            }
+
+            html += `
+                        <button onclick="closeModal(); openTOManager('${slot}')"
+                            class="flex-1 py-2 bg-green-700 hover:bg-green-600 rounded text-sm font-medium">
+                            🔧 Провести ТО
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            $('modalTitle').textContent = '🔧 Техобслуживание — ' + alert.device_name;
+            $('modalContent').innerHTML = html;
+            $('modal').classList.remove('hidden');
+        }
+
+        async function acknowledgeAlert(alertId, slot) {
+            const name = prompt('Ваше имя для подтверждения:');
+            if (!name) return;
+
+            try {
+                const updated = await api.patch('/api/alerts/' + alertId + '/acknowledge', {
+                    acknowledged_by: name,
+                });
+                if (maintenanceAlerts[updated.device_id]) {
+                    maintenanceAlerts[updated.device_id] = updated;
+                }
+                closeModal();
+                applyDeviceMaintenanceAlert(updated.device_id);
+                updateMaintenanceStatusBadge();
+                console.log('[TO] Alert acknowledged:', alertId);
+            } catch (e) {
+                alert('Ошибка: ' + e.message);
+            }
+        }
+
         function openTOManager(dev) {
             if (!currentSite) return;
             initTOData(currentSite, dev);
@@ -2608,6 +2930,8 @@
             } else {
                 statusText.innerHTML = `<span class="dot dot-green"></span><span>Норма</span>`;
             }
+            // Overlay maintenance TO status (from backend scheduler)
+            updateMaintenanceStatusBadge();
         }
 
         // ============ EVENTS ============
