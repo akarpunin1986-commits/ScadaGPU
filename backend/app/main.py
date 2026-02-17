@@ -30,8 +30,14 @@ async def lifespan(app: FastAPI):
     app.state.redis = redis
     logger.info("Redis connected: %s", settings.REDIS_URL)
 
-    # Modbus Poller
-    poller = ModbusPoller(redis, async_session)
+    # Poller (demo or production)
+    if settings.DEMO_MODE:
+        from services.demo_poller import DemoPoller
+        poller = DemoPoller(redis)
+        logger.info("DEMO_MODE enabled — using DemoPoller")
+    else:
+        poller = ModbusPoller(redis, async_session)
+        logger.info("Production mode — using ModbusPoller")
     app.state.poller = poller
     poller_task = asyncio.create_task(poller.start())
 

@@ -307,24 +307,112 @@
         let demoInterval = null;
         let demoStep = 0;
 
+        // ======================== WEBSOCKET STATE ========================
+        let ws = null;
+        let wsReconnectTimer = null;
+        const WS_RECONNECT_DELAY = 3000;
+        let deviceSlotIndex = {};
+        // ======================== END WS STATE ==========================
+
+        // ========================== API CONFIG ==========================
+        const API_BASE = window.location.port === '8011'
+            ? 'http://' + window.location.hostname + ':8010'
+            : '';
+        const WS_BASE  = API_BASE.replace('http', 'ws');
+
+        const api = {
+            async get(path) {
+                const res = await fetch(API_BASE + path);
+                if (!res.ok) throw new Error(`GET ${path}: ${res.status}`);
+                return res.json();
+            },
+            async post(path, body) {
+                const res = await fetch(API_BASE + path, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                if (!res.ok) throw new Error(`POST ${path}: ${res.status}`);
+                return res.json();
+            },
+            async patch(path, body) {
+                const res = await fetch(API_BASE + path, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                if (!res.ok) throw new Error(`PATCH ${path}: ${res.status}`);
+                return res.json();
+            },
+            async del(path) {
+                const res = await fetch(API_BASE + path, { method: 'DELETE' });
+                if (!res.ok && res.status !== 204) throw new Error(`DELETE ${path}: ${res.status}`);
+            },
+        };
+        // ======================== END API CONFIG ========================
+
         // ============ DOM HELPERS ============
         const $ = id => document.getElementById(id);
         
         function save() {
-            localStorage.setItem('scada3_sites', JSON.stringify(sites));
+            // sites теперь в API — не сохраняем в localStorage
             localStorage.setItem('scada3_events', JSON.stringify(events));
             localStorage.setItem('scada3_alarms', JSON.stringify(alarms));
         }
         
-        function load() {
+        async function load() {
+            // Sites — из API (source of truth)
             try {
-                sites = JSON.parse(localStorage.getItem('scada3_sites')) || {};
-                events = JSON.parse(localStorage.getItem('scada3_events')) || [];
-                alarms = JSON.parse(localStorage.getItem('scada3_alarms')) || {};
-                toData = JSON.parse(localStorage.getItem('scada3_to')) || {};
-            } catch(e) {
-                sites = {}; events = []; alarms = {}; toData = {};
+                const apiSites = await api.get('/api/sites');
+                sites = {};
+                for (const s of apiSites) {
+                    const key = 'site_' + s.id;
+                    sites[key] = {
+                        _apiId: s.id,
+                        name: s.name,
+                        code: s.code,
+                        network: s.network,
+                        address: s.description || '',
+                        g1: { ip: '', port: 502, unit: 1 },
+                        g2: { ip: '', port: 502, unit: 2 },
+                        spr: { ip: '', port: 502, unit: 1, baud: 9600 },
+                    };
+                }
+                // Загрузить devices для каждого site
+                for (const s of apiSites) {
+                    const key = 'site_' + s.id;
+                    try {
+                        const devices = await api.get('/api/devices?site_id=' + s.id);
+                        for (const d of devices) {
+                            let slot = null;
+                            if (d.device_type === 'generator') {
+                                slot = !sites[key].g1._deviceId ? 'g1' : 'g2';
+                            } else if (d.device_type === 'ats') {
+                                slot = 'spr';
+                            }
+                            if (slot) {
+                                sites[key][slot] = {
+                                    _deviceId: d.id,
+                                    ip: d.ip_address,
+                                    port: d.port,
+                                    unit: d.slave_id,
+                                    ...(slot === 'spr' ? { baud: 9600 } : {}),
+                                };
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Failed to load devices for site', s.id, e);
+                    }
+                }
+            } catch (e) {
+                console.error('API unavailable, falling back to localStorage', e);
+                sites = JSON.parse(localStorage.getItem('scada3_sites') || '{}');
             }
+
+            // Остальное — пока из localStorage (alarms, events, TO)
+            events = JSON.parse(localStorage.getItem('scada3_events') || '[]');
+            alarms = JSON.parse(localStorage.getItem('scada3_alarms') || '{}');
+            toData = JSON.parse(localStorage.getItem('scada3_to') || '{}');
         }
 
         // ============ SITES ============
@@ -355,23 +443,55 @@
             }).join('');
         }
         
-        function addSite() {
-            const name = 'Объект ' + (Object.keys(sites).length + 1);
-            const id = 'site_' + Date.now();
-            sites[id] = { name, g1: { unit: 1 }, g2: { unit: 2 }, spr: { unit: 1 } };
-            alarms[id] = { g1: { active: [], archived: [] }, g2: { active: [], archived: [] }, spr: { active: [], archived: [] } };
-            save();
-            renderSites();
-            selectSite(id);
-            addEvent('Создан: ' + name);
+        async function addSite() {
+            const num = Object.keys(sites).length + 1;
+            try {
+                const created = await api.post('/api/sites', {
+                    name: 'Объект ' + num,
+                    code: 'OBJ' + num,
+                    network: '192.168.0.x',
+                    description: '',
+                });
+                const key = 'site_' + created.id;
+                sites[key] = {
+                    _apiId: created.id,
+                    name: created.name,
+                    code: created.code,
+                    network: created.network,
+                    address: created.description || '',
+                    g1: { ip: '', port: 502, unit: 1 },
+                    g2: { ip: '', port: 502, unit: 2 },
+                    spr: { ip: '', port: 502, unit: 1, baud: 9600 },
+                };
+                alarms[key] = { g1: { active: [], archived: [] }, g2: { active: [], archived: [] }, spr: { active: [], archived: [] } };
+                save();
+                renderSites();
+                selectSite(key);
+                addEvent('Создан: ' + created.name);
+            } catch (e) {
+                console.error('addSite failed', e);
+                alert('Ошибка создания объекта: ' + e.message);
+            }
         }
         
-        function deleteSite(id) {
-            const name = sites[id].name;
+        async function deleteSite(id) {
+            const name = sites[id]?.name || id;
+            if (!confirm('Удалить объект "' + name + '"?')) return;
+
+            const apiId = sites[id]._apiId;
+            if (apiId) {
+                try {
+                    await api.del('/api/sites/' + apiId);
+                } catch (e) {
+                    console.error('deleteSite failed', e);
+                    alert('Ошибка удаления: ' + e.message);
+                    return;
+                }
+            }
             delete sites[id];
             delete alarms[id];
             save();
-            
+
             if (currentSite === id) {
                 const remaining = Object.keys(sites);
                 if (remaining.length > 0) {
@@ -402,8 +522,8 @@
             // Load TO progress (demo values for now)
             initTOData(id, 'g1');
             initTOData(id, 'g2');
-            // Set demo hours to show TO feature
-            setDemoHours(237, 485);
+            // Сбросить показания при смене site (WS обновит через ~2 сек)
+            _resetMetricsDisplay();
         }
 
         // ============ MODAL ============
@@ -439,11 +559,26 @@
             openModal();
         }
         
-        function saveEditSite(id) {
+        async function saveEditSite(id) {
             const name = $('edit-name').value.trim();
+            const addr = $('edit-addr').value.trim();
             if (!name) return;
+
+            const apiId = sites[id]._apiId;
+            if (apiId) {
+                try {
+                    await api.patch('/api/sites/' + apiId, {
+                        name: name,
+                        description: addr,
+                    });
+                } catch (e) {
+                    console.error('saveEditSite failed', e);
+                    alert('Ошибка сохранения: ' + e.message);
+                    return;
+                }
+            }
             sites[id].name = name;
-            sites[id].address = $('edit-addr').value.trim();
+            sites[id].address = addr;
             save();
             renderSites();
             if (currentSite === id) {
@@ -541,39 +676,243 @@
             openModal();
         }
         
-        function saveSettings() {
+        async function saveSettings() {
             if (!currentSite) return;
             const s = sites[currentSite];
-            
-            s.g1 = {
-                ip: $('cfg-g1-ip').value.trim(),
-                port: parseInt($('cfg-g1-port').value) || 502,
-                unit: parseInt($('cfg-g1-unit').value) || 1
-            };
-            
-            s.g2 = {
-                ip: $('cfg-g2-ip').value.trim(),
-                port: parseInt($('cfg-g2-port').value) || 502,
-                unit: parseInt($('cfg-g2-unit').value) || 2
-            };
-            
-            s.spr = {
-                ip: $('cfg-spr-ip').value.trim(),
-                port: parseInt($('cfg-spr-port').value) || 502,
-                unit: parseInt($('cfg-spr-unit').value) || 1,
-                baud: parseInt($('cfg-spr-baud').value) || 9600
-            };
-            
+            const apiSiteId = s._apiId;
+
+            const g1 = { ip: $('cfg-g1-ip').value.trim(), port: parseInt($('cfg-g1-port').value) || 502, unit: parseInt($('cfg-g1-unit').value) || 1 };
+            const g2 = { ip: $('cfg-g2-ip').value.trim(), port: parseInt($('cfg-g2-port').value) || 502, unit: parseInt($('cfg-g2-unit').value) || 2 };
+            const spr = { ip: $('cfg-spr-ip').value.trim(), port: parseInt($('cfg-spr-port').value) || 502, unit: parseInt($('cfg-spr-unit').value) || 1, baud: parseInt($('cfg-spr-baud').value) || 9600 };
+
+            if (apiSiteId) {
+                await _syncDevice(s, 'g1', g1, apiSiteId, 'generator', 'tcp');
+                await _syncDevice(s, 'g2', g2, apiSiteId, 'generator', 'tcp');
+                await _syncDevice(s, 'spr', spr, apiSiteId, 'ats', 'rtu_over_tcp');
+            }
+
+            s.g1 = { ...s.g1, ...g1 };
+            s.g2 = { ...s.g2, ...g2 };
+            s.spr = { ...s.spr, ...spr };
             save();
-            
+
             // Update UI
             $('uid-g1').textContent = s.g1.unit;
             $('uid-g2').textContent = s.g2.unit;
             $('uid-spr').textContent = s.spr.unit;
-            
+
+            rebuildDeviceIndex();
             closeModal();
             addEvent('Настройки сохранены');
         }
+
+        async function _syncDevice(siteObj, slot, formData, apiSiteId, deviceType, protocol) {
+            const deviceId = siteObj[slot]?._deviceId;
+            const name = currentSite ? (sites[currentSite].name + ' — ' + slot.toUpperCase()) : slot.toUpperCase();
+
+            if (!formData.ip) return;
+
+            try {
+                if (deviceId) {
+                    await api.patch('/api/devices/' + deviceId, {
+                        ip_address: formData.ip,
+                        port: formData.port,
+                        slave_id: formData.unit,
+                    });
+                } else {
+                    const created = await api.post('/api/devices', {
+                        site_id: apiSiteId,
+                        name: name,
+                        device_type: deviceType,
+                        ip_address: formData.ip,
+                        port: formData.port,
+                        slave_id: formData.unit,
+                        protocol: protocol,
+                    });
+                    siteObj[slot]._deviceId = created.id;
+                }
+            } catch (e) {
+                console.warn('_syncDevice failed for', slot, e);
+            }
+        }
+
+        // ======================== WEBSOCKET METRICS ========================
+
+        function rebuildDeviceIndex() {
+            deviceSlotIndex = {};
+            for (const [siteKey, site] of Object.entries(sites)) {
+                for (const slot of ['g1', 'g2', 'spr']) {
+                    const did = site[slot]?._deviceId;
+                    if (did) {
+                        deviceSlotIndex[did] = { siteKey, slot };
+                    }
+                }
+            }
+        }
+
+        function connectWebSocket() {
+            if (ws && ws.readyState <= WebSocket.OPEN) return;
+
+            const url = WS_BASE + '/ws/metrics';
+            console.log('[WS] connecting to', url);
+            ws = new WebSocket(url);
+
+            ws.onopen = () => {
+                console.log('[WS] connected');
+                if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+            };
+
+            ws.onclose = () => {
+                console.warn('[WS] disconnected, reconnecting in', WS_RECONNECT_DELAY, 'ms');
+                ws = null;
+                wsReconnectTimer = setTimeout(connectWebSocket, WS_RECONNECT_DELAY);
+            };
+
+            ws.onerror = (e) => {
+                console.error('[WS] error', e);
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const msg = JSON.parse(event.data);
+                    if (msg.type === 'snapshot' && Array.isArray(msg.data)) {
+                        for (const m of msg.data) {
+                            applyMetrics(m);
+                        }
+                    } else if (msg.device_id !== undefined) {
+                        applyMetrics(msg);
+                    }
+                } catch (e) {
+                    console.warn('[WS] parse error', e);
+                }
+            };
+        }
+
+        function applyMetrics(m) {
+            const did = m.device_id;
+            const entry = deviceSlotIndex[did];
+            if (!entry) return;
+
+            const { siteKey, slot } = entry;
+            if (siteKey !== currentSite) return;
+
+            if (m.device_type === 'generator') {
+                _applyGeneratorMetrics(slot, m);
+            } else if (m.device_type === 'ats') {
+                _applySPRMetrics(m);
+            }
+
+            _updateSummary();
+        }
+
+        function _applyGeneratorMetrics(slot, m) {
+            const el = (id) => $(slot + '-' + id);
+
+            if (!m.online) {
+                setDeviceStatus(slot, 'offline');
+                return;
+            }
+
+            if (m.alarm_common || m.alarm_shutdown) {
+                setDeviceStatus(slot, 'alarm');
+            } else if (m.alarm_warning) {
+                setDeviceStatus(slot, 'warning');
+            } else if (m.gen_status === 9) {
+                setDeviceStatus(slot, 'running');
+            } else if (m.gen_status >= 1 && m.gen_status <= 8) {
+                setDeviceStatus(slot, 'sync');
+            } else {
+                setDeviceStatus(slot, 'offline');
+            }
+
+            const p = el('p');
+            const u = el('u');
+            const i = el('i');
+            const f = el('f');
+            const hours = el('hours');
+
+            if (p) p.textContent = m.power_total != null ? m.power_total.toFixed(1) : '—';
+            if (u) u.textContent = m.gen_uab != null ? m.gen_uab.toFixed(0) : '—';
+            if (i) {
+                const ia = m.current_a, ib = m.current_b, ic = m.current_c;
+                if (ia != null && ib != null && ic != null) {
+                    i.textContent = ((ia + ib + ic) / 3).toFixed(1);
+                } else {
+                    i.textContent = '—';
+                }
+            }
+            if (f) f.textContent = m.gen_freq != null ? m.gen_freq.toFixed(2) : '—';
+
+            if (hours && m.run_hours != null) {
+                hours.textContent = m.run_hours;
+                updateTOProgress(slot, m.run_hours);
+            }
+        }
+
+        function _applySPRMetrics(m) {
+            if (!m.online) {
+                setDeviceStatus('spr', 'offline');
+                return;
+            }
+
+            if (m.alarm_common || m.alarm_shutdown) {
+                setDeviceStatus('spr', 'alarm');
+            } else if (m.alarm_warning) {
+                setDeviceStatus('spr', 'warning');
+            } else if (m.genset_status === 9) {
+                setDeviceStatus('spr', 'running');
+            } else {
+                setDeviceStatus('spr', 'offline');
+            }
+
+            const p = $('spr-p');
+            const u = $('spr-u');
+            const f = $('spr-f');
+
+            if (p) p.textContent = m.busbar_p != null ? m.busbar_p.toFixed(1) : '—';
+            if (u) u.textContent = m.busbar_uab != null ? m.busbar_uab.toFixed(0) : '—';
+            if (f) f.textContent = m.busbar_freq != null ? m.busbar_freq.toFixed(2) : '—';
+        }
+
+        function _updateSummary() {
+            if (!currentSite) return;
+            const s = sites[currentSite];
+            if (!s) return;
+
+            const g1p = parseFloat($('g1-p')?.textContent) || 0;
+            const g2p = parseFloat($('g2-p')?.textContent) || 0;
+            const g1u = parseFloat($('g1-u')?.textContent) || 0;
+            const g2u = parseFloat($('g2-u')?.textContent) || 0;
+
+            const total = g1p + g2p;
+            $('totalP').textContent = total > 0 ? total.toFixed(1) : '—';
+
+            const voltage = g1u || g2u;
+            $('totalU').textContent = voltage > 0 ? voltage.toFixed(0) : '—';
+
+            const g1on = $('g1-status')?.textContent === 'Работа';
+            const g2on = $('g2-status')?.textContent === 'Работа';
+            $('activeGen').textContent = (g1on ? 1 : 0) + (g2on ? 1 : 0);
+
+            setPower(g1on, g2on);
+        }
+
+        function _resetMetricsDisplay() {
+            for (const slot of ['g1', 'g2']) {
+                $(slot + '-p').textContent = '—';
+                $(slot + '-u').textContent = '—';
+                $(slot + '-i').textContent = '—';
+                $(slot + '-f').textContent = '—';
+                $(slot + '-hours').textContent = '—';
+            }
+            $('spr-p').textContent = '—';
+            $('spr-u').textContent = '—';
+            $('spr-f').textContent = '—';
+            $('totalP').textContent = '—';
+            $('totalU').textContent = '—';
+        }
+
+        // ====================== END WEBSOCKET METRICS ======================
         
         function openDeviceAlarms(dev) {
             if (!currentSite) return;
@@ -2585,15 +2924,18 @@
         }, 1000);
 
         // ============ INIT ============
-        load();
-        loadMaintenanceTemplates();
-        loadBitrixSettings();
-        renderSites();
-        
-        const ids = Object.keys(sites);
-        if (ids.length > 0) {
-            selectSite(ids[0]);
-        }
+        (async () => {
+            await load();
+            loadMaintenanceTemplates();
+            loadBitrixSettings();
+            rebuildDeviceIndex();
+            renderSites();
+            const ids = Object.keys(sites);
+            if (ids.length > 0) {
+                selectSite(ids[0]);
+            }
+            connectWebSocket();
+        })();
     </script>
 </body>
 </html>
