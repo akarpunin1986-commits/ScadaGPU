@@ -31,6 +31,11 @@ class Device(TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(String(500), default=None)
 
     site = relationship("Site", back_populates="devices")
+    maintenance_logs = relationship(
+        "MaintenanceLog",
+        back_populates="device",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<Device {self.name} ({self.device_type.value}) @ {self.ip_address}>"

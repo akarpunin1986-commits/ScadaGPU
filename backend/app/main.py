@@ -11,6 +11,7 @@ from models import async_session, engine
 from api.sites import router as sites_router
 from api.devices import router as devices_router
 from api.metrics import router as metrics_router
+from api.maintenance import router as maintenance_router
 from core.websocket import router as ws_router, redis_to_ws_bridge
 from services.modbus_poller import ModbusPoller
 
@@ -84,6 +85,7 @@ app.add_middleware(
 app.include_router(sites_router)
 app.include_router(devices_router)
 app.include_router(metrics_router)
+app.include_router(maintenance_router)
 app.include_router(ws_router)
 
 

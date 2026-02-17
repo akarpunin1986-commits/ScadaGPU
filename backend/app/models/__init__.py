@@ -1,6 +1,13 @@
 from models.base import Base, async_session, engine, get_session
 from models.site import Site
 from models.device import Device, DeviceType, ModbusProtocol
+from models.maintenance import (
+    MaintenanceTemplate,
+    MaintenanceInterval,
+    MaintenanceTask,
+    MaintenanceLog,
+    MaintenanceLogItem,
+)
 
 __all__ = [
     "Base",
@@ -11,4 +18,9 @@ __all__ = [
     "Device",
     "DeviceType",
     "ModbusProtocol",
+    "MaintenanceTemplate",
+    "MaintenanceInterval",
+    "MaintenanceTask",
+    "MaintenanceLog",
+    "MaintenanceLogItem",
 ]
