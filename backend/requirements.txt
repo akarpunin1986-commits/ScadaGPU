@@ -14,7 +14,7 @@ redis==5.2.1
 pydantic-settings==2.7.1
 
 # Modbus (Phase 2)
-# pymodbus==3.7.4
+pymodbus==3.7.4
 
 # HTTP client (Phase 4 — Bitrix)
 # httpx==0.28.1

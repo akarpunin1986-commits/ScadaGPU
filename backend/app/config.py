@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     LOG_LEVEL: str = "INFO"
 
+    # Modbus Poller
+    POLL_INTERVAL: float = 2.0
+    MODBUS_TIMEOUT: float = 2.0
+    MODBUS_RETRY_DELAY: float = 5.0
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
