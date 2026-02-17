@@ -12,8 +12,9 @@ from api.sites import router as sites_router
 from api.devices import router as devices_router
 from api.metrics import router as metrics_router
 from api.maintenance import router as maintenance_router
-from core.websocket import router as ws_router, redis_to_ws_bridge
+from core.websocket import router as ws_router, redis_to_ws_bridge, maintenance_alerts_bridge
 from services.modbus_poller import ModbusPoller
+from services.maintenance_scheduler import MaintenanceScheduler
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
@@ -45,23 +46,30 @@ async def lifespan(app: FastAPI):
     # Redis → WebSocket bridge
     ws_bridge_task = asyncio.create_task(redis_to_ws_bridge(redis))
 
+    # Maintenance scheduler
+    scheduler = MaintenanceScheduler(redis, async_session)
+    app.state.maintenance_scheduler = scheduler
+    scheduler_task = asyncio.create_task(scheduler.start())
+
+    # Maintenance alerts → WebSocket bridge
+    alerts_bridge_task = asyncio.create_task(maintenance_alerts_bridge(redis))
+
     yield
 
     # Shutdown
     logger.info("SCADA Backend shutting down...")
     await poller.stop()
+    await scheduler.stop()
     poller_task.cancel()
     ws_bridge_task.cancel()
+    scheduler_task.cancel()
+    alerts_bridge_task.cancel()
 
-    try:
-        await poller_task
-    except asyncio.CancelledError:
-        pass
-
-    try:
-        await ws_bridge_task
-    except asyncio.CancelledError:
-        pass
+    for task in [poller_task, ws_bridge_task, scheduler_task, alerts_bridge_task]:
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
     await redis.close()
     await engine.dispose()

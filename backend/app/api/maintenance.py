@@ -18,6 +18,9 @@ from models import (
     MaintenanceTask,
     MaintenanceLog,
     MaintenanceLogItem,
+    MaintenanceAlert,
+    AlertSeverity,
+    AlertStatus,
     get_session,
 )
 
@@ -744,3 +747,100 @@ async def seed_default_template(session: AsyncSession = Depends(get_session)):
     session.add(template)
     await session.commit()
     return await _load_template_full(session, template.id)
+
+
+# ---------------------------------------------------------------------------
+#  Alert schemas
+# ---------------------------------------------------------------------------
+
+class AlertOut(BaseModel):
+    id: int
+    device_id: int
+    device_name: str
+    site_code: str
+    interval_id: int
+    interval_name: str
+    interval_hours: int
+    severity: str
+    status: str
+    engine_hours: float
+    hours_remaining: float
+    message: str
+    acknowledged_by: str | None
+    acknowledged_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class AlertAcknowledge(BaseModel):
+    acknowledged_by: str
+
+
+# ---------------------------------------------------------------------------
+#  16. GET /api/alerts — list active maintenance alerts
+# ---------------------------------------------------------------------------
+
+@router.get("/api/alerts", response_model=list[AlertOut])
+async def list_alerts(
+    status: str | None = Query(None, description="Filter: active|acknowledged|resolved"),
+    device_id: int | None = Query(None),
+    session: AsyncSession = Depends(get_session),
+):
+    stmt = select(MaintenanceAlert).order_by(
+        MaintenanceAlert.severity.desc(),
+        MaintenanceAlert.created_at.desc(),
+    )
+    if status:
+        stmt = stmt.where(MaintenanceAlert.status == status)
+    else:
+        stmt = stmt.where(MaintenanceAlert.status != AlertStatus.resolved)
+    if device_id:
+        stmt = stmt.where(MaintenanceAlert.device_id == device_id)
+
+    result = await session.execute(stmt)
+    return result.scalars().all()
+
+
+# ---------------------------------------------------------------------------
+#  17. PATCH /api/alerts/{id}/acknowledge
+# ---------------------------------------------------------------------------
+
+@router.patch("/api/alerts/{alert_id}/acknowledge", response_model=AlertOut)
+async def acknowledge_alert(
+    alert_id: int,
+    data: AlertAcknowledge,
+    session: AsyncSession = Depends(get_session),
+):
+    alert = await session.get(MaintenanceAlert, alert_id)
+    if not alert:
+        raise HTTPException(404, "Alert not found")
+    if alert.status != AlertStatus.active:
+        raise HTTPException(400, "Alert is not active")
+
+    alert.status = AlertStatus.acknowledged
+    alert.acknowledged_by = data.acknowledged_by
+    alert.acknowledged_at = datetime.utcnow()
+    await session.commit()
+    await session.refresh(alert)
+    return alert
+
+
+# ---------------------------------------------------------------------------
+#  18. GET /api/alerts/summary
+# ---------------------------------------------------------------------------
+
+@router.get("/api/alerts/summary")
+async def alerts_summary(session: AsyncSession = Depends(get_session)):
+    """Returns count of alerts by severity for active + acknowledged."""
+    stmt = select(MaintenanceAlert).where(
+        MaintenanceAlert.status != AlertStatus.resolved
+    )
+    result = await session.execute(stmt)
+    alerts = result.scalars().all()
+
+    summary = {"warning": 0, "critical": 0, "overdue": 0, "total": 0}
+    for a in alerts:
+        summary[a.severity.value] = summary.get(a.severity.value, 0) + 1
+        summary["total"] += 1
+    return summary

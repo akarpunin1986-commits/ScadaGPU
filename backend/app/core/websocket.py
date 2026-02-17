@@ -122,3 +122,23 @@ async def redis_to_ws_bridge(redis: Redis) -> None:
     finally:
         await pubsub.unsubscribe("metrics:updates")
         await pubsub.close()
+
+
+async def maintenance_alerts_bridge(redis: Redis) -> None:
+    """Subscribe to Redis PubSub 'maintenance:alerts' and broadcast to all WS clients."""
+    logger.info("Maintenance alerts bridge started, subscribing to maintenance:alerts")
+    pubsub = redis.pubsub()
+    await pubsub.subscribe("maintenance:alerts")
+
+    try:
+        async for message in pubsub.listen():
+            if message["type"] == "message":
+                payload = message["data"]
+                if isinstance(payload, bytes):
+                    payload = payload.decode("utf-8")
+                await manager.broadcast(payload)
+    except Exception as exc:
+        logger.error("Maintenance alerts bridge error: %s", exc)
+    finally:
+        await pubsub.unsubscribe("maintenance:alerts")
+        await pubsub.close()

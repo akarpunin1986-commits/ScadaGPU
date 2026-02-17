@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # Demo mode
     DEMO_MODE: bool = False
 
+    # Maintenance scheduler
+    MAINTENANCE_CHECK_INTERVAL: int = 30
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

@@ -8,6 +8,7 @@ from models.maintenance import (
     MaintenanceLog,
     MaintenanceLogItem,
 )
+from models.maintenance_alert import MaintenanceAlert, AlertSeverity, AlertStatus
 
 __all__ = [
     "Base",
@@ -23,4 +24,7 @@ __all__ = [
     "MaintenanceTask",
     "MaintenanceLog",
     "MaintenanceLogItem",
+    "MaintenanceAlert",
+    "AlertSeverity",
+    "AlertStatus",
 ]
