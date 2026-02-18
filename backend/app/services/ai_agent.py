@@ -2,7 +2,8 @@
 Phase 5 — AI Agent for parsing maintenance manuals (PDF/DOCX).
 
 Isolated module: downloads file from Bitrix24 Disk → extracts text →
-sends to OpenAI → returns structured maintenance intervals + tasks.
+sends to LLM (OpenAI / Claude / Gemini / Grok) → returns structured
+maintenance intervals + tasks.
 
 Does NOT import any core SCADA modules (no models, no Redis, no WebSocket).
 """
@@ -12,7 +13,6 @@ import logging
 from typing import Optional
 
 import httpx
-from openai import AsyncOpenAI, APITimeoutError, APIError
 
 from config import settings
 
@@ -57,7 +57,7 @@ SYSTEM_PROMPT = """Ты — AI-агент для парсинга регламе
 
 Отвечай ТОЛЬКО валидным JSON без markdown, без комментариев, без пояснений."""
 
-# Max characters to send to OpenAI (gpt-4o supports ~128K tokens ≈ ~400K chars)
+# Max characters to send to LLM
 MAX_TEXT_CHARS = 80_000
 
 
@@ -68,18 +68,43 @@ class AIAgentError(Exception):
 
 class MaintenanceDocumentParser:
     """
-    Parses maintenance manuals from Bitrix24 Disk using OpenAI.
+    Parses maintenance manuals from Bitrix24 Disk using LLM.
+    Supports: OpenAI, Claude, Gemini, Grok.
     Completely isolated from core SCADA — no DB, no Redis, no WebSocket.
     """
 
-    def __init__(self):
-        if not settings.OPENAI_API_KEY:
-            raise AIAgentError("OPENAI_API_KEY не настроен")
-        self.client = AsyncOpenAI(
-            api_key=settings.OPENAI_API_KEY,
-            timeout=settings.OPENAI_TIMEOUT,
-        )
-        self.model = settings.OPENAI_MODEL
+    def __init__(
+        self,
+        provider: str = "openai",
+        api_key: str = "",
+        model: str = "",
+    ):
+        self.provider = provider
+        self.api_key = api_key
+        self.timeout = settings.AI_TIMEOUT
+
+        if not self.api_key:
+            raise AIAgentError(f"API ключ для {provider} не настроен")
+
+        # Set default models per provider
+        if not model:
+            model = {
+                "openai": settings.OPENAI_MODEL,
+                "claude": settings.CLAUDE_MODEL,
+                "gemini": settings.GEMINI_MODEL,
+                "grok": settings.GROK_MODEL,
+            }.get(provider, "gpt-4o")
+        self.model = model
+
+        # Initialize provider-specific client (only for OpenAI/Grok SDK)
+        if provider in ("openai", "grok"):
+            from openai import AsyncOpenAI
+            base_url = "https://api.x.ai/v1" if provider == "grok" else None
+            self.client = AsyncOpenAI(
+                api_key=self.api_key,
+                timeout=self.timeout,
+                base_url=base_url,
+            )
 
     # ------------------------------------------------------------------
     # Step 1: Download file from Bitrix24 Disk
@@ -198,11 +223,114 @@ class MaintenanceDocumentParser:
         return full_text
 
     # ------------------------------------------------------------------
-    # Step 3: Parse document text with OpenAI
+    # Step 3: Parse document text with LLM
     # ------------------------------------------------------------------
+    async def _call_openai(self, text: str, filename: str) -> str:
+        """Call OpenAI or Grok (OpenAI-compatible) API."""
+        from openai import APITimeoutError, APIError
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {
+                        "role": "user",
+                        "content": f"Документ: {filename}\n\nТекст документа:\n{text}",
+                    },
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.1,
+            )
+        except APITimeoutError:
+            raise AIAgentError(
+                f"Таймаут {self.provider} ({self.timeout}с). "
+                "Попробуйте документ меньшего размера."
+            )
+        except APIError as e:
+            raise AIAgentError(f"Ошибка {self.provider} API: {e.message}")
+
+        return response.choices[0].message.content
+
+    async def _call_claude(self, text: str, filename: str) -> str:
+        """Call Anthropic Claude API via httpx."""
+        async with httpx.AsyncClient(timeout=self.timeout) as http:
+            try:
+                resp = await http.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": self.api_key,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    },
+                    json={
+                        "model": self.model,
+                        "max_tokens": 8192,
+                        "system": SYSTEM_PROMPT,
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": f"Документ: {filename}\n\nТекст документа:\n{text}",
+                            },
+                        ],
+                        "temperature": 0.1,
+                    },
+                )
+            except httpx.TimeoutException:
+                raise AIAgentError(
+                    f"Таймаут Claude ({self.timeout}с). "
+                    "Попробуйте документ меньшего размера."
+                )
+
+            if resp.status_code != 200:
+                err = resp.json().get("error", {}).get("message", resp.text)
+                raise AIAgentError(f"Ошибка Claude API: {err}")
+
+            data = resp.json()
+            return data.get("content", [{}])[0].get("text", "")
+
+    async def _call_gemini(self, text: str, filename: str) -> str:
+        """Call Google Gemini API via httpx."""
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{self.model}:generateContent?key={self.api_key}"
+        )
+        prompt = f"{SYSTEM_PROMPT}\n\n---\n\nДокумент: {filename}\n\nТекст документа:\n{text}"
+
+        async with httpx.AsyncClient(timeout=self.timeout) as http:
+            try:
+                resp = await http.post(
+                    url,
+                    json={
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": {
+                            "responseMimeType": "application/json",
+                            "temperature": 0.1,
+                            "maxOutputTokens": 8192,
+                        },
+                    },
+                )
+            except httpx.TimeoutException:
+                raise AIAgentError(
+                    f"Таймаут Gemini ({self.timeout}с). "
+                    "Попробуйте документ меньшего размера."
+                )
+
+            if resp.status_code != 200:
+                err = resp.json().get("error", {}).get("message", resp.text)
+                raise AIAgentError(f"Ошибка Gemini API: {err}")
+
+            data = resp.json()
+            return (
+                data.get("candidates", [{}])[0]
+                .get("content", {})
+                .get("parts", [{}])[0]
+                .get("text", "")
+            )
+
     async def parse_document(self, file_bytes: bytes, filename: str) -> dict:
         """
-        Main orchestration: extract text → truncate → OpenAI → JSON.
+        Main orchestration: extract text → truncate → LLM → JSON.
         Returns structured maintenance template dict.
         """
         # Extract text
@@ -216,44 +344,40 @@ class MaintenanceDocumentParser:
             )
             text = text[:MAX_TEXT_CHARS] + "\n\n[...текст обрезан...]"
 
-        # Call OpenAI
+        # Call LLM based on provider
         logger.info(
-            "Sending %d chars to OpenAI %s for parsing...",
-            len(text), self.model,
+            "Sending %d chars to %s (%s) for parsing...",
+            len(text), self.provider, self.model,
         )
-        try:
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {
-                        "role": "user",
-                        "content": (
-                            f"Документ: {filename}\n\n"
-                            f"Текст документа:\n{text}"
-                        ),
-                    },
-                ],
-                response_format={"type": "json_object"},
-                temperature=0.1,
-            )
-        except APITimeoutError:
-            raise AIAgentError(
-                f"Таймаут OpenAI ({settings.OPENAI_TIMEOUT}с). "
-                "Попробуйте документ меньшего размера."
-            )
-        except APIError as e:
-            raise AIAgentError(f"Ошибка OpenAI API: {e.message}")
 
-        # Parse response
-        content = response.choices[0].message.content
-        logger.info("OpenAI response: %d chars", len(content or ""))
+        if self.provider in ("openai", "grok"):
+            content = await self._call_openai(text, filename)
+        elif self.provider == "claude":
+            content = await self._call_claude(text, filename)
+        elif self.provider == "gemini":
+            content = await self._call_gemini(text, filename)
+        else:
+            raise AIAgentError(f"Неизвестный провайдер: {self.provider}")
+
+        logger.info("%s response: %d chars", self.provider, len(content or ""))
+
+        # Parse response — strip markdown code fences if present
+        if content:
+            content = content.strip()
+            if content.startswith("```"):
+                # Remove ```json ... ``` wrapping
+                lines = content.split("\n")
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                content = "\n".join(lines)
 
         try:
             result = json.loads(content)
         except json.JSONDecodeError:
             raise AIAgentError(
-                "OpenAI вернул некорректный JSON. Повторите попытку."
+                f"{self.provider} вернул некорректный JSON. Повторите попытку."
             )
 
         # Validate structure
@@ -265,8 +389,8 @@ class MaintenanceDocumentParser:
             result["description"] = f"Извлечено из: {filename}"
 
         logger.info(
-            "Parsed %d intervals from %s",
-            len(result["intervals"]), filename,
+            "Parsed %d intervals from %s via %s",
+            len(result["intervals"]), filename, self.provider,
         )
         return result
 
@@ -277,7 +401,7 @@ class MaintenanceDocumentParser:
         self, webhook_url: str, file_id: int, filename: Optional[str] = None
     ) -> dict:
         """
-        End-to-end: download file from Bitrix24 → extract text → OpenAI → JSON.
+        End-to-end: download file from Bitrix24 → extract text → LLM → JSON.
         """
         file_bytes, bx_filename = await self.download_file_from_bitrix(
             webhook_url, file_id

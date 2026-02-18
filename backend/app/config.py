@@ -23,10 +23,20 @@ class Settings(BaseSettings):
     # Maintenance scheduler
     MAINTENANCE_CHECK_INTERVAL: int = 30
 
-    # AI Agent (Phase 5 — maintenance manual parsing via OpenAI)
+    # AI Agent (Phase 5 — maintenance manual parsing via LLM)
+    # Active provider: openai, claude, gemini, grok
+    AI_PROVIDER: str = "openai"
+    AI_TIMEOUT: int = 120
+
+    # Provider API keys (set via .env or /api/ai/config)
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o"
-    OPENAI_TIMEOUT: int = 120
+    CLAUDE_API_KEY: str = ""
+    CLAUDE_MODEL: str = "claude-sonnet-4-20250514"
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GROK_API_KEY: str = ""
+    GROK_MODEL: str = "grok-3-mini"
 
     class Config:
         env_file = ".env"

@@ -146,9 +146,22 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 <button class="sb-btn primary" onclick="openAddSite()">+ Объект</button>
 <button class="sb-btn" onclick="openTOTemplates()">📋 Регламенты ТО</button>
 <button class="sb-btn" onclick="initBxModal();showM('bitrix')">🔗 Битрикс24</button>
+<button class="sb-btn" onclick="initAIModal();showM('aiconf')">🤖 AI Провайдер</button>
 </div><div class="sb-sites" id="sbSites"></div></div>
 <div class="mn" id="mainArea"></div></div>
 <!-- MODALS -->
+<!-- AI Provider Config -->
+<div class="mbg" id="m-aiconf"><div class="mod" style="max-width:520px"><div class="mhd"><h3>🤖 AI Провайдер</h3><button class="mx" onclick="hideM('aiconf')">✕</button></div><div class="mbd">
+<div style="font-size:12px;color:var(--t2);margin-bottom:12px">Выберите LLM-провайдера для AI-импорта регламентов ТО из мануалов</div>
+<div id="aiProviderCards" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px"></div>
+<div id="aiKeySection" style="display:none">
+<div class="fg"><label class="fl" id="aiKeyLabel">API Key</label><div style="display:flex;gap:6px"><input class="fi" id="aiKeyInput" type="password" placeholder="sk-..." style="flex:1"><button class="bs2" style="padding:8px 12px;font-size:11px;flex-shrink:0" onclick="toggleAIKeyVis()">👁</button></div></div>
+<div class="fg"><label class="fl">Модель</label><select class="fi" id="aiModelSelect" style="padding:8px 10px"></select></div>
+<div style="display:flex;gap:8px;margin-bottom:10px"><button class="bp" style="flex:1" onclick="saveAIConfig()">💾 Сохранить</button><button class="bs2" style="padding:10px" onclick="testAIProvider()">🔌 Тест</button></div>
+<div id="aiTestResult" style="margin-top:4px"></div>
+</div>
+<div id="aiStatus" style="padding:8px 10px;background:rgba(255,255,255,.02);border:1px solid var(--bd);border-radius:6px;margin-top:8px;font-size:10px;color:var(--t3);line-height:1.5"></div>
+</div></div></div>
 <div class="mbg" id="m-site"><div class="mod" style="max-width:440px"><div class="mhd"><h3 id="smT">Новый объект</h3><button class="mx" onclick="hideM('site')">✕</button></div><div class="mbd">
 <div class="fg"><label class="fl">Название <span class="req">*</span></label><input class="fi" id="fN" placeholder="МКЗ"></div>
 <div class="fg"><label class="fl">Код (латиница) <span class="req">*</span></label><input class="fi" id="fC" placeholder="mkz"></div>
@@ -784,7 +797,9 @@ $('toBody').innerHTML=`<div style="display:flex;justify-content:space-between;pa
 <div style="display:flex;gap:8px;margin-top:12px"><button class="bp" style="flex:1" onclick="completeTO('${dev}',${idx})">✓ Подтвердить</button><button class="bs2" style="flex:1;padding:10px" onclick="openTO('${dev}')">Назад</button></div>`}
 function completeTO(dev,idx){const tpl=getTpl(),iv=tpl.intervals[idx],rh=S[cur]?.[dev]?.runHours||0;const cbs=document.querySelectorAll('.chk-cb');let done=0;cbs.forEach(c=>{if(c.checked)done++});const td=getTOData(cur,dev);td.hoursAtLastTO=rh;td.lastTOId=iv.id;td.history=td.history||[];td.history.unshift({type:iv.name,hours:rh,done,total:cbs.length,date:new Date().toLocaleDateString('ru-RU')});saveTOData(cur,dev,td);ae(`✅ ${iv.name} ${dev==='g1'?'G1':'G2'}: ${done}/${cbs.length}`);hideM('to');renderDash()}
 async function openTOTemplates(){const tpl=getTpl();const bxCfg=getBxConfig();const bxOk=!!bxCfg.url;
-let aiOk=false;if(apiAvailable){try{const ah=await api.get('/api/ai/health');aiOk=ah&&ah.available}catch(e){}}
+let aiOk=false;let aiProv='';let aiModel='';if(apiAvailable){try{const ah=await api.get('/api/ai/health');aiOk=ah&&ah.available;aiProv=ah?.provider||'';aiModel=ah?.model||''}catch(e){}}
+var localAi=getAIConfig();var localProv=localAi.provider||'';var localHasKey=!!(localAi.keys&&localAi.keys[localProv]);
+var provName=localProv?((AI_PROVIDERS[localProv]||{}).name||localProv):'';var provIcon=localProv?((AI_PROVIDERS[localProv]||{}).icon||'🤖'):'🤖';
 $('tplT').textContent='📋 Регламенты ТО';$('tplBody').innerHTML=`
 <div style="padding:10px;background:${bxOk?'rgba(0,224,154,.04)':'rgba(255,176,32,.04)'};border:1px solid ${bxOk?'rgba(0,224,154,.15)':'rgba(255,176,32,.15)'};border-radius:8px;margin-bottom:12px">
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
@@ -792,7 +807,7 @@ $('tplT').textContent='📋 Регламенты ТО';$('tplBody').innerHTML=`
 <button class="bs2" style="padding:4px 10px;font-size:10px" onclick="hideM('tpl');initBxModal();showM('bitrix')">${bxOk?'⚙ Настройки':'🔗 Подключить'}</button>
 </div>
 <div style="font-size:10px;color:var(--t3);line-height:1.5">
-${bxOk&&aiOk?`<b style="color:var(--p)">🤖 AI-импорт доступен (${aiOk?'OpenAI':''})</b> — загрузите мануал ДГУ на Диск Б24, затем нажмите «Импорт из мануала».<br>ИИ-агент автоматически извлечёт интервалы ТО, чеклисты работ и критичность.`:bxOk&&!aiOk?'<b style="color:var(--y)">⚠ AI-агент не настроен</b> — добавьте OPENAI_API_KEY в .env для активации автоимпорта из мануалов.':'Подключите Битрикс24 для загрузки регламентов ТО из мануалов производителя через ИИ-агент.'}
+${bxOk&&(aiOk||localHasKey)?`<b style="color:var(--p)">${provIcon} AI-импорт доступен (${aiProv?provName+' · '+aiModel:provName})</b> — загрузите мануал ДГУ на Диск Б24, затем нажмите «Импорт из мануала».<br>ИИ-агент автоматически извлечёт интервалы ТО, чеклисты работ и критичность.`:bxOk&&!aiOk?`<b style="color:var(--y)">⚠ AI-агент не настроен</b> — <a href="#" onclick="event.preventDefault();hideM('tpl');initAIModal();showM('aiconf')" style="color:var(--p);text-decoration:underline">настройте провайдера</a> (OpenAI, Claude, Gemini, Grok).`:'Подключите Битрикс24 для загрузки регламентов ТО из мануалов производителя через ИИ-агент.'}
 </div>
 ${bxOk?`<div style="display:flex;gap:6px;margin-top:8px"><button class="bpp" style="flex:1;padding:7px 10px;font-size:11px" onclick="hideM('tpl');initBxModal();showM('bitrix');setTimeout(()=>bxTab(document.querySelectorAll('.set-tab')[2],2),100)">🤖 Импорт из мануала</button></div>`:''}
 </div>
@@ -1176,7 +1191,8 @@ async function importBxFile(fileId,filename){var el=$('bxFileList');var cfg=getB
 el.innerHTML+='<div id="aiProgress" style="padding:10px;background:var(--pd);border:1px solid rgba(160,112,255,.2);border-radius:8px;margin-top:8px"><div style="font-size:12px;color:var(--p);font-weight:600;margin-bottom:6px">🤖 AI-агент обработки</div><div id="aiStep" style="font-size:11px;color:var(--t2)">⏳ Скачивание файла из Битрикс24...</div><div style="margin-top:6px;height:3px;background:rgba(160,112,255,.1);border-radius:2px;overflow:hidden"><div id="aiBar" style="width:10%;height:100%;background:var(--p);transition:width .5s"></div></div></div>';
 ae('🤖 AI-импорт: '+(filename||'file#'+fileId));
 var t1=setTimeout(function(){var b=$('aiBar'),s=$('aiStep');if(b)b.style.width='30%';if(s)s.textContent='⏳ Извлечение текста из документа...'},2000);
-var t2=setTimeout(function(){var b=$('aiBar'),s=$('aiStep');if(b)b.style.width='50%';if(s)s.textContent='⏳ Отправка в OpenAI для анализа...'},5000);
+var aiCfgName=((AI_PROVIDERS[(getAIConfig().provider||'openai')])||{}).name||'AI';
+var t2=setTimeout(function(){var b=$('aiBar'),s=$('aiStep');if(b)b.style.width='50%';if(s)s.textContent='⏳ Отправка в '+aiCfgName+' для анализа...'},5000);
 var t3=setTimeout(function(){var b=$('aiBar'),s=$('aiStep');if(b)b.style.width='80%';if(s)s.textContent='⏳ Парсинг интервалов ТО и работ...'},15000);
 if(apiAvailable&&cfg.url){try{var r=await api.post('/api/ai/parse',{webhook_url:cfg.url,file_id:fileId,filename:filename||''});
 clearTimeout(t1);clearTimeout(t2);clearTimeout(t3);
@@ -1211,6 +1227,60 @@ var payload='{\n  "fields": {\n    "TITLE": "'+title.replace(/"/g,'\\"')+'",\n  
 var chkPayload='// Для каждой работы:\ntask.checklistitem.add\n[TASK_ID, {"TITLE": "текст работы"}]';
 $('toBody').innerHTML+='<div style="padding:10px;background:var(--gd);border:1px solid rgba(0,224,154,.2);border-radius:8px;margin-top:10px"><div style="font-size:12px;color:var(--g);font-weight:600;margin-bottom:8px">📋 Задача для Битрикс24</div><div style="font-size:11px;color:var(--t2);line-height:1.5"><b>TITLE:</b> '+esc(title)+'<br><b>RESPONSIBLE_ID:</b> '+respId+' ('+esc(respName)+')<br><b>GROUP_ID:</b> '+(cfg.groupId||'—')+'<br><b>DEADLINE:</b> '+dlStr+'<br><b>PRIORITY:</b> '+(cfg.priority||1)+'<br><b>AUDITORS:</b> '+auditors+'<br><b>Чеклист:</b> '+tasks.length+' пунктов'+(cfg.addChecklist!==false?' (task.checklistitem.add)':' (отключён)')+'</div><details style="margin-top:8px"><summary style="cursor:pointer;font-size:10px;color:var(--t3)">Показать JSON payload</summary><pre style="font-size:9px;color:var(--t3);background:var(--bg);padding:8px;border-radius:4px;margin-top:4px;overflow-x:auto;white-space:pre-wrap">POST {webhook}/tasks.task.add\n'+esc(payload)+'</pre></details><div style="margin-top:8px;font-size:9px;color:var(--t4)">Требуется backend для отправки. URL: '+esc((cfg.url||'https://...').substring(0,35))+'...</div></div>';ae('📋 Б24 задача: '+title)}
 function initBxModal(){var cfg=getBxConfig();if($('bxUrl'))$('bxUrl').value=cfg.url||'';if($('bxFolderId'))$('bxFolderId').value=cfg.folderId||'';if($('bxGroupId'))$('bxGroupId').value=cfg.groupId||'';if($('bxTaskTitle'))$('bxTaskTitle').value=cfg.taskTitle||'{TO_NAME} — {SITE_NAME} — {GEN_NAME}';if($('bxDeadlineDays'))$('bxDeadlineDays').value=cfg.deadlineDays||3;if($('bxPriority'))$('bxPriority').value=cfg.priority||'1';if($('bxAutoCreate'))$('bxAutoCreate').checked=cfg.autoCreate||false;if($('bxAddChecklist'))$('bxAddChecklist').checked=cfg.addChecklist!==false;if($('bxDescBBCode'))$('bxDescBBCode').checked=cfg.descBBCode!==false;var aud=$('bxAuditor');if(aud){var users=getBxUsers();aud.innerHTML='<option value="">— нет —</option>';for(var i=0;i<users.length;i++){var u=users[i];aud.innerHTML+='<option value="'+u.id+'"'+(u.id===(cfg.auditor||'')?'selected':'')+'>'+u.name+'</option>'}}}
+// === AI PROVIDER CONFIG ===
+const AI_PROVIDERS={
+openai:{id:'openai',name:'OpenAI',color:'#10a37f',icon:'🟢',models:['gpt-4o','gpt-4o-mini','gpt-4-turbo','o3-mini'],keyPrefix:'sk-',keyPlaceholder:'sk-proj-...'},
+claude:{id:'claude',name:'Claude',color:'#d97706',icon:'🟠',models:['claude-sonnet-4-20250514','claude-3-5-haiku-20241022','claude-opus-4-20250514'],keyPrefix:'sk-ant-',keyPlaceholder:'sk-ant-api03-...'},
+gemini:{id:'gemini',name:'Gemini',color:'#4285f4',icon:'🔵',models:['gemini-2.5-pro','gemini-2.5-flash','gemini-2.0-flash'],keyPrefix:'AI',keyPlaceholder:'AIza...'},
+grok:{id:'grok',name:'Grok',color:'#ef4444',icon:'🔴',models:['grok-3','grok-3-mini','grok-2'],keyPrefix:'xai-',keyPlaceholder:'xai-...'}
+};
+function getAIConfig(){try{return JSON.parse(localStorage.getItem('s5ai'))||{}}catch(e){return{}}}
+function saveAICfg(c){localStorage.setItem('s5ai',JSON.stringify(c))}
+function initAIModal(){var cfg=getAIConfig();var cards=$('aiProviderCards');if(!cards)return;
+var h='';for(var k in AI_PROVIDERS){var p=AI_PROVIDERS[k];var sel=cfg.provider===k;
+h+='<div onclick="selectAIProvider(\''+k+'\')" style="padding:10px;border:2px solid '+(sel?p.color:'var(--bd)')+';border-radius:var(--rad);cursor:pointer;background:'+(sel?p.color+'15':'rgba(255,255,255,.02)')+';transition:all .2s;text-align:center" id="aip_'+k+'">';
+h+='<div style="font-size:22px;margin-bottom:4px">'+p.icon+'</div>';
+h+='<div style="font-size:13px;font-weight:600;color:'+(sel?p.color:'var(--t)')+'">'+p.name+'</div>';
+h+='<div style="font-size:9px;color:var(--t3);margin-top:2px">'+p.models.length+' моделей</div>';
+h+='</div>'}
+cards.innerHTML=h;
+if(cfg.provider){showAIKeySection(cfg.provider)}else{$('aiKeySection').style.display='none'}
+updateAIStatus()}
+function selectAIProvider(pid){var cfg=getAIConfig();cfg.provider=pid;saveAICfg(cfg);
+for(var k in AI_PROVIDERS){var el=$('aip_'+k);if(!el)continue;var p=AI_PROVIDERS[k];var sel=k===pid;
+el.style.borderColor=sel?p.color:'var(--bd)';el.style.background=sel?p.color+'15':'rgba(255,255,255,.02)';
+el.querySelector('div:nth-child(2)').style.color=sel?p.color:'var(--t)'}
+showAIKeySection(pid)}
+function showAIKeySection(pid){var p=AI_PROVIDERS[pid];if(!p)return;var cfg=getAIConfig();
+$('aiKeySection').style.display='block';
+$('aiKeyLabel').textContent=p.name+' API Key';$('aiKeyLabel').style.color=p.color;
+$('aiKeyInput').placeholder=p.keyPlaceholder;$('aiKeyInput').value=cfg.keys?.[pid]||'';$('aiKeyInput').type='password';
+var sel=$('aiModelSelect');sel.innerHTML='';
+for(var i=0;i<p.models.length;i++){var o=document.createElement('option');o.value=p.models[i];o.textContent=p.models[i];sel.appendChild(o)}
+var savedModel=cfg.models?.[pid];if(savedModel)sel.value=savedModel;
+$('aiTestResult').innerHTML=''}
+function toggleAIKeyVis(){var inp=$('aiKeyInput');inp.type=inp.type==='password'?'text':'password'}
+function saveAIConfig(){var cfg=getAIConfig();var pid=cfg.provider;if(!pid){ae('⚠ Выберите провайдера');return}
+var key=$('aiKeyInput').value.trim();var model=$('aiModelSelect').value;
+if(!key){ae('⚠ Введите API ключ');return}
+if(!cfg.keys)cfg.keys={};if(!cfg.models)cfg.models={};
+cfg.keys[pid]=key;cfg.models[pid]=model;saveAICfg(cfg);
+updateAIStatus();ae('✅ '+AI_PROVIDERS[pid].name+' сохранён');
+// Push config to backend
+if(apiAvailable){api.post('/api/ai/config',{provider:pid,api_key:key,model:model}).catch(function(e){console.warn('AI config push error:',e)})}}
+async function testAIProvider(){var cfg=getAIConfig();var pid=cfg.provider;if(!pid)return;
+var key=$('aiKeyInput').value.trim();var model=$('aiModelSelect').value;
+if(!key){$('aiTestResult').innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r)">Введите API ключ</div>';return}
+var el=$('aiTestResult');el.innerHTML='<div style="padding:6px 10px;background:var(--yd);border:1px solid rgba(255,176,32,.2);border-radius:6px;font-size:11px;color:var(--y);font-family:var(--m)">⏳ Проверка '+AI_PROVIDERS[pid].name+'...</div>';
+if(apiAvailable){try{var r=await api.post('/api/ai/test',{provider:pid,api_key:key,model:model});
+if(r.success){el.innerHTML='<div style="padding:6px 10px;background:var(--gd);border:1px solid rgba(0,224,154,.2);border-radius:6px;font-size:11px;color:var(--g);font-family:var(--m)">✅ '+r.message+'</div>';ae('✅ '+AI_PROVIDERS[pid].name+' OK')}
+else{el.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r)">❌ '+(r.error||'Ошибка подключения')+'</div>'}}
+catch(e){el.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r)">❌ '+e.message+'</div>'}}
+else{setTimeout(function(){el.innerHTML='<div style="padding:6px 10px;background:var(--bb);border:1px solid rgba(64,144,255,.2);border-radius:6px;font-size:11px;color:var(--b);font-family:var(--m)">ℹ Backend недоступен — тест требует подключение к серверу</div>'},800)}}
+function updateAIStatus(){var cfg=getAIConfig();var el=$('aiStatus');if(!el)return;
+if(!cfg.provider){el.innerHTML='<b>Статус:</b> провайдер не выбран';return}
+var p=AI_PROVIDERS[cfg.provider];var hasKey=cfg.keys?.[cfg.provider];var model=cfg.models?.[cfg.provider]||p.models[0];
+el.innerHTML='<b>Статус:</b> '+p.icon+' <span style="color:'+p.color+';font-weight:600">'+p.name+'</span>'+(hasKey?' · <span style="color:var(--g)">🔑 ключ сохранён</span>':' · <span style="color:var(--y)">⚠ нет ключа</span>')+'<br><b>Модель:</b> <span style="font-family:var(--m)">'+model+'</span>'}
 // === ALARM SYSTEM ===
 // HGM9520N alarms from protocol Table 27
 const ALARM_CODES={
