@@ -12,6 +12,8 @@ from api.sites import router as sites_router
 from api.devices import router as devices_router
 from api.metrics import router as metrics_router
 from api.maintenance import router as maintenance_router
+from api.commands import router as commands_router
+from api.bitrix import router as bitrix_router
 from core.websocket import router as ws_router, redis_to_ws_bridge, maintenance_alerts_bridge
 from services.modbus_poller import ModbusPoller
 from services.maintenance_scheduler import MaintenanceScheduler
@@ -94,6 +96,8 @@ app.include_router(sites_router)
 app.include_router(devices_router)
 app.include_router(metrics_router)
 app.include_router(maintenance_router)
+app.include_router(commands_router)
+app.include_router(bitrix_router)
 app.include_router(ws_router)
 
 

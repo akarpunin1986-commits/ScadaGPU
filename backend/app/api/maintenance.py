@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
@@ -820,7 +820,7 @@ async def acknowledge_alert(
 
     alert.status = AlertStatus.acknowledged
     alert.acknowledged_by = data.acknowledged_by
-    alert.acknowledged_at = datetime.utcnow()
+    alert.acknowledged_at = datetime.now(timezone.utc)
     await session.commit()
     await session.refresh(alert)
     return alert

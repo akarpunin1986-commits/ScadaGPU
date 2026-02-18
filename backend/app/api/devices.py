@@ -21,6 +21,9 @@ class DeviceCreate(BaseModel):
     protocol: ModbusProtocol
     is_active: bool = True
     description: str | None = None
+    poll_interval: float | None = None
+    modbus_timeout: float | None = None
+    retry_delay: float | None = None
 
 
 class DeviceUpdate(BaseModel):
@@ -32,6 +35,9 @@ class DeviceUpdate(BaseModel):
     protocol: ModbusProtocol | None = None
     is_active: bool | None = None
     description: str | None = None
+    poll_interval: float | None = None
+    modbus_timeout: float | None = None
+    retry_delay: float | None = None
 
 
 class DeviceOut(BaseModel):
@@ -45,6 +51,9 @@ class DeviceOut(BaseModel):
     protocol: ModbusProtocol
     is_active: bool
     description: str | None
+    poll_interval: float | None
+    modbus_timeout: float | None
+    retry_delay: float | None
 
     model_config = {"from_attributes": True}
 

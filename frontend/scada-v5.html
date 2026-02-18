@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>SCADA GPU v5.0</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+--bg:#06090f;--bg2:#0a0f1a;--bg3:#0f1525;--bg4:#152035;--bg5:#1a2840;
+--bd:#1a2640;--bd2:#2a4068;--bdh:#3a5888;
+--t:#e8edf5;--t2:#94a3b8;--t3:#5a6a80;--t4:#384860;
+--g:#00e09a;--gd:rgba(0,224,154,.08);--gb:rgba(0,224,154,.15);
+--y:#ffb020;--yd:rgba(255,176,32,.08);
+--r:#ff4060;--rd:rgba(255,64,96,.08);
+--b:#4090ff;--bb:rgba(64,144,255,.1);
+--p:#a070ff;--pd:rgba(160,112,255,.08);
+--m:'JetBrains Mono',monospace;--u:'Outfit',sans-serif;
+--rs:8px;--rad:12px
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--t);font-family:var(--u);height:100vh;overflow:hidden}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px}
+.app{display:flex;height:100vh}
+.sb{width:220px;background:var(--bg2);border-right:1px solid var(--bd);display:flex;flex-direction:column;flex-shrink:0}
+.sb-hd{padding:16px 14px 12px;border-bottom:1px solid var(--bd)}
+.logo{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.logo svg{color:var(--g);filter:drop-shadow(0 0 6px rgba(0,224,154,.4))}.logo b{font-size:14px;letter-spacing:1px;font-weight:700}.logo span{font-size:10px;color:var(--t3);font-family:var(--m);margin-left:auto}
+.sb-btn{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--rs);border:1px solid var(--bd);background:var(--bg3);color:var(--t2);cursor:pointer;font-size:12px;font-family:var(--u);width:100%;text-align:left;transition:all .15s;margin-bottom:4px}
+.sb-btn:hover{background:var(--bg4);color:var(--t);border-color:var(--bd2)}
+.sb-btn.primary{background:var(--g);color:#080c14;border-color:var(--g);font-weight:600}.sb-btn.primary:hover{background:#00c888}
+.sb-sites{flex:1;overflow-y:auto;padding:8px}
+.si{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:var(--rs);cursor:pointer;margin-bottom:2px;border:1px solid transparent;transition:all .15s}
+.si:hover{background:var(--bg4)}.si.on{background:var(--gd);border-color:rgba(0,224,154,.25)}
+.si-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}.si-name{font-size:13px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.si-acts{display:none;gap:2px}.si:hover .si-acts{display:flex}
+.si-btn{background:none;border:none;cursor:pointer;font-size:11px;padding:2px 5px;border-radius:4px;color:var(--t3);transition:all .15s}.si-btn:hover{color:var(--t)}.si-btn.del:hover{color:var(--r)}
+.mn{flex:1;overflow-y:auto;padding:12px 20px}
+.dh{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px}
+.dt{display:flex;align-items:center;gap:12px}.dt h1{font-size:18px;font-weight:600}
+.ld{width:10px;height:10px;border-radius:50%;background:var(--g);box-shadow:0 0 10px var(--g);animation:pulse 2s ease-in-out infinite}@keyframes pulse{50%{opacity:.4}}
+.da{display:flex;gap:6px;align-items:center}
+.da button{padding:7px 14px;border-radius:var(--rs);border:1px solid var(--bd);background:var(--bg3);color:var(--t2);cursor:pointer;font-size:12px;font-family:var(--u);display:flex;align-items:center;gap:6px;white-space:nowrap;transition:all .15s}
+.da button:hover{background:var(--bg4);color:var(--t);border-color:var(--bd2)}.da .demo-on{background:var(--gd);border-color:var(--g);color:var(--g)}
+.ck{font-size:12px;color:var(--t3);font-family:var(--m)}
+.ss{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-bottom:8px}
+.sc{background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);padding:7px 10px;transition:border-color .2s}.sc:hover{border-color:var(--bd2)}
+.sl2{font-size:9px;color:var(--t3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.8px;font-weight:500}
+.sv{font-family:var(--m);font-size:20px;font-weight:700}.su{font-size:11px;color:var(--t3);margin-left:2px;font-weight:400}
+.bdg{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600;font-family:var(--m)}
+.bdg-ok{background:var(--gd);color:var(--g);border:1px solid rgba(0,224,154,.2)}.bdg-w{background:var(--yd);color:var(--y);border:1px solid rgba(255,176,32,.2);cursor:pointer}.bdg-a{background:var(--rd);color:var(--r);border:1px solid rgba(255,64,96,.2);cursor:pointer;animation:bk 1.5s infinite}.bdg-off{background:var(--bg3);color:var(--t3);border:1px solid var(--bd)}.bdg-run{background:var(--gd);color:var(--g);border:1px solid rgba(0,224,154,.2)}
+.gg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}.sr2{display:flex;justify-content:center;margin-bottom:10px}.sr2 .cc{max-width:640px;width:100%}
+.cc{background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);overflow:hidden;transition:all .25s}.cc:hover{border-color:var(--bd2)}
+.cc.s-run{border-left:3px solid var(--g)}.cc.s-stb{border-left:3px solid var(--t4)}.cc.s-wrn{border-left:3px solid var(--y)}.cc.s-alm{border-left:3px solid var(--r)}
+.ch{padding:8px 12px 6px;cursor:pointer;transition:background .15s}.ch:hover{background:rgba(255,255,255,.015)}
+.cr1{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}.cid{display:flex;align-items:center;gap:8px}
+.cdot{width:8px;height:8px;border-radius:50%;flex-shrink:0;transition:all .3s}
+.cd-g{background:var(--g);box-shadow:0 0 8px var(--g)}.cd-x{background:var(--t4)}.cd-r{background:var(--r);box-shadow:0 0 8px var(--r);animation:bk 1s infinite}.cd-y{background:var(--y);box-shadow:0 0 8px var(--y)}
+@keyframes bk{50%{opacity:.15}}
+.cn{font-size:13px;font-weight:600}.csb{font-size:10px;color:var(--t3);font-family:var(--m);margin-top:1px}
+.kr{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}.kr5{grid-template-columns:repeat(5,1fr)}
+.kp{text-align:center;padding:4px 2px;background:rgba(255,255,255,.02);border-radius:var(--rs)}.kl{font-size:8px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;font-weight:500}
+.kv{font-family:var(--m);font-size:14px;font-weight:600}.ku{font-size:8px;color:var(--t3)}
+.vg{color:var(--g)}.vn{color:var(--t)}.vm{color:var(--t4)}.vw{color:var(--y)}.va{color:var(--r)}.vb{color:var(--b)}.vp{color:var(--p)}
+/* Quick Controls - ALWAYS VISIBLE on card */
+.qc{display:flex;gap:3px;margin-top:3px;padding-top:3px;border-top:1px solid rgba(255,255,255,.04)}
+.qb{flex:1;display:flex;align-items:center;justify-content:center;gap:2px;padding:4px 2px;border-radius:6px;border:1px solid var(--bd);background:rgba(255,255,255,.02);color:var(--t3);cursor:pointer;font-family:var(--u);font-size:9px;font-weight:500;transition:all .15s;white-space:nowrap}
+.qb:hover{background:var(--bg4);color:var(--t);border-color:var(--bd2)}.qb:active{transform:scale(.96)}
+.qb.q-start:hover{border-color:var(--g);color:var(--g);background:var(--gd)}
+.qb.q-stop:hover{border-color:var(--r);color:var(--r);background:var(--rd)}
+.qb.q-auto:hover{border-color:var(--b);color:var(--b);background:var(--bb)}
+.qb.q-manual:hover{border-color:var(--y);color:var(--y);background:var(--yd)}
+.qb.q-danger{border-color:rgba(255,64,96,.3);color:var(--r);background:var(--rd)}.qb.q-danger:hover{background:rgba(255,64,96,.2);border-color:var(--r)}
+.cmd-st{margin-top:6px;padding:5px 10px;border-radius:6px;font-size:10px;font-family:var(--m);background:var(--gd);color:var(--g);display:none;text-align:center}.cmd-st.sh{display:block}
+.to-block{margin-top:3px;padding:4px 7px;background:rgba(255,255,255,.02);border:1px solid var(--bd);border-radius:var(--rs);cursor:pointer;transition:all .2s}.to-block:hover{border-color:var(--bd2)}
+.to-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}.to-name{font-size:10px;font-weight:600;font-family:var(--m)}.to-g{color:var(--g)}.to-y{color:var(--y)}.to-r{color:var(--r)}.to-remain{font-size:9px;font-family:var(--m);color:var(--t3)}
+.to-bar{height:3px;background:var(--bg);border-radius:2px;overflow:hidden;margin-bottom:2px}.to-fill{height:100%;border-radius:2px;transition:width .5s}
+.to-tasks{font-size:10px;color:var(--t3);line-height:1.4;max-height:0;overflow:hidden;transition:max-height .3s}.to-block.exp .to-tasks{max-height:140px}.to-hint{font-size:9px;color:var(--t4);text-align:right}
+.mds{display:flex;gap:2px;margin-top:3px}.mdt{font-size:8px;font-family:var(--m);font-weight:600;padding:2px 6px;border-radius:3px;border:1px solid var(--bd);color:var(--t4);transition:all .2s}.mdt.on{border-color:var(--g);color:var(--g);background:var(--gd)}
+.cv{display:flex;justify-content:center;padding:3px;color:var(--t4);transition:transform .3s}.cc.op .cv{transform:rotate(180deg)}
+.ce{max-height:0;overflow:hidden;transition:max-height .4s ease}.cc.op .ce{max-height:2500px}.ei{padding:0 10px 8px}
+.tbs{display:flex;gap:0;border-bottom:1px solid var(--bd);margin-bottom:8px;overflow-x:auto}
+.tb{padding:7px 12px;font-size:12px;font-weight:500;color:var(--t3);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;font-family:var(--u);white-space:nowrap;flex-shrink:0;transition:all .15s}.tb:hover{color:var(--t)}.tb.on{color:var(--g);border-bottom-color:var(--g)}
+.tp{display:none}.tp.on{display:block}
+.mg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.mg4{grid-template-columns:repeat(4,1fr)}.mg2{grid-template-columns:repeat(2,1fr)}
+.mc{background:rgba(255,255,255,.02);border:1px solid var(--bd);border-radius:8px;padding:10px}.ml{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;font-weight:500}.mv{font-family:var(--m);font-size:17px;font-weight:600}.ms2{font-size:10px;color:var(--t3);font-family:var(--m);margin-top:2px}.mu{font-size:11px;color:var(--t3);margin-left:2px}
+.pt{width:100%;font-size:12px;font-family:var(--m);border-collapse:collapse;margin-top:10px}.pt th{text-align:left;font-weight:500;color:var(--t3);padding:7px 8px;border-bottom:1px solid var(--bd);font-size:10px;text-transform:uppercase}.pt td{padding:7px 8px;border-bottom:1px solid rgba(255,255,255,.02)}.pt .ph{color:var(--t3)}
+.cg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.cb2{display:flex;flex-direction:column;align-items:center;gap:5px;padding:12px 4px;border-radius:8px;border:1px solid var(--bd);background:rgba(255,255,255,.02);color:var(--t3);cursor:pointer;font-family:var(--u);font-size:10px;transition:all .15s;font-weight:500}
+.cb2:active{transform:scale(.95)}.cb2:hover{background:var(--bg4);color:var(--t);border-color:var(--bd2)}.cb2.cgo:hover{border-color:var(--g);color:var(--g);background:var(--gd)}.cb2.cst:hover{border-color:var(--r);color:var(--r);background:var(--rd)}.ci2{font-size:18px}
+.ai{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--rs);margin-bottom:4px;font-size:12px;font-family:var(--m)}.ai.aw{background:var(--yd);border:1px solid rgba(255,176,32,.2)}.ai.aa{background:var(--rd);border:1px solid rgba(255,64,96,.2)}
+.cf{display:flex;align-items:center;justify-content:space-between;padding:3px 10px;border-top:1px solid var(--bd);font-size:9px;font-family:var(--m);color:var(--t4)}.li{display:flex;align-items:center;gap:5px}.lo{width:6px;height:6px;border-radius:50%}.lo-g{background:var(--g);animation:pulse 1.5s ease-in-out infinite}.lo-r{background:var(--r)}
+.pflow{margin:0 0 6px;padding:2px 8px;background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad)}
+.pflow svg{width:100%;height:auto}
+.pline{stroke:var(--t4);stroke-width:2.5;fill:none;transition:stroke .3s}
+.pline.on{stroke:var(--g);filter:drop-shadow(0 0 4px rgba(0,224,154,.5));stroke-dasharray:8 4;animation:flowA .8s linear infinite}
+.pline.mon{stroke:var(--b);filter:drop-shadow(0 0 4px rgba(64,144,255,.4));stroke-dasharray:8 4;animation:flowA .8s linear infinite}
+.pline.bus{stroke-width:4}
+@keyframes flowA{to{stroke-dashoffset:-12}}
+@keyframes flowR{to{stroke-dashoffset:12}}
+.pline.onR{stroke:var(--g);filter:drop-shadow(0 0 4px rgba(0,224,154,.5));stroke-dasharray:8 4;animation:flowR .8s linear infinite}
+.pline.monR{stroke:var(--b);filter:drop-shadow(0 0 4px rgba(64,144,255,.4));stroke-dasharray:8 4;animation:flowR .8s linear infinite}
+.bk-item{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:rgba(255,255,255,.02);border:1px solid var(--bd);border-radius:6px;margin-bottom:4px;font-size:11px;font-family:var(--m)}
+.bk-item:hover{border-color:var(--bd2)}
+.bk-acts{display:flex;gap:4px}
+.bk-btn{padding:3px 8px;border-radius:4px;border:1px solid var(--bd);background:var(--bg3);color:var(--t3);cursor:pointer;font-size:10px;font-family:var(--u);transition:all .15s}
+.bk-btn:hover{background:var(--bg4);color:var(--t);border-color:var(--bd2)}
+.bk-btn.del:hover{color:var(--r);border-color:rgba(255,64,96,.3)}
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px)}.mbg.sh{display:flex}
+.mod{background:var(--bg2);border:1px solid var(--bd);border-radius:14px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;box-shadow:0 2px 20px rgba(0,0,0,.4)}
+.mhd{padding:16px 18px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between}.mhd h3{font-size:15px;font-weight:600}
+.mx{background:none;border:none;color:var(--t3);cursor:pointer;font-size:20px;padding:4px 8px;border-radius:6px;transition:all .15s}.mx:hover{background:var(--bg4);color:var(--t)}
+.mbd{padding:18px}
+.fg{margin-bottom:14px}.fl{font-size:12px;color:var(--t2);margin-bottom:5px;display:block;font-weight:500}.req{color:var(--r)}
+.fi{width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--rs);color:var(--t);font-size:13px;font-family:var(--u);outline:none;transition:all .15s}.fi:focus{border-color:var(--g);box-shadow:0 0 0 3px rgba(0,224,154,.1)}
+.fr2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.bp{padding:10px;background:var(--g);color:#080c14;border:none;border-radius:var(--rs);font-weight:600;cursor:pointer;font-family:var(--u);font-size:13px;width:100%;transition:all .15s}.bp:hover{background:#00c888}
+.bs2{padding:8px 14px;background:var(--bg3);border:1px solid var(--bd);color:var(--t2);border-radius:var(--rs);cursor:pointer;font-family:var(--u);font-size:12px;transition:all .15s}.bs2:hover{background:var(--bg4);color:var(--t)}
+.bdn{background:var(--rd);color:var(--r);border:1px solid rgba(255,64,96,.3);border-radius:var(--rs);cursor:pointer;font-family:var(--u);font-weight:600;font-size:13px;padding:10px;transition:all .15s}.bdn:hover{background:rgba(255,64,96,.15)}
+.bpp{padding:8px 12px;background:var(--pd);border:1px solid rgba(160,112,255,.3);color:var(--p);border-radius:var(--rs);cursor:pointer;font-family:var(--u);font-size:12px;font-weight:600;width:100%;transition:all .15s}.bpp:hover{background:rgba(160,112,255,.15)}
+.cfs{border:1px solid var(--bd);border-radius:10px;padding:14px;margin-bottom:12px;transition:border-color .2s}.cfs:hover{border-color:var(--bd2)}
+.cft{font-size:12px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.cft .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}.cft .dot-g{background:var(--g)}.cft .dot-p{background:var(--p)}
+.conn-test{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:4px;font-size:10px;font-family:var(--m);margin-left:auto;cursor:pointer;background:var(--bg4);border:1px solid var(--bd);color:var(--t3);transition:all .15s}.conn-test:hover{color:var(--t);border-color:var(--bd2)}
+.spr-cg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+.spr-b{padding:10px 4px;border-radius:8px;border:1px solid var(--bd);background:rgba(255,255,255,.02);color:var(--t3);cursor:pointer;font-family:var(--u);font-size:10px;text-align:center;transition:all .15s;font-weight:500}.spr-b:hover{background:var(--bg4);color:var(--t);border-color:var(--bd2)}.spr-b:active{transform:scale(.96)}.spr-b .si2{font-size:16px;display:block;margin-bottom:3px}
+.preset-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
+.preset-btn{padding:10px 6px;border-radius:8px;border:1px solid var(--bd);background:rgba(255,255,255,.02);color:var(--t2);cursor:pointer;font-family:var(--u);font-size:11px;text-align:center;transition:all .15s}
+.preset-btn:hover{background:var(--bg4);color:var(--t);border-color:var(--bd2)}.preset-btn:active{transform:scale(.96)}
+.preset-btn .preset-name{font-weight:600;margin-bottom:2px}.preset-btn .preset-desc{font-size:9px;color:var(--t3);font-family:var(--m)}.preset-btn.active{border-color:var(--p);background:var(--pd);color:var(--p)}
+.slider-group{padding:10px 12px;background:rgba(255,255,255,.02);border:1px solid var(--bd);border-radius:8px;margin-bottom:8px}
+.slider-row{display:flex;align-items:center;gap:10px;margin-bottom:6px}.slider-row:last-child{margin-bottom:0}
+.slider-label{font-size:11px;font-family:var(--m);color:var(--t3);width:20px;flex-shrink:0}.slider-val{font-size:12px;font-family:var(--m);color:var(--t);width:44px;text-align:right;flex-shrink:0;font-weight:600}
+input[type=range]{flex:1;-webkit-appearance:none;height:4px;background:var(--bd);border-radius:2px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;background:var(--p);border-radius:50%;cursor:pointer;box-shadow:0 0 6px rgba(160,112,255,.4)}
+.ev{background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);padding:14px 16px}.ev-t{font-size:11px;color:var(--t3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.8px;font-weight:500}
+.er{font-size:11px;font-family:var(--m);padding:4px 0;color:var(--t2);display:flex;gap:8px}.et{color:var(--t4);flex-shrink:0}
+.to-iv{padding:12px;background:var(--bg4);border:1px solid var(--bd);border-radius:8px;margin-bottom:8px}.to-iv-bar{height:3px;background:var(--bg);border-radius:2px;overflow:hidden;margin-top:6px}.to-iv-fill{height:100%;border-radius:2px}
+.chk-item{display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:var(--rs);cursor:pointer;font-size:12px;transition:background .15s}.chk-item:hover{background:var(--bg4)}.chk-item.crit{background:rgba(255,64,96,.03)}.chk-item input{margin-top:2px;accent-color:var(--g)}
+.ta{width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--rs);color:var(--t2);font-size:11px;font-family:var(--u);resize:vertical;min-height:60px;outline:none}.ta:focus{border-color:var(--g)}
+.empty-dash{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px;color:var(--t3);text-align:center}
+.set-tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--bd)}
+.set-tab{padding:10px 16px;font-size:12px;font-weight:500;color:var(--t3);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;font-family:var(--u);transition:all .15s}.set-tab:hover{color:var(--t)}.set-tab.on{color:var(--g);border-bottom-color:var(--g)}
+.set-panel{display:none}.set-panel.on{display:block}
+</style></head><body>
+<div class="app">
+<div class="sb"><div class="sb-hd">
+<div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg><b>SCADA</b><span>v5</span></div>
+<button class="sb-btn primary" onclick="openAddSite()">+ Объект</button>
+<button class="sb-btn" onclick="openTOTemplates()">📋 Регламенты ТО</button>
+<button class="sb-btn" onclick="initBxModal();showM('bitrix')">🔗 Битрикс24</button>
+</div><div class="sb-sites" id="sbSites"></div></div>
+<div class="mn" id="mainArea"></div></div>
+<!-- MODALS -->
+<div class="mbg" id="m-site"><div class="mod" style="max-width:440px"><div class="mhd"><h3 id="smT">Новый объект</h3><button class="mx" onclick="hideM('site')">✕</button></div><div class="mbd">
+<div class="fg"><label class="fl">Название <span class="req">*</span></label><input class="fi" id="fN" placeholder="МКЗ"></div>
+<div class="fg"><label class="fl">Код (латиница) <span class="req">*</span></label><input class="fi" id="fC" placeholder="mkz"></div>
+<div class="fg"><label class="fl">Описание</label><input class="fi" id="fD" placeholder="Кирпичный завод"></div>
+<div class="fg"><label class="fl">👤 Ответственный за ТО</label><select class="fi" id="fResp" style="padding:8px 10px"><option value="">— выберите сотрудника —</option></select><div style="font-size:9px;color:var(--t4);margin-top:3px">Загрузите сотрудников в Битрикс24 → Сотрудники</div></div>
+<div id="smA"></div></div></div></div>
+<div class="mbg" id="m-del"><div class="mod" style="max-width:380px"><div class="mhd"><h3>Удалить объект?</h3><button class="mx" onclick="hideM('del')">✕</button></div><div class="mbd"><p style="font-size:13px;color:var(--t2);margin-bottom:16px">Удалить <b id="delN"></b> и все данные?</p><div style="display:flex;gap:8px"><button class="bdn" style="flex:1" onclick="doDel()">Удалить</button><button class="bs2" style="flex:1;padding:10px" onclick="hideM('del')">Отмена</button></div></div></div></div>
+<div class="mbg" id="m-settings"><div class="mod" style="max-width:560px"><div class="mhd"><h3 id="setTitle">⚙ Настройки</h3><button class="mx" onclick="hideM('settings')">✕</button></div><div class="mbd" id="setBody"></div></div></div>
+<div class="mbg" id="m-cmd"><div class="mod" style="max-width:400px"><div class="mhd"><h3 id="cmdT">Подтверждение</h3><button class="mx" onclick="hideM('cmd')">✕</button></div><div class="mbd">
+<div style="padding:12px;background:var(--yd);border:1px solid rgba(255,176,32,.2);border-radius:8px;margin-bottom:12px"><div style="font-size:12px;color:var(--y);font-weight:600;margin-bottom:4px">⚠ Внимание</div><p id="cmdTxt" style="font-size:13px;color:var(--t2)"></p></div>
+<div id="cmdInfo" style="padding:8px 10px;background:rgba(255,255,255,.02);border:1px solid var(--bd);border-radius:6px;font-size:10px;color:var(--t3);font-family:var(--m);margin-bottom:14px"></div>
+<div style="display:flex;gap:8px"><button class="bp" style="flex:1" id="cmdOk">⚡ Выполнить</button><button class="bs2" style="flex:1;padding:10px" onclick="hideM('cmd')">Отмена</button></div></div></div></div>
+<div class="mbg" id="m-to"><div class="mod"><div class="mhd"><h3 id="toT">ТО</h3><button class="mx" onclick="hideM('to')">✕</button></div><div class="mbd" id="toBody"></div></div></div>
+<div class="mbg" id="m-tpl"><div class="mod"><div class="mhd"><h3 id="tplT">Регламенты</h3><button class="mx" onclick="hideM('tpl')">✕</button></div><div class="mbd" id="tplBody"></div></div></div>
+<div class="mbg" id="m-bitrix"><div class="mod" style="max-width:560px"><div class="mhd"><h3>🔗 Битрикс24 — Интеграция</h3><button class="mx" onclick="hideM('bitrix')">✕</button></div><div class="mbd">
+<div class="set-tabs"><button class="set-tab on" onclick="bxTab(this,0)">Подключение</button><button class="set-tab" onclick="bxTab(this,1)">Сотрудники</button><button class="set-tab" onclick="bxTab(this,2)">Импорт ТО</button><button class="set-tab" onclick="bxTab(this,3)">Автозадачи</button></div>
+<div class="set-panel on" id="bxp0">
+<div class="fg"><label class="fl">Webhook URL <span class="req">*</span></label><input class="fi" id="bxUrl" placeholder="https://your.bitrix24.ru/rest/1/abc123xyz/" value=""></div>
+<div style="padding:8px 10px;background:rgba(255,255,255,.02);border:1px solid var(--bd);border-radius:6px;margin-bottom:10px;font-size:10px;color:var(--t3);line-height:1.5">
+<b>Как получить:</b> Битрикс24 → Разработчикам → Другое → Входящий вебхук → Создать.<br>
+<b>Обязательные права:</b><br>
+• <b style="color:var(--g)">task</b> — создание/чтение задач (tasks.task.add, task.checklistitem.add)<br>
+• <b style="color:var(--g)">user</b> — список сотрудников (user.get)<br>
+• <b style="color:var(--y)">disk</b> — файлы Диска (disk.folder.getchildren, disk.file.get) — для импорта ТО<br>
+• <b style="color:var(--t3)">crm</b> — опционально, для привязки задач к CRM (UF_CRM_TASK)<br>
+<b>Формат URL:</b> https://ваш-домен.bitrix24.ru/rest/USER_ID/SECRET/<br>
+<b>USER_ID</b> — от имени этого пользователя будут создаваться задачи (CREATED_BY)
+</div>
+<div style="display:flex;gap:8px"><button class="bp" style="flex:1" onclick="saveBxConfig()">💾 Сохранить</button><button class="bs2" style="padding:10px" onclick="testBxConnection()">🔌 Тест</button></div>
+<div id="bxConnResult" style="margin-top:8px"></div>
+</div>
+<div class="set-panel" id="bxp1">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:12px;color:var(--t2)">Сотрудники из Битрикс24</span><button class="bs2" style="padding:6px 12px;font-size:11px" onclick="loadBxUsers()">🔄 Загрузить</button></div>
+<div id="bxUserList" style="max-height:300px;overflow-y:auto"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Нажмите «Загрузить» для получения списка сотрудников</div></div>
+<div style="padding:8px 10px;background:rgba(255,255,255,.02);border:1px solid var(--bd);border-radius:6px;margin-top:10px;font-size:10px;color:var(--t3);line-height:1.5">Список используется для назначения ответственных (RESPONSIBLE_ID) и наблюдателей (AUDITORS) в задачах ТО.<br><b>API:</b> user.get → поля: ID, NAME, LAST_NAME, WORK_POSITION, UF_DEPARTMENT</div>
+</div>
+<div class="set-panel" id="bxp2">
+<div style="font-size:12px;color:var(--t2);margin-bottom:10px">Импорт регламента ТО из Битрикс24 Диск</div>
+<div class="fg"><label class="fl">ID папки на Диске Б24</label><input class="fi" id="bxFolderId" placeholder="12345" type="number"></div>
+<div style="display:flex;gap:8px;margin-bottom:10px"><button class="bp" style="flex:1" onclick="scanBxFolder()">📂 Сканировать папку</button></div>
+<div id="bxFileList" style="margin-bottom:10px"></div>
+<div style="padding:10px;background:rgba(160,112,255,.04);border:1px solid rgba(160,112,255,.15);border-radius:8px;font-size:10px;color:var(--t2);line-height:1.5">
+<b style="color:var(--p)">Как это работает:</b><br>
+1. Загрузите регламент ТО (PDF/DOCX) на Диск Битрикс24<br>
+2. Укажите ID папки → SCADA сканирует файлы<br>
+3. Выберите файл → AI-агент транскрибирует документ<br>
+4. Результат автоматически создаст интервалы и чеклисты ТО<br>
+<b>API:</b> disk.folder.getchildren → disk.file.get → AI parse
+</div>
+</div>
+<div class="set-panel" id="bxp3">
+<div style="font-size:12px;color:var(--t2);margin-bottom:10px">Автоматическое создание задач при наступлении ТО</div>
+<div class="fg"><label class="fl">Группа/проект в Б24 (GROUP_ID)</label><input class="fi" id="bxGroupId" placeholder="42" type="number"></div>
+<div class="fg"><label class="fl">Шаблон заголовка задачи (TITLE)</label><input class="fi" id="bxTaskTitle" placeholder="{TO_NAME} — {SITE_NAME} — {GEN_NAME}" value="{TO_NAME} — {SITE_NAME} — {GEN_NAME}"></div>
+<div style="display:flex;gap:8px"><div class="fg" style="flex:1"><label class="fl">Срок (дней от создания)</label><input class="fi" id="bxDeadlineDays" placeholder="3" value="3" type="number"></div><div class="fg" style="flex:1"><label class="fl">Приоритет (PRIORITY)</label><select class="fi" id="bxPriority" style="padding:8px 10px"><option value="0">Низкий (0)</option><option value="1" selected>Средний (1)</option><option value="2">Высокий (2)</option></select></div></div>
+<div class="fg"><label class="fl">👤 Наблюдатель по умолчанию (AUDITORS)</label><select class="fi" id="bxAuditor" style="padding:8px 10px"><option value="">— нет —</option></select></div>
+<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;padding:8px 10px;background:rgba(255,255,255,.02);border:1px solid var(--bd);border-radius:6px">
+<div style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="bxAutoCreate" style="accent-color:var(--g)"><label for="bxAutoCreate" style="font-size:12px;color:var(--t2)">Авто-создание задачи при просрочке ТО</label></div>
+<div style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="bxAddChecklist" style="accent-color:var(--g)" checked><label for="bxAddChecklist" style="font-size:12px;color:var(--t2)">Добавить чеклист работ (task.checklistitem.add)</label></div>
+<div style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="bxDescBBCode" style="accent-color:var(--g)" checked><label for="bxDescBBCode" style="font-size:12px;color:var(--t2)">Описание в BBCode (DESCRIPTION_IN_BBCODE=Y)</label></div>
+</div>
+<button class="bp" onclick="saveBxConfig()">💾 Сохранить настройки</button>
+<div style="padding:10px;background:rgba(255,255,255,.02);border:1px solid var(--bd);border-radius:8px;margin-top:10px;font-size:10px;color:var(--t3);line-height:1.6">
+<b style="color:var(--t2)">Поля задачи tasks.task.add:</b><br>
+• TITLE — заголовок по шаблону<br>
+• DESCRIPTION — описание с работами ТО (BBCode)<br>
+• RESPONSIBLE_ID — ответственный (из настроек объекта)<br>
+• CREATED_BY — постановщик (USER_ID из webhook URL)<br>
+• AUDITORS — наблюдатели (массив ID)<br>
+• GROUP_ID — проект/группа<br>
+• DEADLINE — срок в ISO-8601: 2025-01-15T19:00:00+03:00<br>
+• PRIORITY — 0/1/2 (низкий/средний/высокий)<br>
+• ALLOW_CHANGE_DEADLINE — N (запрет сдвига срока)<br>
+<b style="color:var(--t2);margin-top:4px;display:block">Чеклист task.checklistitem.add:</b><br>
+• Вызов: [TASK_ID, {TITLE: "текст работы"}] для каждой работы<br>
+• [!] критичные → {TITLE: "⚠ работа", IS_IMPORTANT: "Y"}<br>
+<b style="color:var(--t2);margin-top:4px;display:block">Переменные шаблона:</b><br>
+{TO_NAME}, {SITE_NAME}, {GEN_NAME}, {HOURS}, {RESPONSIBLE}<br>
+<b style="color:var(--y);margin-top:4px;display:block">Исходящий вебхук (обратная связь):</b><br>
+Б24 → SCADA: при закрытии задачи → обновить статус ТО.<br>
+Настройка: Б24 → Разработчикам → Исходящий вебхук → Событие: ONTASKCOMPLETE
+</div>
+</div>
+</div></div></div>
+
+<script>
+const $=id=>document.getElementById(id);
+let S,cur,editId=null,delId=null,evts=[];try{S=JSON.parse(localStorage.getItem('s5s'))||{}}catch(e){S={}}cur=localStorage.getItem('s5c')||null;
+let demo=false,demoIv=null,dStep=0;
+
+// ===================== API / WS INTEGRATION LAYER =====================
+const API_BASE = (window.location.port === '8011')
+    ? '' // nginx proxy — same origin
+    : 'http://' + window.location.hostname + ':8010';
+const WS_BASE = API_BASE
+    ? API_BASE.replace(/^http/, 'ws')
+    : 'ws://' + window.location.host;
+
+const api = {
+    async get(path) {
+        const r = await fetch(API_BASE + path);
+        if (!r.ok) throw new Error(`GET ${path}: ${r.status}`);
+        return r.json();
+    },
+    async post(path, body) {
+        const r = await fetch(API_BASE + path, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error(`POST ${path}: ${r.status}`);
+        return r.json();
+    },
+    async patch(path, body) {
+        const r = await fetch(API_BASE + path, {
+            method: 'PATCH', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error(`PATCH ${path}: ${r.status}`);
+        return r.json();
+    },
+    async del(path) {
+        const r = await fetch(API_BASE + path, {method: 'DELETE'});
+        if (!r.ok) throw new Error(`DELETE ${path}: ${r.status}`);
+    },
+};
+
+// Maps device_id → {siteKey, slot, deviceType}
+let deviceSlotIndex = {};
+// Cache latest WS metrics per device
+let latestMetrics = {};
+// Maps siteKey → apiSiteId
+let siteApiIds = {};
+// Whether backend API is available
+let apiAvailable = false;
+let ws = null, wsReconnectTimer = null;
+const WS_RECONNECT_DELAY = 3000;
+
+async function loadFromAPI() {
+    try {
+        const apiSites = await api.get('/api/sites');
+        S = {};
+        deviceSlotIndex = {};
+        siteApiIds = {};
+        for (const s of apiSites) {
+            const key = (s.code || ('site_' + s.id)).toLowerCase();
+            siteApiIds[key] = s.id;
+            S[key] = {
+                _apiId: s.id,
+                name: s.name,
+                code: s.code,
+                desc: s.description || '',
+                responsible: '',
+                g1: {}, g2: {}, spr: {},
+            };
+        }
+        // Load devices for each site
+        for (const s of apiSites) {
+            const key = (s.code || ('site_' + s.id)).toLowerCase();
+            try {
+                const devices = await api.get('/api/devices?site_id=' + s.id);
+                const gens = devices.filter(d => d.device_type === 'generator').sort((a, b) => a.id - b.id);
+                const ats = devices.filter(d => d.device_type === 'ats');
+
+                if (gens[0]) {
+                    S[key].g1 = {
+                        _deviceId: gens[0].id,
+                        ip: gens[0].ip_address,
+                        port: gens[0].port,
+                        slaveId: gens[0].slave_id,
+                        runHours: 0,
+                    };
+                    deviceSlotIndex[gens[0].id] = {siteKey: key, slot: 'g1'};
+                }
+                if (gens[1]) {
+                    S[key].g2 = {
+                        _deviceId: gens[1].id,
+                        ip: gens[1].ip_address,
+                        port: gens[1].port,
+                        slaveId: gens[1].slave_id,
+                        runHours: 0,
+                    };
+                    deviceSlotIndex[gens[1].id] = {siteKey: key, slot: 'g2'};
+                }
+                if (ats[0]) {
+                    S[key].spr = {
+                        _deviceId: ats[0].id,
+                        ip: ats[0].ip_address,
+                        port: ats[0].port,
+                        slaveId: ats[0].slave_id,
+                    };
+                    deviceSlotIndex[ats[0].id] = {siteKey: key, slot: 'spr'};
+                }
+            } catch (e) {
+                console.warn('Failed to load devices for site', s.id, e);
+            }
+        }
+        if (!cur || !S[cur]) cur = Object.keys(S)[0] || null;
+        apiAvailable = true;
+        sv();
+        ae('🌐 Данные загружены из API');
+        return true;
+    } catch (e) {
+        console.warn('API unavailable, using localStorage', e);
+        return false;
+    }
+}
+
+function connectWebSocket() {
+    if (ws) { try { ws.close(); } catch(e){} }
+    const url = WS_BASE + '/ws/metrics';
+    try {
+        ws = new WebSocket(url);
+    } catch (e) {
+        console.warn('WS connect error:', e);
+        scheduleWsReconnect();
+        return;
+    }
+    ws.onopen = () => {
+        ae('🔌 WebSocket подключён');
+        console.log('WS connected:', url);
+    };
+    ws.onclose = () => {
+        console.log('WS closed');
+        scheduleWsReconnect();
+    };
+    ws.onerror = (e) => {
+        console.warn('WS error:', e);
+    };
+    ws.onmessage = (ev) => {
+        try {
+            const msg = JSON.parse(ev.data);
+            if (msg.type === 'snapshot' && Array.isArray(msg.data)) {
+                for (const m of msg.data) handleMetricsUpdate(m);
+            } else if (msg.type === 'maintenance_alert') {
+                // Maintenance alert from backend — ignore for now (v5 handles TO locally)
+            } else if (msg.device_id !== undefined) {
+                handleMetricsUpdate(msg);
+            }
+        } catch(e) {}
+    };
+}
+
+function scheduleWsReconnect() {
+    if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = setTimeout(connectWebSocket, WS_RECONNECT_DELAY);
+}
+
+function handleMetricsUpdate(m) {
+    if (!m || !m.device_id) return;
+    latestMetrics[m.device_id] = m;
+
+    const info = deviceSlotIndex[m.device_id];
+    if (!info) return;
+    const {siteKey, slot} = info;
+
+    // Only update if this site is currently displayed
+    if (siteKey !== cur) return;
+
+    if (slot === 'g1' || slot === 'g2') {
+        // Update runHours in S from WS data
+        if (m.run_hours != null && S[siteKey]?.[slot]) {
+            S[siteKey][slot].runHours = m.run_hours + (m.run_minutes ? m.run_minutes / 60 : 0);
+        }
+        // Determine status
+        let status = 'standby';
+        if (m.alarm_common || m.alarm_shutdown) status = 'alarm';
+        else if (m.alarm_warning) status = 'warning';
+        else if (m.gen_status === 9 || m.gen_status_text === 'running') status = 'running';
+        else if (m.gen_status >= 1 && m.gen_status <= 8) status = 'running'; // starting sequence
+        else if (m.gen_status >= 10 && m.gen_status <= 14) status = 'standby'; // stopping sequence
+
+        const rh = S[siteKey]?.[slot]?.runHours || 0;
+        const basePower = m.power_total != null ? m.power_total : 0;
+
+        applyGen(slot, status, rh, basePower, m.online !== false);
+        // applyGenDetailed not needed — applyGen now uses latestMetrics directly
+
+        // Update summary cards
+        updateSummary();
+        // Update flow SVG
+        updateFlowFromMetrics();
+    }
+    else if (slot === 'spr') {
+        const gOn = (m.genset_status === 9);
+        const mN = (m.mains_status === 0); // 0 = normal
+        const bC = (m.busbar_switch === 3); // 3 = closed
+        const mC = (m.mains_switch === 3);  // 3 = closed
+
+        applySpr(gOn, mN, bC, mC, m.online !== false);
+        applySprDetailed(m);
+
+        updateSummary();
+        updateFlowFromMetrics();
+    }
+}
+
+function applyGenDetailed(sl, m) {
+    if (!m) return;
+    const on = m.gen_status === 9 || (m.gen_status >= 1 && m.gen_status <= 8);
+    const eT = $(sl + 'e');
+    if (eT && on) {
+        const p = m.power_total != null ? m.power_total : 0;
+        const q = m.reactive_total != null ? m.reactive_total : 0;
+        const pf = m.pf_avg != null ? m.pf_avg : 0;
+        const uab = m.gen_uab != null ? m.gen_uab : 0;
+        const ubc = m.gen_ubc != null ? m.gen_ubc : 0;
+        const uca = m.gen_uca != null ? m.gen_uca : 0;
+        const ia = m.current_a != null ? m.current_a : 0;
+        const ib = m.current_b != null ? m.current_b : 0;
+        const ic = m.current_c != null ? m.current_c : 0;
+        const freq = m.gen_freq != null ? m.gen_freq : 0;
+        const rh = S[cur]?.[sl]?.runHours || 0;
+        const load = m.load_pct != null ? m.load_pct : 0;
+        const ekwh = m.energy_kwh != null ? m.energy_kwh : 0;
+        const starts = m.start_count != null ? m.start_count : 0;
+        const pa = m.power_a != null ? m.power_a : 0;
+        const pb = m.power_b != null ? m.power_b : 0;
+        const pc = m.power_c != null ? m.power_c : 0;
+
+        eT.innerHTML = `<div class="mg"><div class="mc"><div class="ml">P</div><div class="mv vg">${p.toFixed(1)}<span class="mu">кВт</span></div></div><div class="mc"><div class="ml">Q</div><div class="mv vn">${q.toFixed(1)}<span class="mu">квар</span></div></div><div class="mc"><div class="ml">Cos φ</div><div class="mv vn">${pf.toFixed(3)}</div></div></div><table class="pt"><thead><tr><th>Фаза</th><th>U</th><th>I</th><th>P</th></tr></thead><tbody><tr><td class="ph">A-B</td><td>${uab.toFixed(0)}</td><td>${ia.toFixed(1)}</td><td>${pa.toFixed(1)}</td></tr><tr><td class="ph">B-C</td><td>${ubc.toFixed(0)}</td><td>${ib.toFixed(1)}</td><td>${pb.toFixed(1)}</td></tr><tr><td class="ph">C-A</td><td>${uca.toFixed(0)}</td><td>${ic.toFixed(1)}</td><td>${pc.toFixed(1)}</td></tr></tbody></table><div class="mg mg4" style="margin-top:10px"><div class="mc"><div class="ml">Нагрузка</div><div class="mv vn">${load}%</div></div><div class="mc"><div class="ml">Энергия</div><div class="mv vn">${ekwh}<span class="mu">кВт·ч</span></div></div><div class="mc"><div class="ml">Моточасы</div><div class="mv vn">${rh.toFixed(0)}<span class="mu">ч</span></div></div><div class="mc"><div class="ml">Пусков</div><div class="mv vn">${starts}</div></div></div>`;
+    }
+    const mT = $(sl + 'm');
+    if (mT && on) {
+        const ct = m.coolant_temp != null ? m.coolant_temp : '—';
+        const op = m.oil_pressure != null ? m.oil_pressure : '—';
+        const rpm = m.engine_speed != null ? m.engine_speed : '—';
+        const oilT = m.oil_temp != null ? m.oil_temp : '—';
+        const fuel = m.fuel_level != null ? m.fuel_level : '—';
+        const fc = m.fuel_consumption != null ? m.fuel_consumption : '—';
+        const turbo = m.turbo_pressure != null ? m.turbo_pressure : '—';
+        const batt = m.battery_volt != null ? m.battery_volt : '—';
+        const ctC = (typeof ct === 'number' && ct > 95) ? 'va' : (typeof ct === 'number' && ct > 88) ? 'vw' : 'vn';
+        const opC = (typeof op === 'number' && op < 300) ? 'va' : 'vn';
+        const fuelC = (typeof fuel === 'number' && fuel < 50) ? 'vw' : 'vn';
+        mT.innerHTML = `<div class="mg"><div class="mc"><div class="ml">Обороты</div><div class="mv vn">${rpm}</div></div><div class="mc"><div class="ml">Темп.ОЖ</div><div class="mv ${ctC}">${ct}°C</div></div><div class="mc"><div class="ml">Давл.масла</div><div class="mv ${opC}">${op} кПа</div></div><div class="mc"><div class="ml">Темп.масла</div><div class="mv vn">${oilT}°C</div></div><div class="mc"><div class="ml">Топливо</div><div class="mv ${fuelC}">${fuel}%</div></div><div class="mc"><div class="ml">Расход</div><div class="mv vn">${fc} л/ч</div></div><div class="mc"><div class="ml">Турбо</div><div class="mv vn">${turbo} кПа</div></div><div class="mc"><div class="ml">Батарея</div><div class="mv vn">${typeof batt === 'number' ? batt.toFixed(1) : batt}В</div></div></div>`;
+    }
+}
+
+function applySprDetailed(m) {
+    if (!m) return;
+    const active = (m.genset_status === 9) || (m.mains_status === 0);
+    const mN = (m.mains_status === 0);
+    const bC = (m.busbar_switch === 3);
+    const mC = (m.mains_switch === 3);
+    const gOn = (m.genset_status === 9);
+
+    const sprb = $('sprb');
+    if (sprb && active) {
+        const bp = m.busbar_p != null ? m.busbar_p : 0;
+        const bq = m.busbar_q != null ? m.busbar_q : 0;
+        const bi = m.busbar_current != null ? m.busbar_current : 0;
+        const buab = m.busbar_uab != null ? m.busbar_uab : 0;
+        const bubc = m.busbar_ubc != null ? m.busbar_ubc : 0;
+        const buca = m.busbar_uca != null ? m.busbar_uca : 0;
+        const bua = m.busbar_ua != null ? m.busbar_ua : 0;
+        const bub = m.busbar_ub != null ? m.busbar_ub : 0;
+        const buc = m.busbar_uc != null ? m.busbar_uc : 0;
+        sprb.innerHTML = `<div class="mg"><div class="mc"><div class="ml">P шины</div><div class="mv vg">${bp.toFixed(1)}<span class="mu">кВт</span></div></div><div class="mc"><div class="ml">Q</div><div class="mv vn">${bq.toFixed(1)}<span class="mu">квар</span></div></div><div class="mc"><div class="ml">I</div><div class="mv vn">${bi.toFixed(0)}<span class="mu">А</span></div></div></div><table class="pt"><thead><tr><th>Фаза</th><th>U лин</th><th>U фаз</th></tr></thead><tbody><tr><td class="ph">A-B</td><td>${buab}</td><td>${bua}</td></tr><tr><td class="ph">B-C</td><td>${bubc}</td><td>${bub}</td></tr><tr><td class="ph">C-A</td><td>${buca}</td><td>${buc}</td></tr></tbody></table>`;
+    }
+
+    const sprm = $('sprm');
+    if (sprm) {
+        if (mN) {
+            const mu = m.mains_uab != null ? m.mains_uab : '—';
+            const mf = m.mains_freq != null ? m.mains_freq : '—';
+            sprm.innerHTML = `<div class="mg"><div class="mc"><div class="ml">U сети</div><div class="mv vn">${mu}<span class="mu">В</span></div></div><div class="mc"><div class="ml">f сети</div><div class="mv vn">${typeof mf === 'number' ? mf.toFixed(2) : mf}<span class="mu">Гц</span></div></div><div class="mc"><div class="ml">Статус</div><div class="mv vg">НОРМА</div></div></div>`;
+        } else {
+            sprm.innerHTML = `<div class="mg"><div class="mc"><div class="ml">Сеть</div><div class="mv va">АВАРИЯ</div></div></div>`;
+        }
+    }
+
+    const sprs = $('sprs');
+    if (sprs) {
+        sprs.innerHTML = `<div class="mg mg2"><div class="mc"><div class="ml">Авт.шины</div><div class="mv ${bC?'vg':'vm'}">${bC?'ЗАМКНУТ':'РАЗОМКН'}</div></div><div class="mc"><div class="ml">Авт.сети</div><div class="mv ${mC?'vb':'vm'}">${mC?'ЗАМКНУТ':'РАЗОМКН'}</div></div><div class="mc"><div class="ml">Сеть</div><div class="mv ${mN?'vg':'va'}">${mN?'НОРМА':'АВАРИЯ'}</div></div><div class="mc"><div class="ml">Генераторы</div><div class="mv ${gOn?'vg':'vm'}">${gOn?'РАБОТА':'СТОП'}</div></div></div>`;
+    }
+}
+
+function updateSummary() {
+    const s = S[cur];
+    if (!s) return;
+
+    // Collect powers from latestMetrics for all devices of current site
+    let totalP = 0, genP = 0, mainsU = null, hasAlarm = false, hasWarning = false, running = 0;
+
+    for (const [devId, m] of Object.entries(latestMetrics)) {
+        const info = deviceSlotIndex[devId];
+        if (!info || info.siteKey !== cur) continue;
+        if (info.slot === 'g1' || info.slot === 'g2') {
+            const p = m.power_total || 0;
+            if (m.gen_status === 9) { genP += p; running++; }
+            if (m.alarm_common || m.alarm_shutdown) hasAlarm = true;
+            if (m.alarm_warning) hasWarning = true;
+        }
+        if (info.slot === 'spr') {
+            totalP = m.busbar_p || 0;
+            mainsU = m.mains_uab;
+            if (m.alarm_common) hasAlarm = true;
+        }
+    }
+    if (!totalP) totalP = genP;
+
+    const el = n => document.getElementById(n);
+    if (el('sP')) el('sP').innerHTML = `${totalP.toFixed(1)}<span class="su">кВт</span>`;
+    if (el('sPg')) el('sPg').innerHTML = `${genP.toFixed(1)}<span class="su">кВт</span>`;
+    if (el('sU')) el('sU').innerHTML = mainsU != null ? `${mainsU.toFixed(0)}<span class="su">В</span>` : '—<span class="su">В</span>';
+    if (el('sG')) el('sG').innerHTML = `${running}<span class="su">/2</span>`;
+    if (el('sSt')) {
+        if (hasAlarm) el('sSt').innerHTML = '<span class="bdg bdg-a" onclick="scrollToAlarm()" style="cursor:pointer">● Авария</span>';
+        else if (hasWarning) el('sSt').innerHTML = '<span class="bdg bdg-w" onclick="scrollToAlarm()" style="cursor:pointer">● Предупр.</span>';
+        else if (running > 0 || totalP > 0) el('sSt').innerHTML = '<span class="bdg bdg-ok">● Норма</span>';
+    }
+}
+
+function updateFlowFromMetrics() {
+    const pf = $('pflow');
+    if (!pf || !cur || !S[cur]) return;
+
+    let g1on = false, g2on = false, mN = false, bC = false, mC = false, p1 = 0, p2 = 0;
+
+    for (const [devId, m] of Object.entries(latestMetrics)) {
+        const info = deviceSlotIndex[devId];
+        if (!info || info.siteKey !== cur) continue;
+        if (info.slot === 'g1') { g1on = m.gen_status === 9; p1 = m.power_total || 0; }
+        if (info.slot === 'g2') { g2on = m.gen_status === 9; p2 = m.power_total || 0; }
+        if (info.slot === 'spr') {
+            mN = (m.mains_status === 0);
+            bC = (m.busbar_switch === 3);
+            mC = (m.mains_switch === 3);
+        }
+    }
+
+    pf.innerHTML = flowSvg(g1on, g2on, mN, bC, mC, p1, p2);
+}
+
+function getDeviceIdForSlot(slot) {
+    if (!cur || !S[cur]) return null;
+    return S[cur][slot]?._deviceId || null;
+}
+
+// ===================== END API / WS LAYER =====================
+const DEF_TPL={name:'Стандартный',intervals:[
+{id:'to1',name:'ТО-1',hours:250,tasks:[{id:1,text:'Замена моторного масла',c:1},{id:2,text:'Замена масляного фильтра',c:1},{id:3,text:'Проверка уровня ОЖ',c:1},{id:4,text:'Проверка натяжения ремней',c:0},{id:5,text:'Проверка аккумулятора',c:0},{id:6,text:'Осмотр на утечки',c:0},{id:7,text:'Проверка показаний приборов',c:0}]},
+{id:'to2',name:'ТО-2',hours:500,tasks:[{id:1,text:'Замена моторного масла',c:1},{id:2,text:'Замена масляного фильтра',c:1},{id:3,text:'Проверка уровня ОЖ',c:1},{id:4,text:'Замена воздушного фильтра',c:1},{id:5,text:'Замена топливного фильтра',c:1},{id:6,text:'Проверка форсунок',c:0},{id:7,text:'Проверка давления масла',c:0},{id:8,text:'Слив отстоя из бака',c:0}]},
+{id:'to3',name:'ТО-3',hours:1000,tasks:[{id:1,text:'Замена моторного масла',c:1},{id:2,text:'Замена всех фильтров',c:1},{id:3,text:'Замена ОЖ полностью',c:1},{id:4,text:'Промывка системы охлаждения',c:1},{id:5,text:'Регулировка клапанных зазоров',c:1},{id:6,text:'Проверка компрессии',c:1},{id:7,text:'Проверка турбокомпрессора',c:0},{id:8,text:'Проверка генератора и стартера',c:0},{id:9,text:'Очистка радиатора',c:0}]},
+{id:'to4',name:'ТО-4',hours:2000,tasks:[{id:1,text:'Все работы ТО-3',c:1},{id:2,text:'Замена ремня ГРМ',c:1},{id:3,text:'Замена водяного насоса',c:1},{id:4,text:'Замена приводных ремней',c:1},{id:5,text:'Проверка опор двигателя',c:0},{id:6,text:'Диагностика ЭБУ',c:0},{id:7,text:'Проверка всех датчиков',c:0},{id:8,text:'Полный осмотр',c:1}]}
+]};
+function getTpl(){try{const raw=localStorage.getItem('s5tpl');return raw?JSON.parse(raw):JSON.parse(JSON.stringify(DEF_TPL))}catch(e){return JSON.parse(JSON.stringify(DEF_TPL))}}
+function saveTpl(t){localStorage.setItem('s5tpl',JSON.stringify(t))}
+function getTOData(site,dev){try{return JSON.parse(localStorage.getItem('s5to_'+site+'_'+dev))||{hoursAtLastTO:0,lastTOId:null,history:[]}}catch(e){return{hoursAtLastTO:0,lastTOId:null,history:[]}}}
+function saveTOData(site,dev,d){localStorage.setItem('s5to_'+site+'_'+dev,JSON.stringify(d))}
+function getNextTO(rh,site,dev){
+const tpl=getTpl(),td=getTOData(site||'',dev||''),lastH=td.hoursAtLastTO||0;
+// Если моточасы 0 и ничего не указано — первое ТО
+if(rh<=0&&lastH<=0)return{name:tpl.intervals[0]?.name||'ТО-1',hours:tpl.intervals[0]?.hours||250,remain:tpl.intervals[0]?.hours||250,pct:0,tasks:tpl.intervals[0]?.tasks||[],since:0,dueAt:tpl.intervals[0]?.hours||250,unknown:false};
+// Если последнее ТО не указано, а моточасы уже есть — неизвестно
+if(!td.lastTOId&&rh>0)return{name:'ТО-?',hours:0,remain:0,pct:0,tasks:[],since:rh,dueAt:0,unknown:true};
+const sorted=[...tpl.intervals].sort((a,b)=>a.hours-b.hours);
+// Определяем тип ТО для заданной точки (какой самый старший интервал делит точку)
+function toTypeAtPoint(pt){for(let i=sorted.length-1;i>=0;i--){if(pt>0&&pt%sorted[i].hours===0)return sorted[i]}return sorted[0]}
+// Ближайшая следующая точка ТО (любого типа) > lastH
+const minH=sorted[0]?.hours||250;
+// Считаем от lastH — первая точка после lastH
+let nextPoint=minH>0?Math.ceil(Math.max(lastH+1,1)/minH)*minH:250;
+// Если nextPoint уже позади rh — просрочка
+if(nextPoint<rh){
+// Есть просроченные точки — найдём самую раннюю непройденную
+const overdueIv=toTypeAtPoint(nextPoint);
+const overdueH=rh-nextPoint;
+return{...overdueIv,remain:-overdueH,pct:100,since:rh-lastH,_prevP:nextPoint,dueAt:nextPoint,unknown:false}
+}
+const nextIv=toTypeAtPoint(nextPoint);
+const remain=nextPoint-rh;
+const totalSpan=nextPoint-lastH;
+const progress=totalSpan>0?Math.min(100,Math.max(0,Math.round((rh-lastH)/totalSpan*100))):0;
+return{...nextIv,remain,pct:progress,since:rh-lastH,_nextP:nextPoint,dueAt:nextPoint,unknown:false}
+}
+function sv(){localStorage.setItem('s5s',JSON.stringify(S));localStorage.setItem('s5c',cur||'')}
+function esc(s){const d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML}
+function ae(m){evts.unshift({t:now(),m});if(evts.length>40)evts.pop()}
+function showM(n){$('m-'+n).classList.add('sh')}function hideM(n){$('m-'+n).classList.remove('sh')}
+document.querySelectorAll('.mbg').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('sh')}));
+function R(a,b){return+(a+Math.random()*(b-a)).toFixed(1)}function RI(a,b){return Math.floor(a+Math.random()*(b-a))}
+function now(){return new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
+function renderSB(){const k=Object.keys(S);$('sbSites').innerHTML=k.length?k.map(id=>`<div class="si ${id===cur?'on':''}" onclick="sel('${id}')"><div class="si-dot" style="background:${id===cur?'var(--g)':'var(--t4)'}"></div><span class="si-name">${esc(S[id].name)}</span><div class="si-acts"><button class="si-btn" onclick="event.stopPropagation();openEdit('${id}')">✏</button><button class="si-btn del" onclick="event.stopPropagation();openDel('${id}')">✕</button></div></div>`).join(''):'<div style="padding:20px;text-align:center;color:var(--t3);font-size:12px">Нет объектов</div>'}
+function sel(id){cur=id;sv();renderSB();renderDash()}
+function openAddSite(){editId=null;$('smT').textContent='Новый объект';$('fN').value='';$('fC').value='';$('fC').disabled=false;$('fD').value='';populateRespSelect('');$('smA').innerHTML='<button class="bp" onclick="saveSite()">Создать</button>';showM('site')}
+function openEdit(id){editId=id;const s=S[id];$('smT').textContent='Редактировать: '+s.name;$('fN').value=s.name;$('fC').value=id;$('fC').disabled=true;$('fD').value=s.desc||'';populateRespSelect(s.responsible||'');$('smA').innerHTML=`<div style="display:flex;gap:8px"><button class="bp" style="flex:1" onclick="saveSite()">Сохранить</button><button class="bdn" style="flex:0;padding:10px 16px" onclick="hideM('site');openDel('${id}')">🗑</button></div>`;showM('site')}
+async function saveSite(){const n=$('fN').value.trim(),c=$('fC').value.trim().toLowerCase().replace(/[^a-z0-9_-]/g,''),d=$('fD').value.trim(),resp=$('fResp').value;if(!n||!c){ae('⚠ Укажите название и код');return}if(!editId&&S[c]){ae('⚠ Объект с кодом «'+c+'» уже существует');return}if(editId){S[editId].name=n;S[editId].desc=d;S[editId].responsible=resp;ae('✏ '+n);
+// API: update site
+if(apiAvailable&&siteApiIds[editId]){try{await api.patch('/api/sites/'+siteApiIds[editId],{name:n,description:d})}catch(e){console.warn('API update site error:',e)}}
+}else{S[c]={name:n,desc:d,responsible:resp,g1:{},g2:{},spr:{}};cur=c;ae('✅ '+n+' создан');
+// API: create site
+if(apiAvailable){try{const s=await api.post('/api/sites',{name:n,code:c,network:'modbus',description:d});siteApiIds[c]=s.id;S[c]._apiId=s.id}catch(e){console.warn('API create site error:',e)}}
+}$('fC').disabled=false;sv();hideM('site');renderSB();renderDash()}
+function populateRespSelect(selectedId){populateRespSelectById('fResp',selectedId)}
+function populateRespSelectById(selId,selectedId){const sel=$(selId);if(!sel)return;const users=getBxUsers();sel.innerHTML='<option value="">— выберите сотрудника —</option>';for(var i=0;i<users.length;i++){var u=users[i];sel.innerHTML+='<option value="'+u.id+'"'+(u.id===selectedId?' selected':'')+'>'+esc(u.name)+(u.dept?' ('+esc(u.dept)+')':'')+'</option>'}if(!users.length)sel.innerHTML+='<option disabled>Загрузите сотрудников в Б24 настройках</option>'}
+function openDel(id){delId=id;$('delN').textContent=S[id]?.name||id;showM('del')}
+async function doDel(){if(!delId)return;const dName=S[delId]?.name||delId;
+// API: delete site (cascade deletes devices)
+if(apiAvailable&&siteApiIds[delId]){try{await api.del('/api/sites/'+siteApiIds[delId]);delete siteApiIds[delId]}catch(e){console.warn('API delete site error:',e)}}
+delete S[delId];if(cur===delId)cur=Object.keys(S)[0]||null;
+localStorage.removeItem('s5to_'+delId+'_g1');localStorage.removeItem('s5to_'+delId+'_g2');
+localStorage.removeItem('s5alm_'+delId+'_g1');localStorage.removeItem('s5alm_'+delId+'_g2');localStorage.removeItem('s5alm_'+delId+'_spr');
+localStorage.removeItem('s5_spr_backups_'+delId);
+ae('🗑 '+dName+' удалён');sv();hideM('del');renderSB();renderDash();delId=null}
+// === TABBED SETTINGS ===
+function openSet(){if(!cur||!S[cur])return;const s=S[cur];
+$('setTitle').textContent='⚙ '+s.name+' — Настройки';
+$('setBody').innerHTML=`<div class="set-tabs"><button class="set-tab on" onclick="setTab(this,0)">Генератор 1</button><button class="set-tab" onclick="setTab(this,1)">Генератор 2</button><button class="set-tab" onclick="setTab(this,2)">ШПР</button><button class="set-tab" onclick="setTab(this,3)">Объект</button></div>
+<div class="set-panel on" id="sp0"><div class="cfs"><div class="cft"><span class="dot dot-g"></span>Генератор 1 — HGM9520N<span class="conn-test" onclick="testConn('g1')">🔌 Тест</span></div>
+<div class="fr2"><div class="fg"><label class="fl">IP-адрес <span class="req">*</span></label><input class="fi" id="cg1i" value="${esc(s.g1?.ip||'')}" placeholder="192.168.97.10"></div><div class="fg"><label class="fl">Порт Modbus TCP</label><input class="fi" id="cg1p" value="${s.g1?.port||502}" type="number"></div></div>
+<div class="fr2"><div class="fg"><label class="fl">Slave ID</label><input class="fi" id="cg1s" value="${s.g1?.slaveId||1}" type="number"></div><div class="fg"><label class="fl">Моточасы</label><input class="fi" id="cg1h" value="${s.g1?.runHours||0}" type="number"></div></div>
+<div class="fr2"><div class="fg"><label class="fl">Последнее ТО</label><select class="fi" id="cg1lt"><option value="">Не указано</option>${getTpl().intervals.map(iv=>`<option value="${iv.id}"${(getTOData(cur,'g1').lastTOId===iv.id)?' selected':''}>${iv.name}</option>`).join('')}</select></div><div class="fg"><label class="fl">При моточасах</label><input class="fi" id="cg1lth" value="${getTOData(cur,'g1').hoursAtLastTO||0}" type="number" placeholder="0"></div></div>
+<button class="bp" style="margin-top:8px;width:100%;background:var(--bg4);border:1px solid var(--bd);color:var(--t2);font-size:12px;padding:8px 0" onclick="testConn('g1')">🔌 Проверить связь с контроллером</button><div id="g1test"></div></div></div>
+<div class="set-panel" id="sp1"><div class="cfs"><div class="cft"><span class="dot dot-g"></span>Генератор 2 — HGM9520N<span class="conn-test" onclick="testConn('g2')">🔌 Тест</span></div>
+<div class="fr2"><div class="fg"><label class="fl">IP-адрес <span class="req">*</span></label><input class="fi" id="cg2i" value="${esc(s.g2?.ip||'')}" placeholder="192.168.97.11"></div><div class="fg"><label class="fl">Порт Modbus TCP</label><input class="fi" id="cg2p" value="${s.g2?.port||502}" type="number"></div></div>
+<div class="fr2"><div class="fg"><label class="fl">Slave ID</label><input class="fi" id="cg2s" value="${s.g2?.slaveId||1}" type="number"></div><div class="fg"><label class="fl">Моточасы</label><input class="fi" id="cg2h" value="${s.g2?.runHours||0}" type="number"></div></div>
+<div class="fr2"><div class="fg"><label class="fl">Последнее ТО</label><select class="fi" id="cg2lt"><option value="">Не указано</option>${getTpl().intervals.map(iv=>`<option value="${iv.id}"${(getTOData(cur,'g2').lastTOId===iv.id)?' selected':''}>${iv.name}</option>`).join('')}</select></div><div class="fg"><label class="fl">При моточасах</label><input class="fi" id="cg2lth" value="${getTOData(cur,'g2').hoursAtLastTO||0}" type="number" placeholder="0"></div></div>
+<button class="bp" style="margin-top:8px;width:100%;background:var(--bg4);border:1px solid var(--bd);color:var(--t2);font-size:12px;padding:8px 0" onclick="testConn('g2')">🔌 Проверить связь с контроллером</button><div id="g2test"></div></div></div>
+<div class="set-panel" id="sp2"><div class="cfs"><div class="cft"><span class="dot dot-p"></span>ШПР — HGM9560 (RS-485→Ethernet)<span class="conn-test" onclick="testConn('spr')">🔌 Тест</span></div>
+<div class="fr2"><div class="fg"><label class="fl">IP конвертера <span class="req">*</span></label><input class="fi" id="csi" value="${esc(s.spr?.ip||'')}" placeholder="10.11.0.2"></div><div class="fg"><label class="fl">Порт</label><input class="fi" id="csp" value="${s.spr?.port||26}" type="number"></div></div>
+<div class="fr2"><div class="fg"><label class="fl">Slave ID</label><input class="fi" id="css" value="${s.spr?.slaveId||1}" type="number"></div><div class="fg"><label class="fl">Протокол</label><div style="padding:9px 12px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--rs);font-size:13px;color:var(--t3)">RTU 9600/8N2</div></div></div><button class="bp" style="margin-top:8px;width:100%;background:var(--bg4);border:1px solid var(--bd);color:var(--t2);font-size:12px;padding:8px 0" onclick="testConn('spr')">🔌 Проверить связь с контроллером</button><div id="sprtest"></div></div></div>
+<div class="set-panel" id="sp3"><div class="cfs"><div class="cft"><span class="dot dot-g"></span>Общие настройки</div>
+<div class="fg"><label class="fl">Название</label><input class="fi" id="csn" value="${esc(s.name)}"></div>
+<div class="fg"><label class="fl">Описание</label><input class="fi" id="csd" value="${esc(s.desc||'')}"></div>
+<div class="fg"><label class="fl">Интервал опроса (мс)</label><input class="fi" id="csi2" value="${s.pollInterval||2000}" type="number"></div>
+<div class="fg"><label class="fl">👤 Ответственный за ТО</label><select class="fi" id="csResp" style="padding:8px 10px"></select></div></div></div>
+<button class="bp" style="margin-top:4px" onclick="saveSet()">💾 Сохранить</button>`;showM('settings');populateRespSelectById('csResp',s.responsible||'')}
+function setTab(btn,idx){btn.closest('.mbd').querySelectorAll('.set-tab').forEach(b=>b.classList.remove('on'));btn.closest('.mbd').querySelectorAll('.set-panel').forEach(p=>p.classList.remove('on'));btn.classList.add('on');$('sp'+idx)?.classList.add('on')}
+async function testConn(dev){const el=$(dev+'test');el.innerHTML='<div style="padding:6px 10px;background:var(--yd);border:1px solid rgba(255,176,32,.2);border-radius:6px;font-size:11px;color:var(--y);font-family:var(--m);margin-top:6px">⏳ Тест подключения...</div>';
+const s=S[cur];if(!s)return;
+let ip='',port=502,slaveId=1,proto='tcp';
+if(dev==='g1'){ip=$('cg1i')?.value||s.g1?.ip||'';port=+($('cg1p')?.value)||502;slaveId=+($('cg1s')?.value)||1;proto='tcp'}
+else if(dev==='g2'){ip=$('cg2i')?.value||s.g2?.ip||'';port=+($('cg2p')?.value)||502;slaveId=+($('cg2s')?.value)||1;proto='tcp'}
+else if(dev==='spr'){ip=$('csi')?.value||s.spr?.ip||'';port=+($('csp')?.value)||26;slaveId=+($('css')?.value)||1;proto='rtu_over_tcp'}
+if(!ip){el.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r);font-family:var(--m);margin-top:6px">Укажите IP-адрес</div>';return}
+try{const r=await api.post('/api/devices/test-connection',{ip_address:ip,port:port,slave_id:slaveId,protocol:proto});
+if(r.success){el.innerHTML=`<div style="padding:6px 10px;background:var(--gd);border:1px solid rgba(0,224,154,.2);border-radius:6px;font-size:11px;color:var(--g);font-family:var(--m);margin-top:6px">✅ ${r.message}</div>`}
+else{el.innerHTML=`<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r);font-family:var(--m);margin-top:6px">❌ ${r.message}</div>`}
+}catch(e){el.innerHTML=`<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r);font-family:var(--m);margin-top:6px">❌ ${e.message}</div>`}}
+async function saveSet(){const s=S[cur];s.g1={...s.g1,ip:$('cg1i').value.trim(),port:+$('cg1p').value||502,slaveId:+$('cg1s').value||1,runHours:+$('cg1h').value||0};s.g2={...s.g2,ip:$('cg2i').value.trim(),port:+$('cg2p').value||502,slaveId:+$('cg2s').value||1,runHours:+$('cg2h').value||0};s.spr={...s.spr,ip:$('csi').value.trim(),port:+$('csp').value||26,slaveId:+$('css').value||1};s.name=$('csn')?.value.trim()||s.name;s.desc=$('csd')?.value.trim()||'';s.responsible=$('csResp')?.value||s.responsible||'';s.pollInterval=+$('csi2')?.value||2000;
+// Save last TO data for G1/G2
+for(const sl of['g1','g2']){const ltSel=$('c'+sl+'lt'),lthInp=$('c'+sl+'lth');if(ltSel){const td=getTOData(cur,sl);const newId=ltSel.value||null;const newH=+(lthInp?.value)||0;if(newId!==td.lastTOId||newH!==td.hoursAtLastTO){td.lastTOId=newId;td.hoursAtLastTO=newH;saveTOData(cur,sl,td)}}}
+sv();
+// API: sync devices
+if(apiAvailable&&siteApiIds[cur]){const siteId=siteApiIds[cur];try{
+// Update site name/desc
+await api.patch('/api/sites/'+siteId,{name:s.name,description:s.desc});
+// Sync each device slot
+for(const [slot,dtype,proto] of [['g1','generator','tcp'],['g2','generator','tcp'],['spr','ats','rtu_over_tcp']]){
+const d=s[slot];if(!d?.ip)continue;
+if(d._deviceId){await api.patch('/api/devices/'+d._deviceId,{ip_address:d.ip,port:d.port,slave_id:d.slaveId||1,name:slot==='spr'?'ШПР':('Генератор '+(slot==='g1'?'1':'2'))})}
+else{const created=await api.post('/api/devices',{site_id:siteId,name:slot==='spr'?'ШПР':('Генератор '+(slot==='g1'?'1':'2')),device_type:dtype,ip_address:d.ip,port:d.port,slave_id:d.slaveId||1,protocol:proto});
+d._deviceId=created.id;deviceSlotIndex[created.id]={siteKey:cur,slot}}
+}}catch(e){console.warn('API sync devices error:',e)}}
+ae('✅ Настройки сохранены');hideM('settings');renderSB();renderDash()}
+function cmdConfirm(target,cmd,label,info){$('cmdT').textContent='Подтверждение: '+label;$('cmdTxt').innerHTML=`Команда <b>${label}</b> → <b>${target}</b>`;$('cmdInfo').textContent=info||'Modbus FC05';$('cmdOk').onclick=async()=>{hideM('cmd');
+const cs=$('cs-'+target.replace(/[\s\/]/g,''));
+// Resolve device_id and command params
+let deviceId=null,fc=5,addr=0,val=1;
+if(target.includes('Генератор 1'))deviceId=getDeviceIdForSlot('g1');
+else if(target.includes('Генератор 2'))deviceId=getDeviceIdForSlot('g2');
+else if(target==='ШПР')deviceId=getDeviceIdForSlot('spr');
+// Parse FC and address from info string
+const fcMatch=info?.match(/FC0?(\d)/);if(fcMatch)fc=parseInt(fcMatch[1]);
+const addrMatch=info?.match(/0x([0-9A-Fa-f]+)/);if(addrMatch)addr=parseInt(addrMatch[1],16);
+const regMatch=info?.match(/reg\s+(\d+)/);if(regMatch)addr=parseInt(regMatch[1]);
+// For FC06, parse value from cmd or info
+if(fc===6){
+const valMatch=info?.match(/←\s*(\d+)/);if(valMatch)val=parseInt(valMatch[1]);
+else if(cmd.includes('LoadMode=')){val=parseInt(cmd.split('=')[1])||0}
+else if(cmd==='SetPQ'){
+// Send P and Q as separate commands
+const pv=+($('sprPslider')?.value||500),qv=+($('sprQslider')?.value||500);
+if(apiAvailable&&deviceId){try{
+await api.post('/api/commands',{device_id:deviceId,function_code:6,address:4352,value:pv});
+await api.post('/api/commands',{device_id:deviceId,function_code:6,address:4354,value:qv});
+if(cs){cs.textContent='✅ P/Q записаны';cs.classList.add('sh');setTimeout(()=>cs.classList.remove('sh'),3000)}
+ae(`⚡ FC06 P=${pv/10}% Q=${qv/10}% → ${target}`);return}catch(e){ae(`❌ Ошибка: ${e.message}`);if(cs){cs.textContent='❌ Ошибка';cs.classList.add('sh');setTimeout(()=>cs.classList.remove('sh'),3000)}return}}}
+}
+if(cmd.startsWith('Preset:')){
+// Preset: send 3 commands (LoadMode, P, Q)
+const P={island:{m:0,p:1000,q:500},genres:{m:0,p:800,q:500},peak:{m:1,p:300,q:500},parallel:{m:2,p:500,q:500},export:{m:0,p:800,q:300},mains:{m:1,p:0,q:0},test:{m:0,p:200,q:200}};
+const pn=cmd.split(':')[1],pr=P[pn];
+if(apiAvailable&&deviceId&&pr){try{
+await api.post('/api/commands',{device_id:deviceId,function_code:6,address:4351,value:pr.m});
+await api.post('/api/commands',{device_id:deviceId,function_code:6,address:4352,value:pr.p});
+await api.post('/api/commands',{device_id:deviceId,function_code:6,address:4354,value:pr.q});
+if(cs){cs.textContent='✅ Пресет применён';cs.classList.add('sh');setTimeout(()=>cs.classList.remove('sh'),3000)}
+ae(`⚡ Пресет ${pn} → ${target}`);return}catch(e){ae(`❌ Ошибка: ${e.message}`)}}
+}
+// Standard FC05 or FC06 command
+if(apiAvailable&&deviceId){try{
+const resp=await api.post('/api/commands',{device_id:deviceId,function_code:fc,address:addr,value:fc===5?1:val});
+ae(`⚡ ${cmd} → ${target}`);if(cs){cs.textContent='✅ '+label+' отправлено';cs.classList.add('sh');setTimeout(()=>cs.classList.remove('sh'),3000)}
+}catch(e){ae(`❌ ${cmd} → ${target}: ${e.message}`);if(cs){cs.textContent='❌ Ошибка';cs.classList.add('sh');setTimeout(()=>cs.classList.remove('sh'),3000)}}}
+else{ae(`⚡ ${cmd} → ${target}`);if(cs){cs.textContent='✅ '+label+' отправлено';cs.classList.add('sh');setTimeout(()=>cs.classList.remove('sh'),3000)}}
+};showM('cmd')}
+// TO
+function openTO(dev){if(!cur)return;const s=S[cur],c=dev==='g1'?s.g1:s.g2,rh=c?.runHours||0;const tpl=getTpl(),td=getTOData(cur,dev);
+const to=getNextTO(rh,cur,dev);
+const lastName=td.lastTOId?tpl.intervals.find(iv=>iv.id===td.lastTOId)?.name||td.lastTOId:'не указано';
+const lastH=td.hoursAtLastTO||0;
+const isOverdue=to.remain<0;
+const col=isOverdue?'var(--r)':to.remain<=20?'var(--y)':'var(--g)';
+const bgd=isOverdue?'var(--rd)':'var(--bg4)';
+const brd=isOverdue?'rgba(255,64,96,.2)':'transparent';
+// Все точки ТО в цикле
+const sorted=[...tpl.intervals].sort((a,b)=>a.hours-b.hours);
+const minH=sorted[0]?.hours||250;
+const maxH=sorted[sorted.length-1]?.hours||2000;
+let schedule=[];
+for(let h=minH;h<=maxH;h+=minH){let best=sorted[0];for(let i=sorted.length-1;i>=0;i--){if(h%sorted[i].hours===0){best=sorted[i];break}}
+schedule.push({name:best.name,hours:h})}
+let histH=td.history?.length?td.history.slice(0,8).map(h=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--bd);font-size:11px"><span>${h.type} · ${h.hours}ч ${h.done?'<span style="color:var(--g)">✓'+h.done+'/'+h.total+'</span>':''}</span><span style="color:var(--t4)">${h.date}</span></div>`).join(''):'<div style="color:var(--t4);font-size:11px;padding:10px;text-align:center">Нет записей</div>';
+$('toT').textContent=(dev==='g1'?'Генератор 1':'Генератор 2')+' — ТО';
+$('toBody').innerHTML=`<div style="text-align:center;padding:18px;background:var(--bg4);border-radius:10px;margin-bottom:14px"><div style="font-size:11px;color:var(--t3)">Моточасы</div><div style="font-size:30px;font-weight:700;font-family:var(--m)">${rh} <span style="font-size:14px;color:var(--t3)">ч</span></div><div style="font-size:10px;color:var(--t4)">Последнее ТО: ${lastName}${lastH?' при '+lastH+'ч':''}</div></div>
+${to.unknown?`<div style="padding:14px;background:var(--yd);border:1px solid rgba(255,186,0,.2);border-radius:8px;margin-bottom:10px;text-align:center"><div style="font-size:13px;color:var(--y);font-weight:600;margin-bottom:6px">⚠ Укажите последнее ТО</div><div style="font-size:11px;color:var(--t3);margin-bottom:10px">Чтобы рассчитать следующее ТО, нужно указать какое ТО было выполнено последним и при каких моточасах.</div><button class="bp" style="padding:8px 24px" onclick="hideM('to');openSet()">⚙ Открыть настройки</button></div>`:`${isOverdue?`<div style="padding:10px 12px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:8px;margin-bottom:10px"><div style="font-size:12px;color:var(--r);font-weight:600">⚠ ${to.name} просрочено на ${Math.abs(to.remain)}ч</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Было запланировано при ${to.dueAt||'?'}ч · Текущие: ${rh}ч</div></div>`:''}
+<div style="padding:10px 12px;background:${bgd};border:1px solid ${brd};border-radius:8px;margin-bottom:10px">
+<div style="display:flex;justify-content:space-between;margin-bottom:6px"><b style="font-size:12px;color:${col}">${isOverdue?'Просрочено: '+to.name:'Следующее: '+to.name}</b><span style="font-size:11px;color:${col};font-family:var(--m)">${isOverdue?'—':to.remain+'ч ост.'}</span></div>
+<div class="to-iv-bar"><div class="to-iv-fill" style="width:${to.pct}%;background:${col}"></div></div>
+<div style="font-size:10px;color:var(--t3);margin-top:4px">${to.tasks?.slice(0,5).map(t=>'• '+(t.c?'<b>':'')+t.text+(t.c?'</b>':'')).join('<br>')||''}</div>
+</div>`}
+<div style="font-size:11px;color:var(--t3);margin-bottom:6px">Цикл ТО (каждые ${maxH}ч)</div>
+<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">${schedule.map(s=>`<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:var(--bg4);color:var(--t3);font-family:var(--m)">${s.name} ${s.hours}ч</span>`).join('')}</div>
+<div style="padding:12px;background:var(--gd);border:1px solid rgba(0,224,154,.2);border-radius:10px"><div style="font-size:12px;color:var(--g);font-weight:600;margin-bottom:8px">Провести ТО</div><div style="display:flex;gap:6px"><select class="fi" id="toSel" style="flex:1;padding:7px 8px">${tpl.intervals.map((iv,i)=>`<option value="${i}"${iv.id===to.id?' selected':''}>${iv.name} (${iv.hours}ч)</option>`).join('')}</select><button class="bp" style="width:auto;padding:8px 20px" onclick="openChecklist('${dev}')">Начать</button></div><button class="bs2" style="width:100%;margin-top:6px;padding:7px;font-size:11px;color:var(--b)" onclick="createBxTaskFromTO('${dev}')">📋 Создать задачу в Битрикс24</button></div>
+<div style="font-size:11px;color:var(--t3);margin-top:14px;margin-bottom:6px">История</div>${histH}`;showM('to')}
+function openChecklist(dev){const tpl=getTpl(),idx=+$('toSel').value,iv=tpl.intervals[idx],rh=S[cur]?.[dev]?.runHours||0;$('toT').textContent=iv.name+' — Чеклист';
+$('toBody').innerHTML=`<div style="display:flex;justify-content:space-between;padding:10px;background:var(--bg4);border-radius:8px;font-size:12px;margin-bottom:12px"><span>Моточасы:</span><b style="font-family:var(--m)">${rh} ч</b></div>
+<div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:11px;color:var(--t3)">Работы</span><button onclick="document.querySelectorAll('.chk-cb').forEach(c=>c.checked=true)" style="font-size:10px;color:var(--g);background:none;border:none;cursor:pointer">Все</button></div>
+<div style="max-height:300px;overflow-y:auto">${iv.tasks.map((t,i)=>`<label class="chk-item ${t.c?'crit':''}"><input type="checkbox" class="chk-cb" id="chk${i}"><span>${t.text}${t.c?'<span style="color:var(--r);font-size:9px;margin-left:4px">обязат.</span>':''}</span></label>`).join('')}</div>
+<div style="padding:8px;background:var(--yd);border-radius:6px;font-size:10px;color:var(--y);margin-top:8px">⚠ Счётчик будет сброшен</div>
+<div style="display:flex;gap:8px;margin-top:12px"><button class="bp" style="flex:1" onclick="completeTO('${dev}',${idx})">✓ Подтвердить</button><button class="bs2" style="flex:1;padding:10px" onclick="openTO('${dev}')">Назад</button></div>`}
+function completeTO(dev,idx){const tpl=getTpl(),iv=tpl.intervals[idx],rh=S[cur]?.[dev]?.runHours||0;const cbs=document.querySelectorAll('.chk-cb');let done=0;cbs.forEach(c=>{if(c.checked)done++});const td=getTOData(cur,dev);td.hoursAtLastTO=rh;td.lastTOId=iv.id;td.history=td.history||[];td.history.unshift({type:iv.name,hours:rh,done,total:cbs.length,date:new Date().toLocaleDateString('ru-RU')});saveTOData(cur,dev,td);ae(`✅ ${iv.name} ${dev==='g1'?'G1':'G2'}: ${done}/${cbs.length}`);hideM('to');renderDash()}
+function openTOTemplates(){const tpl=getTpl();$('tplT').textContent='📋 Регламенты ТО';$('tplBody').innerHTML=`<div style="margin-bottom:14px">${tpl.intervals.map((iv,i)=>`<div class="to-iv" style="display:flex;align-items:center;gap:8px"><div style="flex:1"><div style="display:flex;justify-content:space-between"><b>${iv.name}</b><span style="font-size:11px;color:var(--t3);font-family:var(--m)">${iv.hours}ч · ${iv.tasks.length} работ</span></div></div><button class="bk-btn del" onclick="delTOInterval(${i})" title="Удалить">✕</button></div>`).join('')}</div><div style="display:flex;gap:8px;margin-bottom:8px"><button class="bp" style="flex:1" onclick="editTemplates()">✏ Редактировать</button><button class="bs2" style="flex:0;padding:10px 16px" onclick="addTOInterval()">+ Добавить</button></div><button class="bs2" style="width:100%" onclick="if(confirm('Сбросить все к стандартным?')){localStorage.removeItem('s5tpl');openTOTemplates()}">Сбросить</button>`;showM('tpl')}
+function addTOInterval(){const tpl=getTpl();const num=tpl.intervals.length+1;tpl.intervals.push({id:'to_'+Date.now(),name:'ТО-'+num,hours:num*500,tasks:[{id:1,text:'Осмотр',c:0}]});saveTpl(tpl);ae('+ ТО-'+num+' добавлен');editTemplates()}
+function delTOInterval(idx){const tpl=getTpl();if(tpl.intervals.length<=1)return;const name=tpl.intervals[idx].name;if(!confirm('Удалить '+name+'?'))return;tpl.intervals.splice(idx,1);saveTpl(tpl);ae('🗑 '+name+' удалён');openTOTemplates()}
+function editTemplates(){const tpl=getTpl();$('tplT').textContent='Редактирование';$('tplBody').innerHTML=tpl.intervals.map((iv,i)=>`<div class="cfs"><div class="cft"><span class="dot dot-g"></span><input class="fi" style="width:80px;padding:4px 6px;font-size:12px;font-weight:600" id="tin${i}" value="${iv.name}"><span class="conn-test del" onclick="delTOInterval(${i})">✕ Удалить</span></div><div class="fg"><label class="fl">Интервал (ч)</label><input class="fi" id="tih${i}" value="${iv.hours}" type="number"></div><div class="fg"><label class="fl">Работы ([!] = критичная)</label><textarea class="ta" id="tit${i}" rows="4">${iv.tasks.map(t=>(t.c?'[!] ':'')+t.text).join('\n')}</textarea></div></div>`).join('')+`<div style="display:flex;gap:8px;margin-top:4px"><button class="bp" style="flex:1" onclick="saveTemplates()">Сохранить</button><button class="bs2" style="padding:10px" onclick="addTOInterval()">+ Добавить</button><button class="bs2" style="flex:1;padding:10px" onclick="openTOTemplates()">Назад</button></div>`}
+function saveTemplates(){const tpl=getTpl();tpl.intervals.forEach((iv,i)=>{iv.name=$('tin'+i)?.value||iv.name;iv.hours=parseInt($('tih'+i).value)||iv.hours;const lines=$('tit'+i).value.split('\n').filter(l=>l.trim());if(lines.length===0)lines.push('Осмотр');iv.tasks=lines.map((l,j)=>{const c=l.startsWith('[!]');return{id:j+1,text:l.replace('[!] ','').replace('[!]','').trim(),c:c?1:0}})});saveTpl(tpl);ae('✅ Регламенты обновлены');openTOTemplates()}
+// === POWER FLOW SVG ===
+function flowSvg(g1on,g2on,mN,bC,mC,p1,p2){
+p1=p1||0;p2=p2||0;
+const gAct=(g1on||g2on)&&bC,mAct=mN&&mC,busAct=gAct||mAct;
+const g1act=g1on&&bC,g2act=g2on&&bC;
+// Line thickness proportional to power (2-5px range)
+const g1w=g1act?Math.max(2,Math.min(5,p1/100)):2.5;
+const g2w=g2act?Math.max(2,Math.min(5,p2/100)):2.5;
+return`<svg viewBox="0 0 740 92" style="width:100%">
+<!-- G1 (source, top-left) -->
+<circle cx="46" cy="14" r="12" fill="${g1on?'rgba(0,224,154,.08)':'rgba(255,255,255,.02)'}" stroke="${g1on?'var(--g)':'var(--t4)'}" stroke-width="1.5"/>
+<text x="46" y="12" fill="${g1on?'var(--g)':'var(--t3)'}" font-size="8" text-anchor="middle" font-family="var(--m)" font-weight="700">G1</text>
+<text x="46" y="20" fill="${g1on?'rgba(0,224,154,.6)':'var(--t4)'}" font-size="5.5" text-anchor="middle" font-family="var(--m)">${g1on?(p1>0?p1.toFixed(0)+'кВт':'РАБ'):'СТОП'}</text>
+<!-- G1 → Y-join -->
+<line x1="58" y1="14" x2="100" y2="14" class="pline ${g1act?'on':''}" stroke-width="${g1w}"/>
+<line x1="100" y1="14" x2="100" y2="36" class="pline ${g1act?'on':''}" stroke-width="${g1w}"/>
+<!-- G2 (source, bottom-left) -->
+<circle cx="46" cy="58" r="12" fill="${g2on?'rgba(0,224,154,.08)':'rgba(255,255,255,.02)'}" stroke="${g2on?'var(--g)':'var(--t4)'}" stroke-width="1.5"/>
+<text x="46" y="56" fill="${g2on?'var(--g)':'var(--t3)'}" font-size="8" text-anchor="middle" font-family="var(--m)" font-weight="700">G2</text>
+<text x="46" y="64" fill="${g2on?'rgba(0,224,154,.6)':'var(--t4)'}" font-size="5.5" text-anchor="middle" font-family="var(--m)">${g2on?(p2>0?p2.toFixed(0)+'кВт':'РАБ'):'СТОП'}</text>
+<!-- G2 → Y-join -->
+<line x1="58" y1="58" x2="100" y2="58" class="pline ${g2act?'on':''}" stroke-width="${g2w}"/>
+<line x1="100" y1="58" x2="100" y2="36" class="pline ${g2act?'on':''}" stroke-width="${g2w}"/>
+<!-- Y-join → Busbar Switch -->
+<line x1="100" y1="36" x2="150" y2="36" class="pline ${gAct?'on':''}"/>
+<!-- Busbar Switch -->
+<rect x="150" y="26" width="48" height="20" rx="4" fill="${bC?'rgba(0,224,154,.08)':'rgba(255,255,255,.02)'}" stroke="${bC?'var(--g)':'var(--t4)'}" stroke-width="1.5"/>
+<text x="174" y="39" fill="${bC?'var(--g)':'var(--t3)'}" font-size="6.5" text-anchor="middle" font-family="var(--m)" font-weight="600">${bC?'ЗАМКН':'РАЗОМК'}</text>
+<text x="174" y="21" fill="var(--t3)" font-size="5.5" text-anchor="middle" font-family="var(--m)">Авт. шины</text>
+<!-- Busbar Switch → BUS LEFT -->
+<line x1="198" y1="36" x2="340" y2="36" class="pline bus ${gAct?'on':(busAct?'on':'')}" stroke-width="4"/>
+<!-- BUS CENTER LABEL -->
+<rect x="340" y="27" width="64" height="18" rx="4" fill="var(--bg3)" stroke="${busAct?'var(--g)':'var(--t4)'}" stroke-width="1"/>
+<text x="372" y="39" fill="${busAct?'var(--g)':'var(--t3)'}" font-size="8" text-anchor="middle" font-family="var(--m)" font-weight="700">ШИНА</text>
+<text x="372" y="22" fill="var(--p)" font-size="5.5" text-anchor="middle" font-family="var(--m)" font-weight="600">ШПР</text>
+<!-- BUS RIGHT → Mains Switch -->
+<line x1="404" y1="36" x2="520" y2="36" class="pline bus ${mAct?'monR':(busAct?'on':'')}" stroke-width="4"/>
+<!-- Mains Switch -->
+<rect x="520" y="26" width="48" height="20" rx="4" fill="${mC?'rgba(64,144,255,.1)':'rgba(255,255,255,.02)'}" stroke="${mC?'#4090ff':'var(--t4)'}" stroke-width="1.5"/>
+<text x="544" y="39" fill="${mC?'#4090ff':'var(--t3)'}" font-size="6.5" text-anchor="middle" font-family="var(--m)" font-weight="600">${mC?'ЗАМКН':'РАЗОМК'}</text>
+<text x="544" y="21" fill="var(--t3)" font-size="5.5" text-anchor="middle" font-family="var(--m)">Авт. сети</text>
+<!-- Mains Switch → MAINS -->
+<line x1="568" y1="36" x2="630" y2="36" class="pline ${mAct?'monR':''}"/>
+<!-- MAINS (source, right) -->
+<rect x="630" y="24" width="56" height="24" rx="5" fill="${mN?'rgba(64,144,255,.1)':'rgba(255,64,96,.06)'}" stroke="${mN?'#4090ff':'#ff4060'}" stroke-width="1.5"/>
+<text x="658" y="40" fill="${mN?'#4090ff':'#ff4060'}" font-size="8.5" text-anchor="middle" font-family="var(--m)" font-weight="600">СЕТЬ</text>
+<text x="658" y="18" fill="${mN?'rgba(64,144,255,.6)':'rgba(255,64,96,.5)'}" font-size="5.5" text-anchor="middle" font-family="var(--m)">${mN?'НОРМА':'АВАРИЯ'}</text>
+<!-- BUS → LOAD -->
+<line x1="372" y1="45" x2="372" y2="66" class="pline ${busAct?'on':''}"/>
+<rect x="342" y="66" width="60" height="20" rx="5" fill="${busAct?'rgba(0,224,154,.06)':'rgba(255,255,255,.02)'}" stroke="${busAct?'var(--g)':'var(--t4)'}" stroke-width="1.5"/>
+<text x="372" y="79" fill="${busAct?'var(--t)':'var(--t3)'}" font-size="7.5" text-anchor="middle" font-family="var(--m)" font-weight="600">НАГРУЗКА</text>
+</svg>`}
+// === RENDER ===
+function renderDash(){const mn=$('mainArea');
+if(!cur||!S[cur]){mn.innerHTML='<div class="empty-dash" style="height:100%"><div style="font-size:48px;margin-bottom:16px;opacity:.4">🏭</div><p style="font-size:14px">Выберите объект или <span style="color:var(--g);cursor:pointer" onclick="openAddSite()">создайте новый</span></p></div>';return}
+const s=S[cur],hg1=!!s.g1?.ip,hg2=!!s.g2?.ip,hs=!!s.spr?.ip,cfg=[hg1,hg2,hs].filter(Boolean).length;
+mn.innerHTML=`<div class="dh"><div class="dt"><div class="ld"></div><h1>${esc(s.name)}${s.desc?' — '+esc(s.desc):''}</h1></div><div style="display:flex;align-items:center;gap:16px"><div class="da"><button onclick="openSet()">⚙ Настройки</button><button id="demoBtn" class="${demo?'demo-on':''}" onclick="togDemo()">${demo?'⏹ Стоп':'▶ Демо'}</button></div><span class="ck" id="ck"></span></div></div>
+<div class="ss"><div class="sc"><div class="sl2">P шины</div><div class="sv" style="color:var(--g)" id="sP">—<span class="su">кВт</span></div></div><div class="sc"><div class="sl2">P генераторов</div><div class="sv" style="color:var(--p)" id="sPg">—<span class="su">кВт</span></div></div><div class="sc"><div class="sl2">U сети</div><div class="sv" id="sU">—<span class="su">В</span></div></div><div class="sc"><div class="sl2">Устройства</div><div class="sv" id="sG">${cfg}<span class="su">/3</span></div></div><div class="sc"><div class="sl2">Состояние</div><div id="sSt"><span class="bdg bdg-off">${cfg?'Ожидание':'—'}</span></div></div><div class="sc"><div class="sl2">Ответственный</div><div class="sv" id="sResp" style="font-size:12px">—</div></div></div>
+${cfg===0?'<div class="empty-dash" style="padding:40px"><div style="font-size:32px;margin-bottom:10px;opacity:.4">⚙</div><p>Нажмите <b>Настройки</b></p></div>':`
+<div class="gg">${genCard('g1','Генератор 1',s.g1)}${genCard('g2','Генератор 2',s.g2)}</div>
+<div class="pflow" id="pflow">${flowSvg(false,false,false,false,false)}</div>
+${hs?sprCard(s.spr):''}
+`}<div class="ev"><div class="ev-t">Журнал событий</div><div id="evL">${evts.length?evts.slice(0,10).map(e=>`<div class="er"><span class="et">${e.t}</span>${esc(e.m)}</div>`).join(''):'<div style="color:var(--t4);font-size:11px">—</div>'}</div></div>`;uCk();if(demo)demoTick()}
+function genCard(sl,nm,c){
+if(!c?.ip)return`<div class="cc s-stb"><div style="padding:24px;text-align:center;color:var(--t3);font-size:12px">${nm} — не настроен<br><span style="color:var(--g);cursor:pointer" onclick="openSet()">Настроить →</span></div></div>`;
+const rh=c.runHours||0,to=getNextTO(rh,cur,sl),tc=to.remain<0?'to-r':to.pct>85?'to-r':to.pct>65?'to-y':'to-g',bc=to.remain<0?'var(--r)':to.pct>85?'var(--r)':to.pct>65?'var(--y)':'var(--g)';
+return`<div class="cc s-stb" id="c${sl}"><div class="ch" onclick="tog('c${sl}')">
+<div class="cr1"><div class="cid"><div class="cdot cd-x"></div><div><div class="cn">${nm}</div><div class="csb">HGM9520N · ${esc(c.ip)}:${c.port||502} <span id="${sl}-rh" style="color:var(--t);font-weight:600;margin-left:6px">⏱ ${rh} ч</span></div></div></div><span class="bdg bdg-off" onclick="event.stopPropagation();openAlarms('c${sl}','${sl}a')" title="Нажми для просмотра аварий">ОЖИДАНИЕ</span></div>
+<div class="kr"><div class="kp"><div class="kl">P</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">U</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">I</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">f</div><div class="kv vm">—</div></div></div>
+<div class="to-block" id="${sl}-to" onclick="event.stopPropagation();${to.unknown?'openSet()':'this.classList.toggle(&quot;exp&quot;)'}"><div class="to-head"><span class="to-name ${to.unknown?'to-y':tc}">${to.unknown?'⚠ Укажите последнее ТО':to.name+' → '+to.dueAt+'ч'}</span><span class="to-remain">${to.unknown?'<span style=&quot;color:var(--y);cursor:pointer&quot;>Настройки →</span>':(to.remain>0?to.remain+'ч ост.':(to.remain<0?'просроч. '+Math.abs(to.remain)+'ч':'сейчас'))+' · '+rh+'ч'}</span></div>${to.unknown?'':`<div class="to-bar"><div class="to-fill" style="width:${to.pct}%;background:${bc}"></div></div><div class="to-tasks">${to.tasks?.slice(0,5).map(t=>'• '+(t.c?'<b>':'')+t.text+(t.c?'</b>':'')).join('<br>')||''}</div><div class="to-hint">▼ работы · <span style="color:var(--g);cursor:pointer" onclick="event.stopPropagation();openTO('${sl}')">ТО</span></div>`}</div>
+<div class="mds"><span class="mdt">AUTO</span><span class="mdt">MAN</span><span class="mdt">TEST</span><span class="mdt">STOP</span></div></div>
+<!-- QUICK CONTROLS always visible -->
+<div style="padding:0 10px 5px"><div class="qc">
+<button class="qb q-start" onclick="event.stopPropagation();cmdConfirm('${nm}','Start','▶ Пуск','FC05 coil 0x0000: Remote Start')">▶ Пуск</button>
+<button class="qb q-stop" onclick="event.stopPropagation();cmdConfirm('${nm}','Stop','⏹ Стоп','FC05 coil 0x0001: Remote Stop')">⏹ Стоп</button>
+<button class="qb q-auto" onclick="event.stopPropagation();cmdConfirm('${nm}','Auto','🅰 Авто','FC05 coil 0x0003: Remote Auto')">🅰 Авто</button>
+<button class="qb q-manual" onclick="event.stopPropagation();cmdConfirm('${nm}','Manual','🔧 Ручной','FC05 coil 0x0004: Remote Manual')">🔧 Руч.</button>
+</div><div class="cmd-st" id="cs-${nm.replace(/[\s\/]/g,'')}"></div></div>
+<div class="cv" onclick="tog('c${sl}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+<div class="ce"><div class="ei">
+<div class="tbs"><button class="tb on" onclick="stab(this,'${sl}e')">Электрика</button><button class="tb" onclick="stab(this,'${sl}m')">Двигатель</button><button class="tb" onclick="stab(this,'${sl}a')">Аварии</button><button class="tb" onclick="stab(this,'${sl}c')">Все команды</button></div>
+<div class="tp on" id="${sl}e"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Ожидание данных...</div></div>
+<div class="tp" id="${sl}m"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Ожидание...</div></div>
+<div class="tp" id="${sl}a">
+<div style="display:flex;gap:4px;margin-bottom:8px"><button class="spr-b" style="flex:1;font-weight:600;color:var(--r)" id="${sl}a-act-btn" onclick="showAlarmSub('${sl}','act')">🔴 Активные</button><button class="spr-b" style="flex:1" id="${sl}a-arc-btn" onclick="showAlarmSub('${sl}','arc')">📋 Архив</button><button class="spr-b" onclick="clearAlarmArchive('${sl}')">🗑</button></div>
+<div id="${sl}a-act"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Нет аварий ✓</div></div>
+<div id="${sl}a-arc" style="display:none"><div style="color:var(--t3);font-size:12px;text-align:center;padding:15px">Архив пуст</div></div>
+</div>
+<div class="tp" id="${sl}c"><div style="font-size:11px;color:var(--t3);margin-bottom:8px">Все команды HGM9520N (FC05)</div>
+<div class="cg">
+<button class="cb2 cgo" onclick="event.stopPropagation();cmdConfirm('${nm}','Start','▶ Пуск','FC05 0x0000')"><span class="ci2">▶</span>Пуск</button>
+<button class="cb2 cst" onclick="event.stopPropagation();cmdConfirm('${nm}','Stop','⏹ Стоп','FC05 0x0001')"><span class="ci2">⏹</span>Стоп</button>
+<button class="cb2" onclick="event.stopPropagation();cmdConfirm('${nm}','Auto','🅰 Авто','FC05 0x0003')"><span class="ci2">🅰</span>Авто</button>
+<button class="cb2" onclick="event.stopPropagation();cmdConfirm('${nm}','Manual','🔧 Ручной','FC05 0x0004')"><span class="ci2">🔧</span>Ручной</button>
+<button class="cb2" onclick="event.stopPropagation();cmdConfirm('${nm}','GenClose','⚡ ВКЛ ген.','FC05 0x0006: Remote Gen Close')"><span class="ci2">⚡</span>ВКЛ ген.</button>
+<button class="cb2" onclick="event.stopPropagation();cmdConfirm('${nm}','GenOpen','⚡ ОТКЛ ген.','FC05 0x0007: Remote Gen Open')"><span class="ci2">⚡</span>ОТКЛ ген.</button>
+<button class="cb2" onclick="event.stopPropagation();cmdConfirm('${nm}','MainsClose','🔌 Авт.сети','FC05 0x0005: Mains Close/Open')"><span class="ci2">🔌</span>Авт.сети</button>
+<button class="cb2" onclick="event.stopPropagation();cmdConfirm('${nm}','Mute','🔇 Тишина','FC05 addr 0x000C (12): Remote Mute Key')"><span class="ci2">🔇</span>Тишина</button>
+<button class="cb2" onclick="event.stopPropagation();cmdConfirm('${nm}','Reset','🔄 Сброс','FC05 addr 0x0011 (17): Remote Alarm Reset')"><span class="ci2">🔄</span>Сброс</button>
+</div><div style="margin-top:8px"><button class="cb2 q-danger" style="width:100%;flex-direction:row;justify-content:center;gap:8px;padding:10px" onclick="event.stopPropagation();cmdConfirm('${nm}','FastStop','🛑 Экстренный стоп','FC05 addr 0x000F (15): Remote Diesel Engine Fast Stop')"><span>🛑</span>Экстренный стоп</button></div>
+</div></div></div>
+<div class="cf"><div class="li"><span class="lo lo-r"></span><span>ожидание</span></div><span>tcp:${c.port||502} · id:${c.slaveId||1}</span></div></div>`}
+function sprCard(c){return`<div class="sr2"><div class="cc s-stb" id="cspr"><div class="ch" onclick="tog('cspr')">
+<div class="cr1"><div class="cid"><div class="cdot cd-x"></div><div><div class="cn" style="color:var(--p)">ШПР</div><div class="csb">HGM9560 · ${esc(c.ip)}:${c.port||26} · RTU</div></div></div><span class="bdg bdg-off" onclick="event.stopPropagation();openAlarms('cspr','spra')" title="Нажми для просмотра аварий">ОЖИДАНИЕ</span></div>
+<div class="kr kr5"><div class="kp"><div class="kl">P шины</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">U</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">f</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">Сеть</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">Режим</div><div class="kv vm">—</div></div></div></div>
+<!-- SPR QUICK CONTROLS -->
+<div style="padding:0 10px 5px"><div class="qc">
+<button class="qb q-start" onclick="event.stopPropagation();cmdConfirm('ШПР','Start','▶ Пуск','FC05 0x0000')">▶ Пуск</button>
+<button class="qb q-stop" onclick="event.stopPropagation();cmdConfirm('ШПР','Stop','⏹ Стоп','FC05 0x0001')">⏹ Стоп</button>
+<button class="qb q-auto" onclick="event.stopPropagation();cmdConfirm('ШПР','Auto','🅰 Авто','FC05 0x0003')">🅰 Авто</button>
+<button class="qb q-manual" onclick="event.stopPropagation();cmdConfirm('ШПР','Manual','🔧 Ручной','FC05 0x0004')">🔧 Руч.</button>
+</div><div class="cmd-st" id="cs-ШПР"></div></div>
+<div class="cv" onclick="tog('cspr')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+<div class="ce"><div class="ei">
+<div class="tbs"><button class="tb on" onclick="stab(this,'sprb')">Шина</button><button class="tb" onclick="stab(this,'sprm')">Сеть</button><button class="tb" onclick="stab(this,'sprs')">Коммутация</button><button class="tb" onclick="stab(this,'spra')">Аварии</button><button class="tb" onclick="stab(this,'sprc');onSprControlTabOpen()">Управление</button><button class="tb" onclick="stab(this,'sprp')">Пресеты</button></div>
+<div class="tp on" id="sprb"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Ожидание...</div></div>
+<div class="tp" id="sprm"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Ожидание...</div></div>
+<div class="tp" id="sprs"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Ожидание...</div></div>
+<div class="tp" id="spra">
+<div style="display:flex;gap:4px;margin-bottom:8px"><button class="spr-b" style="flex:1;font-weight:600;color:var(--r)" id="spra-act-btn" onclick="showAlarmSub('spr','act')">🔴 Активные</button><button class="spr-b" style="flex:1" id="spra-arc-btn" onclick="showAlarmSub('spr','arc')">📋 Архив</button><button class="spr-b" onclick="clearAlarmArchive('spr')">🗑</button></div>
+<div id="spra-act"><div style="color:var(--t3);font-size:12px;text-align:center;padding:15px">Ожидание данных ШПР...</div></div>
+<div id="spra-arc" style="display:none"><div style="color:var(--t3);font-size:12px;text-align:center;padding:15px">Архив пуст</div></div>
+</div>
+<div class="tp" id="sprc">
+<div id="sprCfgBanner" style="padding:8px 10px;background:var(--bg3);border:1px solid var(--bd);border-radius:6px;margin-bottom:10px;font-size:11px;color:var(--t3);font-family:var(--m);text-align:center">Откройте вкладку — конфигурация будет считана автоматически</div>
+<div style="font-size:11px;color:var(--t3);margin-bottom:8px">Команды HGM9560 (FC05)</div>
+<div class="spr-cg">
+<button class="spr-b" onclick="cmdConfirm('ШПР','Start','▶ Пуск','FC05 0x0000')"><span class="si2">▶</span>Пуск</button>
+<button class="spr-b" onclick="cmdConfirm('ШПР','Stop','⏹ Стоп','FC05 0x0001')"><span class="si2">⏹</span>Стоп</button>
+<button class="spr-b" onclick="cmdConfirm('ШПР','Auto','🅰 Авто','FC05 0x0003')"><span class="si2">🅰</span>Авто</button>
+<button class="spr-b" onclick="cmdConfirm('ШПР','Manual','🔧 Ручн.','FC05 0x0004')"><span class="si2">🔧</span>Ручн.</button>
+</div><div class="spr-cg">
+<button class="spr-b" onclick="cmdConfirm('ШПР','MainsSwitch','🔌 Авт.сети','FC05 0x0005: Mains Close/Open')"><span class="si2">🔌</span>Авт.сети</button>
+<button class="spr-b" onclick="cmdConfirm('ШПР','BusbarSwitch','⚡ Авт.шины','FC05 0x0006: Busbar Close/Open')"><span class="si2">⚡</span>Авт.шины</button>
+<button class="spr-b" onclick="cmdConfirm('ШПР','Mute','🔇 Тишина','FC05 0x000C: Mute')"><span class="si2">🔇</span>Тишина</button>
+<button class="spr-b" onclick="cmdConfirm('ШПР','Confirm','✓ Подтв.','FC05 0x000B: Confirm')"><span class="si2">✓</span>Подтв.</button>
+</div>
+<div style="font-size:11px;color:var(--t3);margin-top:12px;margin-bottom:6px">Режим нагрузки (FC06 reg 4351) <span id="sprLmCurrent" style="font-size:10px;color:var(--t4)"></span></div>
+<div style="padding:8px 10px;background:rgba(255,255,255,.02);border:1px solid var(--bd);border-radius:6px;margin-bottom:8px;font-size:10px;color:var(--t2);line-height:1.5;font-family:var(--m)">
+<b style="color:var(--g)">Gen Control (0)</b> — генераторы управляют мощностью. P% задаёт, сколько от номинала выдаёт генератор. Сеть компенсирует остаток.<br>
+<b style="color:var(--b)">Mains Control (1)</b> — сеть основная. P% задаёт порог «срезания пиков» (peak clipping). Генераторы включаются когда нагрузка сети превышает этот %.<br>
+<b style="color:var(--p)">Load Reception (2)</b> — приём нагрузки. Генераторы плавно принимают на себя нагрузку от сети.
+</div>
+<div style="display:flex;gap:6px;margin-bottom:10px">
+<button class="spr-b" id="sprLm0" style="flex:1" onclick="setSprLoadMode(0)">Gen Ctrl</button>
+<button class="spr-b" id="sprLm1" style="flex:1" onclick="setSprLoadMode(1)">Mains Ctrl</button>
+<button class="spr-b" id="sprLm2" style="flex:1" onclick="setSprLoadMode(2)">Load Rec.</button>
+</div>
+<div class="slider-group">
+<div style="font-size:10px;color:var(--t3);margin-bottom:6px;line-height:1.4">P% и Q% — уставки для ШПР. В режиме <b style="color:var(--g)">Gen Ctrl</b>: P% = выходная мощность генераторов от номинала. В режиме <b style="color:var(--b)">Mains Ctrl</b>: P% = порог пик-шейвинга сети.</div>
+<div class="slider-row"><span class="slider-label">P%</span><input type="range" id="sprPslider" min="0" max="1000" value="500" oninput="sprCfgDirty=true;$('sprPval').textContent=((+this.value)/10).toFixed(1)+'%'"><span class="slider-val" id="sprPval">50.0%</span></div>
+<div class="slider-row"><span class="slider-label">Q%</span><input type="range" id="sprQslider" min="0" max="1000" value="500" oninput="sprCfgDirty=true;$('sprQval').textContent=((+this.value)/10).toFixed(1)+'%'"><span class="slider-val" id="sprQval">50.0%</span></div>
+<button class="bp" id="sprSaveBtn" style="margin-top:6px;padding:7px;font-size:11px" onclick="saveSprConfig()">💾 Сохранить конфигурацию в контроллер</button>
+<div style="font-size:9px;color:var(--t4);margin-top:4px">FC06: LoadMode → reg 4351, P% → reg 4352, Q% → reg 4354. Значения записываются в контроллер и применяются немедленно.</div></div>
+<div style="font-size:11px;color:var(--t3);margin-top:14px;margin-bottom:6px">Бэкап / восстановление</div>
+<div style="display:flex;gap:6px;margin-bottom:8px">
+<button class="spr-b" style="flex:1" onclick="readSprConfig()"><span class="si2">🔄</span>Перечитать</button>
+<button class="spr-b" style="flex:1" onclick="backupSprConfig()"><span class="si2">💾</span>Бэкап</button>
+<button class="spr-b" style="flex:1" onclick="openRestoreBackup()"><span class="si2">📂</span>Восстановить</button>
+</div>
+<div id="sprConfigStatus"></div>
+<div id="sprBackupList"></div>
+</div>
+<!-- PRESETS TAB -->
+<div class="tp" id="sprp">
+<div style="font-size:11px;color:var(--t3);margin-bottom:10px">Быстрые пресеты режимов ШПР (HGM9560)</div>
+<div style="padding:10px;background:rgba(160,112,255,.04);border:1px solid rgba(160,112,255,.15);border-radius:8px;margin-bottom:12px;font-size:11px;color:var(--t2);line-height:1.5">
+<b style="color:var(--p)">Что такое пресеты?</b><br>
+Пресет — это готовая комбинация из трёх параметров: <b>режим нагрузки</b> (LoadMode), <b>% активной мощности</b> (P) и <b>% реактивной мощности</b> (Q), которые отправляются в ШПР через FC06.<br>
+Вместо ручной установки каждого параметра — один клик.
+</div>
+<div class="preset-grid">
+<button class="preset-btn" onclick="applyPreset(this,'island')"><div class="preset-name">🏝 Островной</div><div class="preset-desc">Gen Ctrl · P100% Q50%</div></button>
+<button class="preset-btn" onclick="applyPreset(this,'genres')"><div class="preset-name">🔋 Ген+Резерв</div><div class="preset-desc">Gen Ctrl · P80% Q50%</div></button>
+<button class="preset-btn" onclick="applyPreset(this,'peak')"><div class="preset-name">⚡ Пик-шейвинг</div><div class="preset-desc">Mains Ctrl · P30% Q50%</div></button>
+<button class="preset-btn" onclick="applyPreset(this,'parallel')"><div class="preset-name">🔀 Параллель</div><div class="preset-desc">Load Rec · P50% Q50%</div></button>
+<button class="preset-btn" onclick="applyPreset(this,'export')"><div class="preset-name">📤 Экспорт</div><div class="preset-desc">Gen Ctrl · P80% Q30%</div></button>
+<button class="preset-btn" onclick="applyPreset(this,'mains')"><div class="preset-name">🔌 Только сеть</div><div class="preset-desc">Mains Ctrl · P0% Q0%</div></button>
+<button class="preset-btn" onclick="applyPreset(this,'test')"><div class="preset-name">🔧 Тест</div><div class="preset-desc">Gen Ctrl · P20% Q20%</div></button>
+</div>
+<div id="presetExplain" style="padding:10px;background:rgba(255,255,255,.02);border:1px solid var(--bd);border-radius:8px;margin-top:6px">
+<div style="font-size:10px;color:var(--t3);margin-bottom:6px">Описание режимов:</div>
+<div style="font-size:10px;color:var(--t2);line-height:1.6;font-family:var(--m)">
+<b style="color:var(--g)">🏝 Островной</b> — генераторы единственный источник, сеть отключена. P=100%<br>
+<b style="color:#00c8ff">🔋 Ген+Резерв</b> — генератор основной (80%), сеть компенсирует остаток. При пропадании сети генератор продолжает питать нагрузку автоматически<br>
+<b style="color:var(--y)">⚡ Пик-шейвинг</b> — сеть основная, генераторы срезают пики нагрузки. P=30%<br>
+<b style="color:var(--p)">🔀 Параллель</b> — приём нагрузки, генераторы и сеть работают параллельно<br>
+<b style="color:var(--b)">📤 Экспорт</b> — генераторы выдают 80% в сеть (обратная продажа)<br>
+<b style="color:var(--t)">🔌 Только сеть</b> — генераторы отключены, питание только от сети<br>
+<b style="color:var(--t3)">🔧 Тест</b> — 20% нагрузки для проверки работоспособности генераторов
+</div>
+</div>
+<div style="padding:10px;background:rgba(255,255,255,.02);border:1px solid var(--bd);border-radius:8px;margin-top:8px"><div style="font-size:10px;color:var(--t3);margin-bottom:4px">Текущий:</div><div id="currentPreset" style="font-family:var(--m);font-size:12px;color:var(--t2)">Не выбран</div></div>
+</div></div></div>
+<div class="cf"><div class="li"><span class="lo lo-r"></span><span>ожидание</span></div><span>rtu:9600/8N2 · id:${c.slaveId||1}</span></div></div></div>`}
+function applyPreset(btn,name){
+const P={island:{m:0,p:1000,q:500,l:'🏝 Островной'},genres:{m:0,p:800,q:500,l:'🔋 Ген+Резерв сети'},peak:{m:1,p:300,q:500,l:'⚡ Пик-шейвинг'},parallel:{m:2,p:500,q:500,l:'🔀 Параллель'},export:{m:0,p:800,q:300,l:'📤 Экспорт'},mains:{m:1,p:0,q:0,l:'🔌 Только сеть'},test:{m:0,p:200,q:200,l:'🔧 Тест'}};
+const pr=P[name];if(!pr)return;
+// Apply preset to control tab UI
+sprSelectedLoadMode=pr.m;sprCfgDirty=true;
+applySprConfigToUI(pr.m, pr.p, pr.q);
+const cp=$('currentPreset');if(cp)cp.innerHTML=`<b>${pr.l}</b> · Mode=${pr.m} P=${(pr.p/10).toFixed(1)}% Q=${(pr.q/10).toFixed(1)}%`;
+document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
+ae(`🎛 Пресет: ${pr.l}`);
+// Prompt to save to controller
+if(confirm('Применить пресет «'+pr.l+'» и записать в контроллер?\n\nLoadMode='+pr.m+' P='+(pr.p/10).toFixed(1)+'% Q='+(pr.q/10).toFixed(1)+'%')){saveSprConfig()}
+else{const banner=$('sprCfgBanner');if(banner)banner.innerHTML='<span style="color:var(--y)">⚠ Пресет загружен, но НЕ записан в контроллер. Нажмите «Сохранить» на вкладке Управление.</span>'}}
+function tog(id){$(id)?.classList.toggle('op')}
+function openAlarms(cardId,alarmTabId){const card=$(cardId);if(!card)return;if(!card.classList.contains('op'))card.classList.add('op');const tabs=card.querySelectorAll('.tb');const panels=card.querySelectorAll('.tp');tabs.forEach(t=>t.classList.remove('on'));panels.forEach(p=>p.classList.remove('on'));tabs.forEach(t=>{if(t.textContent==='Аварии')t.classList.add('on')});const ap=$(alarmTabId);if(ap)ap.classList.add('on');card.scrollIntoView({behavior:'smooth',block:'nearest'})}
+function scrollToAlarm(){const cards=['cg1','cg2','cspr'];for(const id of cards){const c=$(id);if(c&&(c.classList.contains('s-wrn')||c.classList.contains('s-alm'))){const sl=id.replace('c','');const aTab=id==='cspr'?'spra':sl+'a';openAlarms(id,aTab);return}}}
+function stab(btn,pid){const c=btn.closest('.cc');if(!c)return;c.querySelectorAll('.tb').forEach(b=>b.classList.remove('on'));c.querySelectorAll('.tp').forEach(p=>p.classList.remove('on'));btn.classList.add('on');$(pid)?.classList.add('on')}
+function uCk(){const el=$('ck');if(el)el.textContent=now()}
+setInterval(uCk,1000);
+// === DEMO ===
+function togDemo(){demo=!demo;
+if(demo){if(cur&&S[cur]){const s=S[cur];if(!s.g1?.ip){s.g1={ip:'192.168.97.10',port:502,slaveId:1,runHours:1227};s.g2={ip:'192.168.97.11',port:502,slaveId:1,runHours:489};s.spr={ip:'10.11.0.2',port:26,slaveId:1};sv();renderDash()}}dStep=0;ae('▶ Демо');demoTick();demoIv=setInterval(demoTick,2500)}
+else{clearInterval(demoIv);demoIv=null;ae('⏹ Стоп');renderDash()}
+const b=$('demoBtn');if(b){b.textContent=demo?'⏹ Стоп':'▶ Демо';b.classList.toggle('demo-on',demo)}}
+// Demo scenario: [g1state, g2state, mainsNormal, busbarClosed, mainsClosed, g1power, g2power]
+// Shows realistic ATS: mains fail → generators start → parallel → mains return → transfer back
+const SC=[
+['standby','standby',true,false,true, 0,0],       // 1: нормально, сеть питает, генераторы стоят
+['standby','standby',true,false,true, 0,0],       // 2: нормально
+['standby','standby',false,false,true, 0,0],      // 3: АВАРИЯ СЕТИ! mains fail
+['running','standby',false,false,false, 180,0],   // 4: G1 запустился, G2 ещё стоит
+['running','running',false,false,false, 280,200],  // 5: оба запустились, набирают обороты
+['running','running',false,true,false, 320,240],   // 6: авт.шины замкнут, генераторы под нагрузкой
+['running','running',false,true,false, 340,220],   // 7: работают, G1 больше мощности чем G2
+['warning','running',false,true,false, 350,260],   // 8: предупреждение G1 (темп.ОЖ)
+['running','running',false,true,false, 300,280],   // 9: G1 снизил нагрузку, G2 компенсирует
+['running','running',true,true,false, 280,260],    // 10: сеть вернулась! но ещё на генераторах
+['running','running',true,true,true, 200,180],     // 11: параллельная работа с сетью, плавный переход
+['standby','standby',true,false,true, 0,0]         // 12: генераторы остановлены, вернулись на сеть
+];
+const ST={running:{dot:'cd-g',bdg:'bdg-run',txt:'РАБОТА',cls:'s-run'},warning:{dot:'cd-y',bdg:'bdg-w',txt:'ПРЕДУПР.',cls:'s-wrn'},alarm:{dot:'cd-r',bdg:'bdg-a',txt:'АВАРИЯ',cls:'s-alm'},standby:{dot:'cd-x',bdg:'bdg-off',txt:'СТОП',cls:'s-stb'}};
+function demoTick(){if(!cur||!S[cur])return;dStep++;const sc=SC[(dStep-1)%SC.length],s1=sc[0],s2=sc[1],mN=sc[2],bC=sc[3],mC=sc[4],p1base=sc[5],p2base=sc[6];
+const on1=s1!=='standby',on2=s2!=='standby';
+// Pass actual power values to applyGen for display
+applyGen('g1',s1,S[cur].g1?.runHours||1227,p1base,true);applyGen('g2',s2,S[cur].g2?.runHours||489,p2base,true);applySpr(on1||on2,mN,bC,mC,true);
+const p1=on1?p1base+R(-10,10):0,p2=on2?p2base+R(-10,10):0,mP=mN&&mC?R(100,200):0;const el=n=>document.getElementById(n);
+const pf=$('pflow');if(pf)pf.innerHTML=flowSvg(on1,on2,mN,bC,mC,p1,p2);
+if(el('sP'))el('sP').innerHTML=`${(p1+p2+mP).toFixed(1)}<span class="su">кВт</span>`;
+if(el('sPg'))el('sPg').innerHTML=`${(p1+p2).toFixed(1)}<span class="su">кВт</span>`;
+if(el('sU')){if(mN)el('sU').innerHTML=`${RI(398,406)}<span class="su">В</span>`;else el('sU').innerHTML='<span style="color:var(--r)">АВАР</span>'}
+if(el('sG'))el('sG').innerHTML=`${(on1?1:0)+(on2?1:0)}<span class="su">/2</span>`;
+const w=s1==='alarm'||s2==='alarm'?'a':s1==='warning'||s2==='warning'?'w':(!mN&&!on1&&!on2)?'a':'ok';
+if(el('sSt'))el('sSt').innerHTML=w==='a'?'<span class="bdg bdg-a" onclick="scrollToAlarm()" style="cursor:pointer">● Авария</span>':w==='w'?'<span class="bdg bdg-w" onclick="scrollToAlarm()" style="cursor:pointer">● Предупр.</span>':'<span class="bdg bdg-ok">● Норма</span>';
+if(el('sResp')){var rid=S[cur]?.responsible||'';var users=getBxUsers();var rn='—';for(var ui=0;ui<users.length;ui++){if(users[ui].id===rid)rn=users[ui].name}el('sResp').textContent=rn}
+if(el('evL'))el('evL').innerHTML=evts.slice(0,10).map(e=>`<div class="er"><span class="et">${e.t}</span>${esc(e.m)}</div>`).join('')}
+function applyGen(sl,status,rh,basePower,isOnline){const card=$('c'+sl);if(!card)return;const st=ST[status],on=status!=='standby',isO=card.classList.contains('op');
+card.className='cc '+st.cls+(isO?' op':'');card.querySelector('.cdot').className='cdot '+st.dot;
+const bdg=card.querySelector('.bdg');bdg.className='bdg '+st.bdg;bdg.textContent=st.txt;
+// Use real WS metrics if available, else random (demo)
+const devId=getDeviceIdForSlot(sl),mx=devId?latestMetrics[devId]:null;
+const p=mx?.power_total!=null?mx.power_total:(basePower?basePower+R(-8,8):R(220,340));
+const u=mx?.gen_uab!=null?mx.gen_uab:R(398,406);
+const I=mx?.current_a!=null?(mx.current_a+mx.current_b+mx.current_c):(basePower?Math.round(basePower*2.5+R(-20,20)):RI(1100,1350));
+const f=mx?.gen_freq!=null?mx.gen_freq:R(49.96,50.04);
+const kvs=card.querySelectorAll('.kv');
+if(on){kvs[0].className='kv vg';kvs[0].innerHTML=p.toFixed(1)+'<span class="ku">кВт</span>';kvs[1].className='kv vn';kvs[1].innerHTML=u.toFixed(0)+'<span class="ku">В</span>';kvs[2].className='kv vn';kvs[2].innerHTML=Math.round(I)+'<span class="ku">А</span>';kvs[3].className='kv vn';kvs[3].innerHTML=f.toFixed(2)+'<span class="ku">Гц</span>'}else kvs.forEach(k=>{k.className='kv vm';k.textContent='—'});
+const modes=card.querySelectorAll('.mdt');modes.forEach(m=>m.classList.remove('on'));
+if(mx){if(mx.mode_auto)modes[0]?.classList.add('on');if(mx.mode_manual)modes[1]?.classList.add('on');if(mx.mode_test)modes[2]?.classList.add('on');if(mx.mode_stop)modes[3]?.classList.add('on')}else{if(on)modes[0]?.classList.add('on');else modes[3]?.classList.add('on')}
+// Update run hours display in header
+const rhEl=$(sl+'-rh');if(rhEl){const rhVal=mx?.run_hours!=null?mx.run_hours:rh;rhEl.textContent='⏱ '+(typeof rhVal==='number'?rhVal.toFixed(0):rhVal)+' ч'}
+const tob=$(sl+'-to');if(tob){const to=getNextTO(rh,cur,sl);if(to.unknown){tob.querySelector('.to-head').innerHTML=`<span class="to-name to-y">⚠ Укажите последнее ТО</span><span class="to-remain" style="color:var(--y);cursor:pointer" onclick="event.stopPropagation();openSet()">Настройки →</span>`;tob.onclick=function(e){e.stopPropagation();openSet()};const bar=tob.querySelector('.to-bar');if(bar)bar.style.display='none';const tasks=tob.querySelector('.to-tasks');if(tasks)tasks.style.display='none';const hint=tob.querySelector('.to-hint');if(hint)hint.style.display='none'}else{const tc2=to.remain<0?'to-r':to.pct>85?'to-r':to.pct>65?'to-y':'to-g';const bc2=to.remain<0?'var(--r)':to.pct>85?'var(--r)':to.pct>65?'var(--y)':'var(--g)';tob.querySelector('.to-head').innerHTML=`<span class="to-name ${tc2}">${to.name} → ${to.dueAt}ч</span><span class="to-remain">${to.remain>0?to.remain+'ч ост.':(to.remain<0?'просроч. '+Math.abs(to.remain)+'ч':'сейчас')} · ${rh}ч</span>`;const fill=tob.querySelector('.to-fill');if(fill){fill.parentElement.style.display='';fill.style.cssText=`width:${to.pct}%;background:${bc2}`}}}
+// online/offline indicator: isOnline=true means WS data arrives, separate from gen running
+const connOk=isOnline!==undefined?isOnline:(mx?.online===true);
+card.querySelector('.lo').className='lo '+(connOk?'lo-g':'lo-r');card.querySelector('.li span:last-child').textContent=connOk?(on?'live':'standby'):'offline';
+// Detailed tabs — use real WS data if available
+const ct=mx?.coolant_temp!=null?mx.coolant_temp:(status==='warning'?RI(93,99):(status==='alarm'?RI(100,108):RI(75,88)));
+const op=mx?.oil_pressure!=null?mx.oil_pressure:(status==='alarm'?RI(150,250):RI(350,450));
+const eT=$(sl+'e');if(eT&&on){const pp=mx?.power_total!=null?mx.power_total:(basePower||p);
+const q=mx?.reactive_total!=null?mx.reactive_total:R(30,55);
+const pf=mx?.pf_avg!=null?mx.pf_avg:R(.97,.999);
+const uab=mx?.gen_uab!=null?mx.gen_uab:u;
+const ubc=mx?.gen_ubc!=null?mx.gen_ubc:R(397,403);
+const uca=mx?.gen_uca!=null?mx.gen_uca:R(399,405);
+const ia=mx?.current_a!=null?mx.current_a:Math.round(I/3+R(-15,15));
+const ib=mx?.current_b!=null?mx.current_b:Math.round(I/3+R(-15,15));
+const ic=mx?.current_c!=null?mx.current_c:Math.round(I/3+R(-15,15));
+const pa=mx?.power_a!=null?mx.power_a:(pp/3+R(-5,5));
+const pb=mx?.power_b!=null?mx.power_b:(pp/3+R(-5,5));
+const pc=mx?.power_c!=null?mx.power_c:(pp/3+R(-5,5));
+const ld=mx?.load_pct!=null?mx.load_pct:Math.round(pp/5);
+const ekwh=mx?.energy_kwh!=null?mx.energy_kwh:RI(400,500);
+const starts=mx?.start_count!=null?mx.start_count:RI(300,400);
+eT.innerHTML=`<div class="mg"><div class="mc"><div class="ml">P</div><div class="mv vg">${pp.toFixed?pp.toFixed(1):pp}<span class="mu">кВт</span></div></div><div class="mc"><div class="ml">Q</div><div class="mv vn">${typeof q==='number'?q.toFixed(1):q}<span class="mu">квар</span></div></div><div class="mc"><div class="ml">Cos φ</div><div class="mv vn">${typeof pf==='number'?pf.toFixed(3):pf}</div></div></div><table class="pt"><thead><tr><th>Фаза</th><th>U</th><th>I</th><th>P</th></tr></thead><tbody><tr><td class="ph">A-B</td><td>${typeof uab==='number'?uab.toFixed(0):uab}</td><td>${typeof ia==='number'?ia.toFixed(1):ia}</td><td>${typeof pa==='number'?pa.toFixed(1):pa}</td></tr><tr><td class="ph">B-C</td><td>${typeof ubc==='number'?ubc.toFixed(0):ubc}</td><td>${typeof ib==='number'?ib.toFixed(1):ib}</td><td>${typeof pb==='number'?pb.toFixed(1):pb}</td></tr><tr><td class="ph">C-A</td><td>${typeof uca==='number'?uca.toFixed(0):uca}</td><td>${typeof ic==='number'?ic.toFixed(1):ic}</td><td>${typeof pc==='number'?pc.toFixed(1):pc}</td></tr></tbody></table><div class="mg mg4" style="margin-top:10px"><div class="mc"><div class="ml">Нагрузка</div><div class="mv vn">${ld}%</div></div><div class="mc"><div class="ml">Энергия</div><div class="mv vn">${ekwh}<span class="mu">кВт·ч</span></div></div><div class="mc"><div class="ml">Моточасы</div><div class="mv vn">${typeof rh==='number'?rh.toFixed(0):rh}<span class="mu">ч</span></div></div><div class="mc"><div class="ml">Пусков</div><div class="mv vn">${starts}</div></div></div>`}
+else if(eT&&!on)eT.innerHTML=`<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">${connOk?'Остановлен':'Нет связи'}</div>`;
+const mT=$(sl+'m');if(mT&&on){
+const rpm=mx?.engine_speed!=null?mx.engine_speed:1500;
+const oilT=mx?.oil_temp!=null?mx.oil_temp:RI(70,85);
+const fuel=mx?.fuel_level!=null?mx.fuel_level:RI(30,90);
+const fc=mx?.fuel_consumption!=null?mx.fuel_consumption:R(30,45);
+const turbo=mx?.turbo_pressure!=null?mx.turbo_pressure:RI(160,200);
+const batt=mx?.battery_volt!=null?mx.battery_volt:R(27,28.5);
+const ctC=(typeof ct==='number'&&ct>95)?'va':(typeof ct==='number'&&ct>88)?'vw':'vn';
+const opC=(typeof op==='number'&&op<300)?'va':'vn';
+const fuelC=(typeof fuel==='number'&&fuel<50)?'vw':'vn';
+mT.innerHTML=`<div class="mg"><div class="mc"><div class="ml">Обороты</div><div class="mv vn">${rpm}</div></div><div class="mc"><div class="ml">Темп.ОЖ</div><div class="mv ${ctC}">${ct}°C</div></div><div class="mc"><div class="ml">Давл.масла</div><div class="mv ${opC}">${op} кПа</div></div><div class="mc"><div class="ml">Темп.масла</div><div class="mv vn">${oilT}°C</div></div><div class="mc"><div class="ml">Топливо</div><div class="mv ${fuelC}">${fuel}%</div></div><div class="mc"><div class="ml">Расход</div><div class="mv vn">${typeof fc==='number'?fc.toFixed(1):fc} л/ч</div></div><div class="mc"><div class="ml">Турбо</div><div class="mv vn">${turbo} кПа</div></div><div class="mc"><div class="ml">Батарея</div><div class="mv vn">${typeof batt==='number'?batt.toFixed(1):batt}В</div></div></div>`}
+else if(mT&&!on)mT.innerHTML=`<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">${connOk?'—':'Нет связи'}</div>`;
+const aT=$(sl+'a-act');if(aT){if(status==='warning'){aT.innerHTML=`<div class="ai aw">⚠ <b style="color:var(--y)">W008</b> ${ALARM_CODES['W008']}: ${ct}°C<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;if(Math.random()<0.3)addAlarmToArchive(sl,'W008',ALARM_CODES['W008']+': '+ct+'°C','warning')}else if(status==='alarm'){aT.innerHTML=`<div class="ai aa">🔴 <b style="color:var(--r)">W012</b> ${ALARM_CODES['W012']}: ${op} кПа<span style="margin-left:auto;color:var(--t4)">${now()}</span></div><div class="ai aa" style="margin-top:2px">🔴 <b style="color:var(--r)">E014</b> ${ALARM_CODES['E014']}<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;if(Math.random()<0.3){addAlarmToArchive(sl,'W012',ALARM_CODES['W012']+': '+op+' кПа','alarm');addAlarmToArchive(sl,'E014',ALARM_CODES['E014'],'alarm')}}else aT.innerHTML='<div style="color:var(--g);font-size:12px;text-align:center;padding:15px">✓ Нет активных аварий</div>'}}
+function applySpr(gOn,mN,bC,mC,isOnline){const card=$('cspr');if(!card)return;const isO=card.classList.contains('op'),active=gOn||mN;
+// Status: alarm (mains abnormal), running (active), standby (online but idle), offline
+let cls='s-stb',dot='cd-x',bcls='bdg-off',btxt='СТОП';
+if(!isOnline){cls='s-stb';dot='cd-x';bcls='bdg-off';btxt='OFFLINE'}
+else if(!mN&&!active){cls='s-alm';dot='cd-r';bcls='bdg-a';btxt='АВАРИЯ'}
+else if(active){cls='s-run';dot='cd-g';bcls='bdg-run';btxt='РАБОТА'}
+else{cls='s-run';dot='cd-g';bcls='bdg-ok';btxt='НОРМА'}
+card.className='cc '+cls+(isO?' op':'');card.querySelector('.cdot').className='cdot '+dot;
+const bdg=card.querySelector('.bdg');bdg.className='bdg '+bcls;bdg.textContent=btxt;
+const kvs=card.querySelectorAll('.kv'),bp=R(400,520),bu=RI(398,405),bf=R(49.98,50.04);
+if(isOnline){
+const m3=latestMetrics[getDeviceIdForSlot('spr')];
+const rBp=m3?.busbar_p!=null?m3.busbar_p:0;
+const rBu=m3?.busbar_uab!=null?m3.busbar_uab:0;
+const rBf=m3?.busbar_freq!=null?m3.busbar_freq:0;
+kvs[0].className='kv '+(rBp>0?'vg':'vn');kvs[0].innerHTML=(rBp||0).toFixed(1)+'<span class="ku">кВт</span>';
+kvs[1].className='kv vn';kvs[1].innerHTML=(rBu||0)+'<span class="ku">В</span>';
+kvs[2].className='kv vn';kvs[2].innerHTML=(rBf||0).toFixed(2)+'<span class="ku">Гц</span>';
+kvs[3].className=mN?'kv vg':'kv va';kvs[3].textContent=mN?'НОРМ':'АВАР';
+const mode=gOn&&!mC?'ГЕН':mC&&!gOn?'СЕТЬ':gOn&&mC?'ПАРАЛ':'—';
+kvs[4].className='kv '+(gOn&&mC?'vp':gOn?'vg':mN?'vb':'vm');kvs[4].textContent=mN&&!gOn?'СЕТЬ':mode;
+}else kvs.forEach(k=>{k.className='kv vm';k.textContent='—'});
+card.querySelector('.lo').className='lo '+(isOnline?'lo-g':'lo-r');card.querySelector('.li span:last-child').textContent=isOnline?'live':'offline';
+const sprb=$('sprb');if(sprb&&isOnline){const m3=latestMetrics[getDeviceIdForSlot('spr')];const rBp=m3?.busbar_p!=null?m3.busbar_p:0;const rBq=m3?.busbar_q!=null?m3.busbar_q:0;const rBi=m3?.busbar_current!=null?m3.busbar_current:0;const rBuab=m3?.busbar_uab||0;const rBubc=m3?.busbar_ubc||0;const rBuca=m3?.busbar_uca||0;const rBua=m3?.busbar_ua||0;const rBub=m3?.busbar_ub||0;const rBuc=m3?.busbar_uc||0;
+sprb.innerHTML=`<div class="mg"><div class="mc"><div class="ml">P шины</div><div class="mv ${rBp>0?'vg':'vn'}">${rBp.toFixed(1)}<span class="mu">кВт</span></div></div><div class="mc"><div class="ml">Q</div><div class="mv vn">${rBq.toFixed(1)}<span class="mu">квар</span></div></div><div class="mc"><div class="ml">I</div><div class="mv vn">${rBi.toFixed(0)}<span class="mu">А</span></div></div></div><table class="pt"><thead><tr><th>Фаза</th><th>U лин</th><th>U фаз</th></tr></thead><tbody><tr><td class="ph">A-B</td><td>${rBuab}</td><td>${rBua}</td></tr><tr><td class="ph">B-C</td><td>${rBubc}</td><td>${rBub}</td></tr><tr><td class="ph">C-A</td><td>${rBuca}</td><td>${rBuc}</td></tr></tbody></table>`}else if(sprb){sprb.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:15px">—</div>'}
+const sprm=$('sprm');if(sprm&&isOnline){const m3=latestMetrics[getDeviceIdForSlot('spr')];const rMu=m3?.mains_uab||0;const rMf=m3?.mains_freq||0;sprm.innerHTML=mN?`<div class="mg"><div class="mc"><div class="ml">U сети</div><div class="mv vn">${rMu}<span class="mu">В</span></div></div><div class="mc"><div class="ml">f сети</div><div class="mv vn">${rMf.toFixed(2)}<span class="mu">Гц</span></div></div><div class="mc"><div class="ml">Статус</div><div class="mv vg">НОРМА</div></div></div>`:`<div class="mg"><div class="mc"><div class="ml">Сеть</div><div class="mv va">АВАРИЯ</div></div><div class="mc"><div class="ml">U</div><div class="mv vm">${rMu}<span class="mu">В</span></div></div><div class="mc"><div class="ml">f</div><div class="mv vm">${rMf.toFixed(2)}<span class="mu">Гц</span></div></div></div>`}
+const sprs=$('sprs');if(sprs)sprs.innerHTML=`<div class="mg mg2"><div class="mc"><div class="ml">Авт.шины</div><div class="mv ${bC?'vg':'vm'}">${bC?'ЗАМКНУТ':'РАЗОМКН'}</div></div><div class="mc"><div class="ml">Авт.сети</div><div class="mv ${mC?'vb':'vm'}">${mC?'ЗАМКНУТ':'РАЗОМКН'}</div></div><div class="mc"><div class="ml">Сеть</div><div class="mv ${mN?'vg':'va'}">${mN?'НОРМА':'АВАРИЯ'}</div></div><div class="mc"><div class="ml">Генераторы</div><div class="mv ${gOn?'vg':'vm'}">${gOn?'РАБОТА':'СТОП'}</div></div></div>`;
+const sprAct=$('spra-act');if(sprAct){if(!mN){sprAct.innerHTML=`<div class="ai aa">🔴 <b style="color:var(--r)">M001</b> ${ALARM_CODES['M001']}<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;if(Math.random()<0.2)addAlarmToArchive('spr','M001',ALARM_CODES['M001'],'alarm')}else if(isOnline){sprAct.innerHTML='<div style="color:var(--g);font-size:12px;text-align:center;padding:15px">✓ Нет активных аварий</div>'}else{sprAct.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:15px">Нет связи с контроллером</div>'}}}
+// === BITRIX24 INTEGRATION ===
+function getBxConfig(){try{return JSON.parse(localStorage.getItem('s5bx'))||{}}catch(e){return{}}}
+function saveBxCfg(c){localStorage.setItem('s5bx',JSON.stringify(c))}
+function getBxUsers(){try{return JSON.parse(localStorage.getItem('s5bx_users'))||[]}catch(e){return[]}}
+function saveBxUsers(u){localStorage.setItem('s5bx_users',JSON.stringify(u))}
+function bxTab(btn,idx){btn.closest('.mbd').querySelectorAll('.set-tab').forEach(b=>b.classList.remove('on'));btn.closest('.mbd').querySelectorAll('.set-panel').forEach(p=>p.classList.remove('on'));btn.classList.add('on');$('bxp'+idx)?.classList.add('on')}
+function saveBxConfig(){const cfg=getBxConfig();cfg.url=($('bxUrl')?.value||'').trim();cfg.folderId=$('bxFolderId')?.value||'';cfg.groupId=$('bxGroupId')?.value||'';cfg.taskTitle=$('bxTaskTitle')?.value||'{TO_NAME} — {SITE_NAME} — {GEN_NAME}';cfg.deadlineDays=+($('bxDeadlineDays')?.value)||3;cfg.priority=$('bxPriority')?.value||'1';cfg.auditor=$('bxAuditor')?.value||'';cfg.autoCreate=$('bxAutoCreate')?.checked||false;cfg.addChecklist=$('bxAddChecklist')?.checked!==false;cfg.descBBCode=$('bxDescBBCode')?.checked!==false;saveBxCfg(cfg);ae('✅ Битрикс24 настройки сохранены')}
+async function testBxConnection(){const el=$('bxConnResult');const url=($('bxUrl')?.value||'').trim();if(!url){el.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r)">Укажите Webhook URL</div>';return}
+el.innerHTML='<div style="padding:6px 10px;background:var(--yd);border:1px solid rgba(255,176,32,.2);border-radius:6px;font-size:11px;color:var(--y);font-family:var(--m)">⏳ Проверка подключения...</div>';
+if(apiAvailable){try{const r=await api.post('/api/bitrix/test',{webhook_url:url});
+if(r.success){el.innerHTML='<div style="padding:6px 10px;background:var(--gd);border:1px solid rgba(0,224,154,.2);border-radius:6px;font-size:11px;color:var(--g);font-family:var(--m)">✅ '+r.message+'</div>';ae('✅ Б24 подключение OK')}
+else{el.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r)">❌ '+r.message+'</div>'}
+}catch(e){el.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r)">❌ '+e.message+'</div>'}}
+else{setTimeout(function(){el.innerHTML='<div style="padding:6px 10px;background:var(--bb);border:1px solid rgba(64,144,255,.2);border-radius:6px;font-size:11px;color:var(--b);font-family:var(--m)">ℹ Backend недоступен. URL: '+esc(url.substring(0,40))+'...</div>'},800)}}
+async function loadBxUsers(){const el=$('bxUserList');el.innerHTML='<div style="color:var(--y);font-size:12px;text-align:center;padding:15px">⏳ Загрузка user.get...</div>';
+const cfg=getBxConfig();
+if(apiAvailable&&cfg.url){try{const r=await api.post('/api/bitrix/users/sync',{webhook_url:cfg.url});
+if(r.success){saveBxUsers(r.users);var h='';for(var i=0;i<r.users.length;i++){var u=r.users[i];h+='<div class="bk-item"><div><b style="color:var(--t)">'+esc(u.name)+'</b><br><span style="color:var(--t3);font-size:10px">'+esc(u.pos)+' · '+esc(u.dept)+'</span></div><span style="font-size:10px;color:var(--t4);font-family:var(--m)">ID: '+u.id+'</span></div>'}
+el.innerHTML=h+'<div style="padding:6px;text-align:center;font-size:10px;color:var(--t4)">'+r.users.length+' сотрудников из Б24</div>';ae('👥 Загружено '+r.users.length+' сотрудников');return}
+}catch(e){console.warn('Bitrix users error:',e)}}
+// Fallback: demo data
+setTimeout(function(){var users=[{id:'1',name:'Иванов Алексей',dept:'Энергослужба',pos:'Старший инженер'},{id:'2',name:'Петров Сергей',dept:'Энергослужба',pos:'Инженер'},{id:'3',name:'Сидоров Дмитрий',dept:'Механический цех',pos:'Механик'},{id:'5',name:'Козлова Анна',dept:'Диспетчерская',pos:'Диспетчер'},{id:'8',name:'Волков Николай',dept:'Энергослужба',pos:'Начальник'}];saveBxUsers(users);
+var h='';for(var i=0;i<users.length;i++){var u=users[i];h+='<div class="bk-item"><div><b style="color:var(--t)">'+esc(u.name)+'</b><br><span style="color:var(--t3);font-size:10px">'+esc(u.pos)+' · '+esc(u.dept)+'</span></div><span style="font-size:10px;color:var(--t4);font-family:var(--m)">ID: '+u.id+'</span></div>'}
+el.innerHTML=h+'<div style="padding:6px;text-align:center;font-size:10px;color:var(--t4)">'+users.length+' сотрудников · демо-данные</div>';ae('👥 Загружено '+users.length+' сотрудников (демо)')},1000)}
+function scanBxFolder(){var el=$('bxFileList');var fid=$('bxFolderId')?.value;if(!fid){el.innerHTML='<div style="padding:6px;background:var(--rd);border-radius:6px;font-size:11px;color:var(--r)">Укажите ID папки</div>';return}
+el.innerHTML='<div style="padding:10px;color:var(--y);font-size:12px;text-align:center">⏳ Сканирование disk.folder.getchildren...</div>';
+setTimeout(function(){el.innerHTML='<div style="font-size:11px;color:var(--t3);margin-bottom:6px">Найдено файлов:</div><div class="bk-item"><div><b style="color:var(--t)">Регламент_ТО_ДГУ_2024.pdf</b><br><span style="color:var(--t3);font-size:10px">PDF · 2.4 МБ · 15.01.2025</span></div><button class="bk-btn" onclick="importBxFile(1)" style="color:var(--p)">🤖 AI Import</button></div><div class="bk-item"><div><b style="color:var(--t)">ТО_Cummins_QSK60.docx</b><br><span style="color:var(--t3);font-size:10px">DOCX · 890 КБ · 22.12.2024</span></div><button class="bk-btn" onclick="importBxFile(2)" style="color:var(--p)">🤖 AI Import</button></div><div style="padding:6px;font-size:9px;color:var(--t4);text-align:center">Демо-данные · backend: disk.folder.getchildren → список файлов</div>'
+},1200)}
+function importBxFile(fileId){$('bxFileList').innerHTML+='<div style="padding:8px 10px;background:var(--pd);border:1px solid rgba(160,112,255,.2);border-radius:6px;font-size:11px;color:var(--p);margin-top:8px"><b>🤖 AI-агент обработки:</b><br>1. disk.file.get → скачивание файла<br>2. AI транскрибирование PDF/DOCX → текст<br>3. Парсинг интервалов ТО, работ, критичности<br>4. Создание структуры getTpl() с результатом<br><br><span style="color:var(--t3)">Требуется backend с AI (Claude API / OpenAI)</span></div>';ae('🤖 AI-импорт файла #'+fileId)}
+function createBxTaskFromTO(dev){var tpl=getTpl();var idx=+($('toSel')?.value||0);var iv=tpl.intervals[idx];if(!iv){ae('⚠ Выберите интервал ТО');return}createBxTask(dev,iv.name,iv.tasks)}
+function createBxTask(dev,toName,tasks){var cfg=getBxConfig();var s=S[cur];if(!s)return;var users=getBxUsers();var respId=s.responsible||'';var respName='Не назначен';for(var i=0;i<users.length;i++){if(users[i].id===respId)respName=users[i].name}
+var genName=dev==='g1'?'Генератор 1':'Генератор 2';var title=cfg.taskTitle||'{TO_NAME} — {SITE_NAME} — {GEN_NAME}';title=title.replace('{TO_NAME}',toName).replace('{SITE_NAME}',s.name).replace('{GEN_NAME}',genName).replace('{HOURS}',s[dev]?.runHours||0).replace('{RESPONSIBLE}',respName);
+var dl=new Date();dl.setDate(dl.getDate()+(+cfg.deadlineDays||3));var dlStr=dl.toISOString().replace('Z','+03:00');
+var desc='[B]Объект:[/B] '+s.name+'\n[B]Генератор:[/B] '+genName+'\n[B]Моточасы:[/B] '+(s[dev]?.runHours||0)+'\n[B]Ответственный:[/B] '+respName+'\n\n[B]Работы ТО:[/B]\n';
+for(var ti=0;ti<tasks.length;ti++){desc+=(ti+1)+'. '+tasks[ti].text+(tasks[ti].c?' [COLOR=red][!] ОБЯЗАТЕЛЬНО[/COLOR]':'')+'\n'}
+var auditors=cfg.auditor?'['+cfg.auditor+']':'[]';
+var payload='{\n  "fields": {\n    "TITLE": "'+title.replace(/"/g,'\\"')+'",\n    "DESCRIPTION": "'+desc.replace(/"/g,'\\"').replace(/\n/g,'\\n')+'",\n    "DESCRIPTION_IN_BBCODE": "Y",\n    "RESPONSIBLE_ID": '+respId+',\n    "GROUP_ID": '+(cfg.groupId||'null')+',\n    "DEADLINE": "'+dlStr+'",\n    "PRIORITY": '+(cfg.priority||1)+',\n    "AUDITORS": '+auditors+',\n    "ALLOW_CHANGE_DEADLINE": "N"\n  }\n}';
+var chkPayload='// Для каждой работы:\ntask.checklistitem.add\n[TASK_ID, {"TITLE": "текст работы"}]';
+$('toBody').innerHTML+='<div style="padding:10px;background:var(--gd);border:1px solid rgba(0,224,154,.2);border-radius:8px;margin-top:10px"><div style="font-size:12px;color:var(--g);font-weight:600;margin-bottom:8px">📋 Задача для Битрикс24</div><div style="font-size:11px;color:var(--t2);line-height:1.5"><b>TITLE:</b> '+esc(title)+'<br><b>RESPONSIBLE_ID:</b> '+respId+' ('+esc(respName)+')<br><b>GROUP_ID:</b> '+(cfg.groupId||'—')+'<br><b>DEADLINE:</b> '+dlStr+'<br><b>PRIORITY:</b> '+(cfg.priority||1)+'<br><b>AUDITORS:</b> '+auditors+'<br><b>Чеклист:</b> '+tasks.length+' пунктов'+(cfg.addChecklist!==false?' (task.checklistitem.add)':' (отключён)')+'</div><details style="margin-top:8px"><summary style="cursor:pointer;font-size:10px;color:var(--t3)">Показать JSON payload</summary><pre style="font-size:9px;color:var(--t3);background:var(--bg);padding:8px;border-radius:4px;margin-top:4px;overflow-x:auto;white-space:pre-wrap">POST {webhook}/tasks.task.add\n'+esc(payload)+'</pre></details><div style="margin-top:8px;font-size:9px;color:var(--t4)">Требуется backend для отправки. URL: '+esc((cfg.url||'https://...').substring(0,35))+'...</div></div>';ae('📋 Б24 задача: '+title)}
+function initBxModal(){var cfg=getBxConfig();if($('bxUrl'))$('bxUrl').value=cfg.url||'';if($('bxFolderId'))$('bxFolderId').value=cfg.folderId||'';if($('bxGroupId'))$('bxGroupId').value=cfg.groupId||'';if($('bxTaskTitle'))$('bxTaskTitle').value=cfg.taskTitle||'{TO_NAME} — {SITE_NAME} — {GEN_NAME}';if($('bxDeadlineDays'))$('bxDeadlineDays').value=cfg.deadlineDays||3;if($('bxPriority'))$('bxPriority').value=cfg.priority||'1';if($('bxAutoCreate'))$('bxAutoCreate').checked=cfg.autoCreate||false;if($('bxAddChecklist'))$('bxAddChecklist').checked=cfg.addChecklist!==false;if($('bxDescBBCode'))$('bxDescBBCode').checked=cfg.descBBCode!==false;var aud=$('bxAuditor');if(aud){var users=getBxUsers();aud.innerHTML='<option value="">— нет —</option>';for(var i=0;i<users.length;i++){var u=users[i];aud.innerHTML+='<option value="'+u.id+'"'+(u.id===(cfg.auditor||'')?'selected':'')+'>'+u.name+'</option>'}}}
+// === ALARM SYSTEM ===
+// HGM9520N alarms from protocol Table 27
+const ALARM_CODES={
+'E001':'Аварийный останов','E002':'Превышение оборотов','E003':'Снижение оборотов','E004':'Потеря сигнала скорости',
+'E005':'Повышенная частота генератора','E006':'Пониженная частота генератора','E007':'Повышенное напряжение генератора','E008':'Пониженное напряжение генератора',
+'E009':'Неудачный запуск','E010':'Перегрузка по току','E011':'Дисбаланс токов','E012':'Замыкание на землю',
+'E013':'Обратная мощность','E014':'Перегрузка по мощности','E015':'Потеря возбуждения','E016':'Ошибка связи с ЭБУ',
+'W001':'Авария ЭБУ','W002':'Вход высокой температуры','W003':'Вход низкого давления масла','W004':'Ошибка MSC ID',
+'W005':'Ошибка шины напряжения','W006':'Ошибка чередования фаз','W007':'Обрыв датчика температуры',
+'W008':'Высокая температура двигателя','W009':'Низкая температура двигателя','W010':'Обрыв датчика давления масла',
+'W011':'Высокое давление масла','W012':'Низкое давление масла','W013':'Низкий уровень топлива',
+'W014':'Ошибка зарядки','W015':'Повышенное напряжение АКБ','W016':'Пониженное напряжение АКБ',
+'W017':'Ошибка синхронизации','W018':'Регулятор оборотов на пределе','W019':'AVR на пределе',
+'W020':'Ошибка вкл. автомата сети','W021':'Ошибка вкл. автомата генератора','W022':'Требуется ТО',
+'M001':'Авария сети'
+};
+function getAlarmArchive(site,dev){try{return JSON.parse(localStorage.getItem('s5alm_'+site+'_'+dev))||[]}catch(e){return[]}}
+function saveAlarmArchive(site,dev,a){localStorage.setItem('s5alm_'+site+'_'+dev,JSON.stringify(a))}
+function addAlarmToArchive(dev,code,msg,severity){if(!cur)return;const arc=getAlarmArchive(cur,dev);arc.unshift({code,msg,severity,time:new Date().toLocaleString('ru-RU'),ts:Date.now()});if(arc.length>100)arc.pop();saveAlarmArchive(cur,dev,arc)}
+function showAlarmSub(sl,sub){const act=$(sl+'a-act'),arc=$(sl+'a-arc'),ab=$(sl+'a-act-btn'),bb=$(sl+'a-arc-btn');if(!act||!arc)return;if(sub==='act'){act.style.display='';arc.style.display='none';ab.style.fontWeight='600';ab.style.color='var(--r)';bb.style.fontWeight='';bb.style.color=''}else{act.style.display='none';arc.style.display='';bb.style.fontWeight='600';bb.style.color='var(--p)';ab.style.fontWeight='';ab.style.color='';renderAlarmArchive(sl)}}
+function renderAlarmArchive(sl){const el=$(sl+'a-arc');if(!el||!cur)return;const arc=getAlarmArchive(cur,sl);if(!arc.length){el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:15px">Архив пуст</div>';return}
+el.innerHTML='<div style="max-height:200px;overflow-y:auto">'+arc.map(function(a){var isA=a.severity==='alarm';var cls=isA?'aa':'aw';var ico=isA?'🔴':'⚠';var col=isA?'var(--r)':'var(--y)';return'<div class="ai '+cls+'" style="margin-bottom:2px"><span style="font-size:10px">'+ico+'</span><b style="color:'+col+';font-size:10px;margin:0 4px">'+a.code+'</b><span style="font-size:11px;flex:1">'+a.msg+'</span><span style="color:var(--t4);font-size:9px;white-space:nowrap">'+a.time+'</span></div>'}).join('')+'</div>'}
+function clearAlarmArchive(sl){if(!cur)return;if(!confirm('Очистить архив аварий?'))return;saveAlarmArchive(cur,sl,[]);renderAlarmArchive(sl);ae('🗑 Архив аварий '+sl+' очищен')}
+// === SPR CONFIG: READ → CONFIGURE → SAVE ===
+let sprCurrentConfig = null; // {loadMode, pRaw, qRaw, readAt} — last config read from controller
+let sprSelectedLoadMode = null; // user-selected load mode (null = not changed)
+let sprCfgDirty = false; // true when user changed sliders or load mode
+let sprCfgReading = false;
+
+function getSprBackups(){try{return JSON.parse(localStorage.getItem('s5_spr_backups_'+(cur||'')))||[]}catch(e){return[]}}
+function saveSprBackups(list){localStorage.setItem('s5_spr_backups_'+(cur||''),JSON.stringify(list))}
+
+// Called when "Управление" tab is opened
+async function onSprControlTabOpen(){
+    if(sprCfgReading)return;
+    await readSprConfig();
+}
+
+// Read current config from controller via API
+async function readSprConfig(){
+    const banner=$('sprCfgBanner'),status=$('sprConfigStatus');
+    const devId=getDeviceIdForSlot('spr');
+    if(!devId||!apiAvailable){
+        if(banner)banner.innerHTML='<span style="color:var(--y)">⚠ ШПР не подключён к API</span>';
+        return;
+    }
+    sprCfgReading=true;
+    if(banner)banner.innerHTML='<span style="color:var(--y)">⏳ Считывание конфигурации с контроллера...</span>';
+    if(status)status.innerHTML='';
+    try{
+        const cfg=await api.get('/api/commands/spr-config/'+devId);
+        if(!cfg.success)throw new Error(cfg.message);
+        sprCurrentConfig={loadMode:cfg.load_mode,pRaw:cfg.p_raw,qRaw:cfg.q_raw,readAt:Date.now()};
+        sprSelectedLoadMode=cfg.load_mode;
+        sprCfgDirty=false;
+        // Populate UI from real controller values
+        applySprConfigToUI(cfg.load_mode, cfg.p_raw, cfg.q_raw);
+        if(banner)banner.innerHTML='<span style="color:var(--g)">✓ Конфигурация считана с контроллера</span>'+
+            '<span style="color:var(--t4);font-size:10px;margin-left:8px">'+new Date().toLocaleTimeString('ru-RU')+'</span>';
+        ae('📖 Конфиг ШПР считан: Mode='+cfg.load_mode+' P='+(cfg.p_raw/10).toFixed(1)+'% Q='+(cfg.q_raw/10).toFixed(1)+'%');
+    }catch(e){
+        console.error('SPR config read error:',e);
+        if(banner)banner.innerHTML='<span style="color:var(--r)">❌ Ошибка чтения: '+(e.message||e)+'</span>';
+    }finally{sprCfgReading=false}
+}
+
+function applySprConfigToUI(loadMode, pRaw, qRaw){
+    // LoadMode buttons
+    highlightLoadMode(loadMode);
+    // P/Q sliders
+    const ps=$('sprPslider'),qs=$('sprQslider');
+    if(ps){ps.value=pRaw;$('sprPval').textContent=(pRaw/10).toFixed(1)+'%'}
+    if(qs){qs.value=qRaw;$('sprQval').textContent=(qRaw/10).toFixed(1)+'%'}
+    // Current label
+    const lbl=$('sprLmCurrent');
+    if(lbl)lbl.textContent='(текущий: '+(loadMode===0?'Gen Ctrl':loadMode===1?'Mains Ctrl':loadMode===2?'Load Rec.':'?')+')';
+}
+
+function highlightLoadMode(mode){
+    ['sprLm0','sprLm1','sprLm2'].forEach((id,i)=>{
+        const btn=$(id);if(!btn)return;
+        if(i===mode){btn.style.background='var(--ac)';btn.style.color='#fff';btn.style.borderColor='var(--ac)'}
+        else{btn.style.background='';btn.style.color='';btn.style.borderColor=''}
+    });
+}
+
+function setSprLoadMode(mode){
+    sprSelectedLoadMode=mode;
+    sprCfgDirty=true;
+    highlightLoadMode(mode);
+}
+
+// Save current configuration to controller (LoadMode + P% + Q%)
+async function saveSprConfig(){
+    const devId=getDeviceIdForSlot('spr');
+    if(!devId||!apiAvailable){ae('⚠ ШПР не подключён');return}
+    const lm=sprSelectedLoadMode!=null?sprSelectedLoadMode:(sprCurrentConfig?.loadMode??0);
+    const pv=+($('sprPslider')?.value||500);
+    const qv=+($('sprQslider')?.value||500);
+    const desc='LoadMode='+lm+' P='+(pv/10).toFixed(1)+'% Q='+(qv/10).toFixed(1)+'%';
+    // Confirm before writing
+    if(!confirm('Записать конфигурацию в контроллер ШПР?\n\n'+desc))return;
+    const banner=$('sprCfgBanner');
+    if(banner)banner.innerHTML='<span style="color:var(--y)">⏳ Запись конфигурации (FC06 × 3 + verify)...</span>';
+    try{
+        // Atomic write: 3 config registers → verify read-back
+        const res=await api.post('/api/commands/spr-config/'+devId,{
+            load_mode:lm, p_raw:pv, q_raw:qv
+        });
+        sprCfgDirty=false;
+        if(res.verified){
+            sprCurrentConfig={loadMode:lm,pRaw:pv,qRaw:qv,readAt:Date.now()};
+            if(banner)banner.innerHTML='<span style="color:var(--g)">✓ Конфигурация записана и верифицирована</span>'+
+                '<span style="color:var(--t4);font-size:10px;margin-left:8px">'+new Date().toLocaleTimeString('ru-RU')+'</span>';
+            ae('⚡ ШПР конфиг записан (verified): '+desc);
+        }else{
+            // Echo OK but verify-read returned old values
+            if(banner)banner.innerHTML='<span style="color:var(--y)">⚠ Команды FC06 отправлены (echo OK), но при перечитывании — старые значения.</span>'+
+                '<span style="display:block;font-size:10px;color:var(--t4);margin-top:2px">Запись reg 4351-4354 требует прошивку HGM9560 ≥ V1.1 (2023). Проверьте версию прошивки контроллера.</span>';
+            ae('⚠ ШПР конфиг: echo OK, verify mismatch (firmware V1.1+ needed?): '+desc);
+        }
+    }catch(e){
+        console.error('SPR config write error:',e);
+        const msg=(e.message||e).toString();
+        if(banner)banner.innerHTML='<span style="color:var(--r)">❌ Ошибка записи: '+msg+'</span>';
+        ae('❌ Ошибка записи конфига ШПР: '+msg);
+    }
+}
+
+function backupSprConfig(){
+    if(!sprCurrentConfig){ae('⚠ Сначала считайте конфигурацию с контроллера');readSprConfig();return}
+    const backups=getSprBackups();
+    const backup={id:'bk_'+Date.now(),date:new Date().toLocaleString('ru-RU'),site:cur,name:S[cur]?.name||'',
+        loadMode:sprCurrentConfig.loadMode,pPercent:sprCurrentConfig.pRaw,qPercent:sprCurrentConfig.qRaw,
+        readAt:sprCurrentConfig.readAt,note:''};
+    backups.unshift(backup);if(backups.length>20)backups.pop();saveSprBackups(backups);
+    ae('💾 Бэкап ШПР создан (из контроллера)');renderBackupList();
+    const el=$('sprConfigStatus');if(el)el.innerHTML='<div style="padding:6px 10px;background:var(--gd);border:1px solid rgba(0,224,154,.2);border-radius:6px;font-size:11px;color:var(--g);font-family:var(--m);margin-bottom:6px">✓ Бэкап сохранён: '+backup.date+' (LoadMode='+backup.loadMode+' P='+(backup.pPercent/10).toFixed(1)+'% Q='+(backup.qPercent/10).toFixed(1)+'%)</div>';
+}
+function openRestoreBackup(){const backups=getSprBackups();if(!backups.length){const el=$('sprConfigStatus');if(el)el.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r);font-family:var(--m);margin-bottom:6px">Нет сохранённых бэкапов</div>';return}
+renderBackupList()}
+function renderBackupList(){const backups=getSprBackups();const el=$('sprBackupList');if(!el)return;
+const lmNames={0:'GenCtrl',1:'MainsCtrl',2:'LoadRec'};
+el.innerHTML='<div style="font-size:10px;color:var(--t3);margin:6px 0 4px">Сохранённые бэкапы ('+backups.length+'):</div><div style="max-height:160px;overflow-y:auto">'+backups.map((b,i)=>`<div class="bk-item"><div><span style="color:var(--t)">${b.date}</span><br><span style="color:var(--t3);font-size:10px">${lmNames[b.loadMode]||'?'} P=${(b.pPercent/10).toFixed(1)}% Q=${(b.qPercent/10).toFixed(1)}%</span></div><div class="bk-acts"><button class="bk-btn" onclick="restoreBackup(${i})" title="Восстановить в контроллер">📂</button><button class="bk-btn" onclick="downloadBackup(${i})" title="Скачать JSON">⬇</button><button class="bk-btn del" onclick="deleteBackup(${i})" title="Удалить">✕</button></div></div>`).join('')+'</div>'}
+function restoreBackup(idx){const backups=getSprBackups();const b=backups[idx];if(!b)return;
+// Apply backup values to UI
+sprSelectedLoadMode=b.loadMode;sprCfgDirty=true;
+applySprConfigToUI(b.loadMode, b.pPercent, b.qPercent);
+// Prompt to save to controller
+const desc='LoadMode='+b.loadMode+' P='+(b.pPercent/10).toFixed(1)+'% Q='+(b.qPercent/10).toFixed(1)+'%';
+if(confirm('Применить бэкап от '+b.date+' и записать в контроллер?\n\n'+desc)){saveSprConfig()}
+else{ae('📂 Бэкап загружен в UI (не записан в контроллер)')}}
+function downloadBackup(idx){const backups=getSprBackups();const b=backups[idx];if(!b)return;
+const json=JSON.stringify(b,null,2);const blob=new Blob([json],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='spr_backup_'+b.date.replace(/[\s:.,]/g,'_')+'.json';a.click();URL.revokeObjectURL(url);ae('⬇ Бэкап скачан')}
+function deleteBackup(idx){const backups=getSprBackups();backups.splice(idx,1);saveSprBackups(backups);renderBackupList();ae('🗑 Бэкап удалён')}
+// === INIT ===
+(async function init() {
+    // Try loading from API first
+    const loaded = await loadFromAPI();
+    if (!loaded) {
+        // Fallback to localStorage (original v5 behavior)
+        if (!Object.keys(S).length) {
+            S['mkz'] = {name:'МКЗ', desc:'Кирпичный завод', responsible:'',
+                g1:{ip:'192.168.97.10',port:502,slaveId:1,runHours:1227},
+                g2:{ip:'192.168.97.11',port:502,slaveId:1,runHours:489},
+                spr:{ip:'10.11.0.2',port:26,slaveId:1}};
+            cur = 'mkz';
+            sv();
+            ae('🏭 МКЗ создан (localStorage)');
+        }
+    }
+    renderSB();
+    if (cur && S[cur]) renderDash();
+    else { cur = Object.keys(S)[0] || null; renderDash(); }
+    // Connect WebSocket for live data
+    connectWebSocket();
+})();
+</script></body></html>

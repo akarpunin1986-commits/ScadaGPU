@@ -1,6 +1,6 @@
 import enum
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import Float, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import Base, TimestampMixin
@@ -29,6 +29,11 @@ class Device(TimestampMixin, Base):
     protocol: Mapped[ModbusProtocol]
     is_active: Mapped[bool] = mapped_column(default=True)
     description: Mapped[str | None] = mapped_column(String(500), default=None)
+
+    # Per-device timeouts (NULL = use global defaults from config.py)
+    poll_interval: Mapped[float | None] = mapped_column(Float, default=None)
+    modbus_timeout: Mapped[float | None] = mapped_column(Float, default=None)
+    retry_delay: Mapped[float | None] = mapped_column(Float, default=None)
 
     site = relationship("Site", back_populates="devices")
     maintenance_logs = relationship(

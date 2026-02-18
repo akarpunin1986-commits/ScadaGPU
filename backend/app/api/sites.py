@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -80,9 +80,10 @@ async def update_site(
 
 
 @router.delete("/{site_id}", status_code=204)
-async def delete_site(site_id: int, session: AsyncSession = Depends(get_session)):
+async def delete_site(site_id: int, request: Request, session: AsyncSession = Depends(get_session)):
     site = await session.get(Site, site_id)
     if not site:
         raise HTTPException(404, "Site not found")
     await session.delete(site)
     await session.commit()
+    await request.app.state.redis.publish("poller:reload", "site_deleted")

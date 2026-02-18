@@ -7,6 +7,7 @@ redis_to_ws_bridge — background task: Redis PubSub → ConnectionManager.broad
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 
@@ -107,38 +108,50 @@ async def ws_metrics(websocket: WebSocket) -> None:
 async def redis_to_ws_bridge(redis: Redis) -> None:
     """Subscribe to Redis PubSub 'metrics:updates' and broadcast to all WS clients."""
     logger.info("Redis→WS bridge started, subscribing to metrics:updates")
-    pubsub = redis.pubsub()
-    await pubsub.subscribe("metrics:updates")
-
-    try:
-        async for message in pubsub.listen():
-            if message["type"] == "message":
-                payload = message["data"]
-                if isinstance(payload, bytes):
-                    payload = payload.decode("utf-8")
-                await manager.broadcast(payload)
-    except Exception as exc:
-        logger.error("Redis→WS bridge error: %s", exc)
-    finally:
-        await pubsub.unsubscribe("metrics:updates")
-        await pubsub.close()
+    while True:
+        pubsub = redis.pubsub()
+        try:
+            await pubsub.subscribe("metrics:updates")
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    payload = message["data"]
+                    if isinstance(payload, bytes):
+                        payload = payload.decode("utf-8")
+                    await manager.broadcast(payload)
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.error("Redis→WS bridge error: %s, reconnecting in 2s", exc)
+            await asyncio.sleep(2)
+        finally:
+            try:
+                await pubsub.unsubscribe("metrics:updates")
+                await pubsub.close()
+            except Exception:
+                pass
 
 
 async def maintenance_alerts_bridge(redis: Redis) -> None:
     """Subscribe to Redis PubSub 'maintenance:alerts' and broadcast to all WS clients."""
     logger.info("Maintenance alerts bridge started, subscribing to maintenance:alerts")
-    pubsub = redis.pubsub()
-    await pubsub.subscribe("maintenance:alerts")
-
-    try:
-        async for message in pubsub.listen():
-            if message["type"] == "message":
-                payload = message["data"]
-                if isinstance(payload, bytes):
-                    payload = payload.decode("utf-8")
-                await manager.broadcast(payload)
-    except Exception as exc:
-        logger.error("Maintenance alerts bridge error: %s", exc)
-    finally:
-        await pubsub.unsubscribe("maintenance:alerts")
-        await pubsub.close()
+    while True:
+        pubsub = redis.pubsub()
+        try:
+            await pubsub.subscribe("maintenance:alerts")
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    payload = message["data"]
+                    if isinstance(payload, bytes):
+                        payload = payload.decode("utf-8")
+                    await manager.broadcast(payload)
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.error("Maintenance alerts bridge error: %s, reconnecting in 2s", exc)
+            await asyncio.sleep(2)
+        finally:
+            try:
+                await pubsub.unsubscribe("maintenance:alerts")
+                await pubsub.close()
+            except Exception:
+                pass

@@ -10,10 +10,24 @@
         .power-line { stroke: #334155; stroke-width: 3; }
         .power-line.active { stroke: #22c55e; filter: drop-shadow(0 0 4px #22c55e); stroke-dasharray: 8 4; animation: flow 0.6s linear infinite; }
         @keyframes flow { to { stroke-dashoffset: -12; } }
-        .card { background: #1e293b; border: 1px solid #334155; }
-        .card.warning { border-color: #eab308; }
-        .card.alarm { border-color: #ef4444; animation: pulse 1s infinite; }
+        .card { background: #1e293b; border: 1px solid #334155; transition: all 0.3s ease; }
+        .card.offline { border-color: #ef4444; background: #1e293b; opacity: 0.7; }
+        .card.standby { border-color: #475569; background: #1e293b; }
+        #card-spr.standby { border-color: #7c3aed40; }
+        .card.online { border-color: #22c55e80; background: #1e293b; }
+        .card.running { border-color: #22c55e; background: #052e16; }
+        .card.sync { border-color: #3b82f6; background: #172554; }
+        .card.warning { border-color: #eab308; background: #422006; }
+        .card.alarm { border-color: #ef4444; background: #450a0a; animation: pulse 1s infinite; }
         @keyframes pulse { 50% { border-color: #7f1d1d; } }
+        .status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; }
+        .status-badge.offline { background: #ef44441a; color: #f87171; }
+        .status-badge.standby { background: #64748b1a; color: #94a3b8; }
+        .status-badge.online { background: #22c55e1a; color: #4ade80; }
+        .status-badge.running { background: #22c55e1a; color: #4ade80; }
+        .status-badge.sync { background: #3b82f61a; color: #60a5fa; }
+        .status-badge.warning { background: #eab3081a; color: #facc15; }
+        .status-badge.alarm { background: #ef44441a; color: #f87171; }
         .busbar { background: linear-gradient(90deg, #22c55e, #16a34a); height: 6px; }
         .busbar.offline { background: #475569; }
         .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
@@ -130,7 +144,7 @@
                                     <div>f: <span id="g1-f">—</span> Гц</div>
                                 </div>
                                 <div class="mt-2 pt-2 border-t border-slate-700 text-xs text-slate-500 flex justify-between">
-                                    <span id="g1-status">Офлайн</span>
+                                    <span id="g1-status">Офлайн</span> <span id="g1-ts" class="text-[10px] text-slate-600"></span>
                                     <span>Моточасы: <span id="g1-hours" class="text-slate-300">—</span> ч</span>
                                 </div>
                                 <!-- TO Progress -->
@@ -171,7 +185,7 @@
                                     <div>f: <span id="g2-f">—</span> Гц</div>
                                 </div>
                                 <div class="mt-2 pt-2 border-t border-slate-700 text-xs text-slate-500 flex justify-between">
-                                    <span id="g2-status">Офлайн</span>
+                                    <span id="g2-status">Офлайн</span> <span id="g2-ts" class="text-[10px] text-slate-600"></span>
                                     <span>Моточасы: <span id="g2-hours" class="text-slate-300">—</span> ч</span>
                                 </div>
                                 <!-- TO Progress -->
@@ -346,7 +360,7 @@
             },
             async del(path) {
                 const res = await fetch(API_BASE + path, { method: 'DELETE' });
-                if (!res.ok && res.status !== 204) throw new Error(`DELETE ${path}: ${res.status}`);
+                if (!res.ok) throw new Error(`DELETE ${path}: ${res.status}`);
             },
         };
         // ======================== END API CONFIG ========================
@@ -383,22 +397,43 @@
                     const key = 'site_' + s.id;
                     try {
                         const devices = await api.get('/api/devices?site_id=' + s.id);
-                        for (const d of devices) {
-                            let slot = null;
-                            if (d.device_type === 'generator') {
-                                slot = !sites[key].g1._deviceId ? 'g1' : 'g2';
-                            } else if (d.device_type === 'ats') {
-                                slot = 'spr';
-                            }
-                            if (slot) {
-                                sites[key][slot] = {
-                                    _deviceId: d.id,
-                                    ip: d.ip_address,
-                                    port: d.port,
-                                    unit: d.slave_id,
-                                    ...(slot === 'spr' ? { baud: 9600 } : {}),
-                                };
-                            }
+                        // Sort generators by id for deterministic slot assignment
+                        const generators = devices.filter(d => d.device_type === 'generator').sort((a, b) => a.id - b.id);
+                        const atsList = devices.filter(d => d.device_type === 'ats');
+
+                        if (generators[0]) {
+                            sites[key].g1 = {
+                                _deviceId: generators[0].id,
+                                ip: generators[0].ip_address,
+                                port: generators[0].port,
+                                unit: generators[0].slave_id,
+                            };
+                        }
+                        if (generators[1]) {
+                            sites[key].g2 = {
+                                _deviceId: generators[1].id,
+                                ip: generators[1].ip_address,
+                                port: generators[1].port,
+                                unit: generators[1].slave_id,
+                            };
+                        }
+                        if (atsList[0]) {
+                            sites[key].spr = {
+                                _deviceId: atsList[0].id,
+                                ip: atsList[0].ip_address,
+                                port: atsList[0].port,
+                                unit: atsList[0].slave_id,
+                                baud: 9600,
+                            };
+                        }
+                        // Load timeout settings from first device (shared across site)
+                        const firstDev = devices[0];
+                        if (firstDev) {
+                            sites[key]._timeouts = {
+                                poll_interval: firstDev.poll_interval,
+                                modbus_timeout: firstDev.modbus_timeout,
+                                retry_delay: firstDev.retry_delay,
+                            };
                         }
                     } catch (e) {
                         console.warn('Failed to load devices for site', s.id, e);
@@ -517,14 +552,18 @@
             renderSites();
             renderAlarms();
             renderEvents();
+            // Reset visual state — WS will update within ~2 seconds
             setPower(false, false);
-            
+            setDeviceStatus('g1', 'standby');
+            setDeviceStatus('g2', 'standby');
+            setDeviceStatus('spr', 'standby');
+
             // Load TO progress (demo values for now)
             initTOData(id, 'g1');
             initTOData(id, 'g2');
             // Load maintenance alerts from backend
             loadMaintenanceAlerts();
-            // Сбросить показания при смене site (WS обновит через ~2 сек)
+            // Clear stale metric values (WS will refresh)
             _resetMetricsDisplay();
         }
 
@@ -690,6 +729,29 @@
                         <div id="test-spr-result" class="mt-1 text-xs hidden"></div>
                     </div>
                     
+                    <!-- Timeout Settings -->
+                    <div class="p-3 bg-slate-700/50 rounded-lg">
+                        <div class="font-medium text-sm mb-3 flex items-center gap-2">
+                            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Таймауты опроса
+                        </div>
+                        <div class="text-xs text-slate-500 mb-2">Пустое значение = по умолчанию (глобальные настройки)</div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div>
+                                <label class="text-xs text-slate-400">Интервал (с)</label>
+                                <input id="cfg-poll-interval" type="number" step="0.5" min="0.5" max="60" value="${s._timeouts?.poll_interval || ''}" placeholder="2.0" class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm">
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-400">Таймаут (с)</label>
+                                <input id="cfg-modbus-timeout" type="number" step="0.5" min="0.5" max="30" value="${s._timeouts?.modbus_timeout || ''}" placeholder="2.0" class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm">
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-400">Retry (с)</label>
+                                <input id="cfg-retry-delay" type="number" step="0.5" min="1" max="60" value="${s._timeouts?.retry_delay || ''}" placeholder="5.0" class="w-full mt-1 bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-sm">
+                            </div>
+                        </div>
+                    </div>
+
                     <button onclick="saveSettings()" class="w-full py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">Сохранить настройки</button>
                 </div>
             `;
@@ -705,10 +767,35 @@
             const g2 = { ip: $('cfg-g2-ip').value.trim(), port: parseInt($('cfg-g2-port').value) || 502, unit: parseInt($('cfg-g2-unit').value) || 2 };
             const spr = { ip: $('cfg-spr-ip').value.trim(), port: parseInt($('cfg-spr-port').value) || 502, unit: parseInt($('cfg-spr-unit').value) || 1, baud: parseInt($('cfg-spr-baud').value) || 9600 };
 
+            // Timeout settings (shared across all devices on this site)
+            const pollIntervalVal = $('cfg-poll-interval').value.trim();
+            const modbusTimeoutVal = $('cfg-modbus-timeout').value.trim();
+            const retryDelayVal = $('cfg-retry-delay').value.trim();
+            const timeouts = {
+                poll_interval: pollIntervalVal ? parseFloat(pollIntervalVal) : null,
+                modbus_timeout: modbusTimeoutVal ? parseFloat(modbusTimeoutVal) : null,
+                retry_delay: retryDelayVal ? parseFloat(retryDelayVal) : null,
+            };
+            s._timeouts = timeouts;
+
+            let errors = [];
+
             if (apiSiteId) {
-                await _syncDevice(s, 'g1', g1, apiSiteId, 'generator', 'tcp');
-                await _syncDevice(s, 'g2', g2, apiSiteId, 'generator', 'tcp');
-                await _syncDevice(s, 'spr', spr, apiSiteId, 'ats', 'rtu_over_tcp');
+                for (const [slot, data, type, proto] of [
+                    ['g1', g1, 'generator', 'tcp'],
+                    ['g2', g2, 'generator', 'tcp'],
+                    ['spr', spr, 'ats', 'rtu_over_tcp'],
+                ]) {
+                    try {
+                        await _syncDevice(s, slot, data, apiSiteId, type, proto, timeouts);
+                    } catch (e) {
+                        errors.push(`${slot}: ${e.message}`);
+                    }
+                }
+            }
+
+            if (errors.length > 0) {
+                addEvent(`⚠ Ошибки при сохранении: ${errors.join(', ')}`);
             }
 
             s.g1 = { ...s.g1, ...g1 };
@@ -716,29 +803,58 @@
             s.spr = { ...s.spr, ...spr };
             save();
 
-            // Update UI
             $('uid-g1').textContent = s.g1.unit;
             $('uid-g2').textContent = s.g2.unit;
             $('uid-spr').textContent = s.spr.unit;
 
+            // Post-save verification: re-read devices from DB to sync _deviceId
+            if (apiSiteId) {
+                try {
+                    const devices = await api.get('/api/devices?site_id=' + apiSiteId);
+                    console.log('[Settings] DB devices after save:', devices);
+                    for (const d of devices) {
+                        if (d.device_type === 'generator') {
+                            const ip = d.ip_address;
+                            if (ip === g1.ip) s.g1._deviceId = d.id;
+                            else if (ip === g2.ip) s.g2._deviceId = d.id;
+                        } else if (d.device_type === 'ats') {
+                            s.spr._deviceId = d.id;
+                        }
+                    }
+                    save();
+                } catch (e) {
+                    console.warn('Post-save verification failed', e);
+                }
+            }
+
             rebuildDeviceIndex();
             closeModal();
-            addEvent('Настройки сохранены');
+            addEvent(errors.length === 0 ? '✅ Настройки сохранены' : '⚠ Настройки сохранены частично');
         }
 
-        async function _syncDevice(siteObj, slot, formData, apiSiteId, deviceType, protocol) {
+        async function _syncDevice(siteObj, slot, formData, apiSiteId, deviceType, protocol, timeouts) {
             const deviceId = siteObj[slot]?._deviceId;
             const name = currentSite ? (sites[currentSite].name + ' — ' + slot.toUpperCase()) : slot.toUpperCase();
 
             if (!formData.ip) return;
 
+            // Build timeout fields for API (always include to allow reset to null)
+            const timeoutFields = {};
+            if (timeouts) {
+                timeoutFields.poll_interval = timeouts.poll_interval;
+                timeoutFields.modbus_timeout = timeouts.modbus_timeout;
+                timeoutFields.retry_delay = timeouts.retry_delay;
+            }
+
             try {
                 if (deviceId) {
-                    await api.patch('/api/devices/' + deviceId, {
+                    const updated = await api.patch('/api/devices/' + deviceId, {
                         ip_address: formData.ip,
                         port: formData.port,
                         slave_id: formData.unit,
+                        ...timeoutFields,
                     });
+                    addEvent(`${slot.toUpperCase()} обновлён: ${formData.ip}:${formData.port}`);
                 } else {
                     const created = await api.post('/api/devices', {
                         site_id: apiSiteId,
@@ -748,11 +864,15 @@
                         port: formData.port,
                         slave_id: formData.unit,
                         protocol: protocol,
+                        ...timeoutFields,
                     });
                     siteObj[slot]._deviceId = created.id;
+                    addEvent(`${slot.toUpperCase()} создан: ID=${created.id}`);
                 }
             } catch (e) {
-                console.warn('_syncDevice failed for', slot, e);
+                console.error('_syncDevice failed for', slot, e);
+                addEvent(`❌ Ошибка сохранения ${slot.toUpperCase()}: ${e.message}`);
+                throw e;
             }
         }
 
@@ -773,12 +893,21 @@
                 return;
             }
 
+            // Warn if IP differs from saved value
+            const s = sites[currentSite];
+            const savedIp = s && s[slot] ? s[slot].ip : null;
+            if (savedIp && savedIp !== ip) {
+                result.textContent = '⚠ IP изменён но не сохранён! Нажмите "Сохранить настройки"';
+                result.className = 'mt-1 text-xs text-yellow-400';
+                result.classList.remove('hidden');
+            }
+
             const protocol = (slot === 'spr') ? 'rtu_over_tcp' : 'tcp';
 
             btn.disabled = true;
             icon.textContent = '⏳';
             text.textContent = 'Проверка...';
-            result.classList.add('hidden');
+            // Don't hide result if we just showed the unsaved warning
 
             try {
                 const resp = await api.post('/api/devices/test-connection', {
@@ -830,7 +959,7 @@
         }
 
         function connectWebSocket() {
-            if (ws && ws.readyState <= WebSocket.OPEN) return;
+            if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
 
             const url = WS_BASE + '/ws/metrics';
             console.log('[WS] connecting to', url);
@@ -877,6 +1006,16 @@
             const { siteKey, slot } = entry;
             if (siteKey !== currentSite) return;
 
+            // Stale data guard: if timestamp > 30s old, treat as offline
+            if (m.online && m.timestamp) {
+                const ageMs = Date.now() - new Date(m.timestamp).getTime();
+                if (ageMs > 30000) {
+                    console.warn(`[Metrics] Stale data for device ${did}: ${Math.round(ageMs/1000)}s old, treating as offline`);
+                    m.online = false;
+                    m.error = 'stale data';
+                }
+            }
+
             if (m.device_type === 'generator') {
                 _applyGeneratorMetrics(slot, m);
             } else if (m.device_type === 'ats') {
@@ -891,6 +1030,12 @@
 
             if (!m.online) {
                 setDeviceStatus(slot, 'offline');
+                // Clear values — don't show stale/fake data for offline device
+                const p = el('p'); if (p) p.textContent = '—';
+                const u = el('u'); if (u) u.textContent = '—';
+                const i = el('i'); if (i) i.textContent = '—';
+                const f = el('f'); if (f) f.textContent = '—';
+                const hours = el('hours'); if (hours) hours.textContent = '—';
                 return;
             }
 
@@ -903,7 +1048,8 @@
             } else if (m.gen_status >= 1 && m.gen_status <= 8) {
                 setDeviceStatus(slot, 'sync');
             } else {
-                setDeviceStatus(slot, 'offline');
+                // online + данные идут + генератор остановлен = связь ОК
+                setDeviceStatus(slot, 'online');
             }
 
             const p = el('p');
@@ -935,11 +1081,34 @@
                     applyDeviceMaintenanceAlert(did);
                 }
             }
+
+            // Show data freshness indicator
+            const ts = m.timestamp;
+            if (ts) {
+                const age = Math.round((Date.now() - new Date(ts).getTime()) / 1000);
+                const tsEl = el('ts');
+                if (tsEl) {
+                    if (age < 10) {
+                        tsEl.textContent = 'live';
+                        tsEl.className = 'text-green-500 text-[10px]';
+                    } else if (age < 60) {
+                        tsEl.textContent = age + 'с назад';
+                        tsEl.className = 'text-yellow-500 text-[10px]';
+                    } else {
+                        tsEl.textContent = Math.round(age / 60) + 'м назад';
+                        tsEl.className = 'text-red-400 text-[10px]';
+                    }
+                }
+            }
         }
 
         function _applySPRMetrics(m) {
             if (!m.online) {
                 setDeviceStatus('spr', 'offline');
+                // Clear values — don't show stale/fake data for offline device
+                const p = $('spr-p'); if (p) p.textContent = '—';
+                const u = $('spr-u'); if (u) u.textContent = '—';
+                const f = $('spr-f'); if (f) f.textContent = '—';
                 return;
             }
 
@@ -950,7 +1119,8 @@
             } else if (m.genset_status === 9) {
                 setDeviceStatus('spr', 'running');
             } else {
-                setDeviceStatus('spr', 'offline');
+                // ШПР online + данные идут = связь ОК (мониторинг сети)
+                setDeviceStatus('spr', 'online');
             }
 
             const p = $('spr-p');
@@ -978,8 +1148,10 @@
             const voltage = g1u || g2u;
             $('totalU').textContent = voltage > 0 ? voltage.toFixed(0) : '—';
 
-            const g1on = $('g1-status')?.textContent === 'Работа';
-            const g2on = $('g2-status')?.textContent === 'Работа';
+            const g1card = $('card-g1');
+            const g2card = $('card-g2');
+            const g1on = g1card && (g1card.classList.contains('running') || g1card.classList.contains('sync'));
+            const g2on = g2card && (g2card.classList.contains('running') || g2card.classList.contains('sync'));
             $('activeGen').textContent = (g1on ? 1 : 0) + (g2on ? 1 : 0);
 
             setPower(g1on, g2on);
@@ -987,17 +1159,17 @@
 
         function _resetMetricsDisplay() {
             for (const slot of ['g1', 'g2']) {
-                $(slot + '-p').textContent = '—';
-                $(slot + '-u').textContent = '—';
-                $(slot + '-i').textContent = '—';
-                $(slot + '-f').textContent = '—';
-                $(slot + '-hours').textContent = '—';
+                const p = $(slot + '-p'); if (p) p.textContent = '—';
+                const u = $(slot + '-u'); if (u) u.textContent = '—';
+                const i = $(slot + '-i'); if (i) i.textContent = '—';
+                const f = $(slot + '-f'); if (f) f.textContent = '—';
+                const h = $(slot + '-hours'); if (h) h.textContent = '—';
             }
-            $('spr-p').textContent = '—';
-            $('spr-u').textContent = '—';
-            $('spr-f').textContent = '—';
-            $('totalP').textContent = '—';
-            $('totalU').textContent = '—';
+            const sp = $('spr-p'); if (sp) sp.textContent = '—';
+            const su = $('spr-u'); if (su) su.textContent = '—';
+            const sf = $('spr-f'); if (sf) sf.textContent = '—';
+            const tp = $('totalP'); if (tp) tp.textContent = '—';
+            const tu = $('totalU'); if (tu) tu.textContent = '—';
         }
 
         // ====================== END WEBSOCKET METRICS ======================
@@ -1475,16 +1647,7 @@
                 openMaintenanceAlertModal(slot);
             };
             container.appendChild(badge);
-
-            const card = $('card-' + slot);
-            if (card) {
-                card.classList.remove('warning');
-                if (severity === 'overdue' || severity === 'critical') {
-                    if (!card.classList.contains('alarm')) {
-                        card.classList.add('warning');
-                    }
-                }
-            }
+            // NOTE: Card CSS classes are managed ONLY by setDeviceStatus() — do NOT touch here
         }
 
         function _badgeClass(severity) {
@@ -2881,52 +3044,47 @@
         // ============ POWER FLOW ============
         function setPower(g1, g2) {
             const any = g1 || g2;
-            
-            // Update line indicators
+
+            // Update power line indicators only — dots & status managed by setDeviceStatus
             const g1Line = $('line-g1-indicator');
             const g2Line = $('line-g2-indicator');
             const junction = $('junction-top');
             const sprLine = $('line-spr-indicator');
             const loadLine = $('line-load-indicator');
-            
+
             if (g1Line) g1Line.className = g1 ? 'w-16 h-1 bg-green-500 rounded shadow-lg shadow-green-500/50' : 'w-16 h-1 bg-slate-600 rounded';
             if (g2Line) g2Line.className = g2 ? 'w-16 h-1 bg-green-500 rounded shadow-lg shadow-green-500/50' : 'w-16 h-1 bg-slate-600 rounded';
             if (junction) junction.className = any ? 'w-3 h-3 rounded-full bg-green-500 shadow-lg shadow-green-500/50' : 'w-3 h-3 rounded-full bg-slate-600';
             if (sprLine) sprLine.className = any ? 'w-1 h-8 bg-green-500 rounded shadow-lg shadow-green-500/50' : 'w-1 h-8 bg-slate-600 rounded';
             if (loadLine) loadLine.className = any ? 'w-1 h-8 bg-green-500 rounded shadow-lg shadow-green-500/50' : 'w-1 h-8 bg-slate-600 rounded';
-            
-            $('dot-g1').className = 'dot ' + (g1 ? 'dot-green' : 'dot-gray');
-            $('dot-g2').className = 'dot ' + (g2 ? 'dot-green' : 'dot-gray');
-            $('dot-spr').className = 'dot ' + (any ? 'dot-green' : 'dot-gray');
-            
-            $('g1-status').textContent = g1 ? 'Работа' : 'Офлайн';
-            $('g2-status').textContent = g2 ? 'Работа' : 'Офлайн';
-            $('spr-status').textContent = any ? 'Синхрон.' : 'Офлайн';
-            
+
             $('busbar').classList.toggle('offline', !any);
             $('activeGen').textContent = (g1 ? 1 : 0) + (g2 ? 1 : 0);
         }
         
         function setDeviceStatus(dev, status) {
             const dot = $('dot-' + dev);
-            const text = $(dev + '-status');
+            const statusEl = $(dev + '-status');
             const card = $('card-' + dev);
-            
+
             const map = {
-                offline: ['dot-gray', 'Офлайн'],
-                running: ['dot-green', 'Работа'],
-                warning: ['dot-yellow', 'Внимание'],
-                alarm: ['dot-red', 'Авария'],
-                sync: ['dot-green', 'Синхрон.']
+                offline:  { dot: 'dot-red animate-pulse', label: 'Нет связи',  icon: '&#x26A0;' },
+                standby:  { dot: 'dot-gray',              label: 'Ожидание',   icon: '&#x23F8;' },
+                online:   { dot: 'dot-green',             label: 'Связь ОК',   icon: '&#x2714;' },
+                running:  { dot: 'dot-green',             label: 'Связь ОК &#x2022; Работа', icon: '&#x26A1;' },
+                sync:     { dot: 'dot-green',             label: 'Связь ОК &#x2022; Синхрон.', icon: '&#x21C4;' },
+                warning:  { dot: 'dot-yellow',            label: 'Связь ОК &#x2022; Внимание', icon: '&#x26A0;' },
+                alarm:    { dot: 'dot-red',               label: 'Связь ОК &#x2022; Авария',   icon: '&#x2757;' },
             };
-            
-            const [dotClass, statusText] = map[status] || map.offline;
-            dot.className = 'dot ' + dotClass;
-            text.textContent = statusText;
-            
-            card.classList.remove('alarm', 'warning');
-            if (status === 'alarm') card.classList.add('alarm');
-            if (status === 'warning') card.classList.add('warning');
+
+            const allStatuses = ['offline', 'standby', 'online', 'running', 'sync', 'warning', 'alarm'];
+            const info = map[status] || map.offline;
+            dot.className = 'dot ' + info.dot;
+            statusEl.innerHTML = `<span class="status-badge ${status}">${info.icon} ${info.label}</span>`;
+
+            // Card highlight by status
+            card.classList.remove(...allStatuses);
+            card.classList.add(status);
         }
 
         // ============ ALARMS ============
@@ -2984,11 +3142,6 @@
                 if (arch > 0) html += `<span class="flex items-center gap-1 px-1.5 py-0.5 bg-orange-500/20 text-orange-400 text-xs rounded">${warnIcon}+${arch}</span>`;
                 
                 $('alerts-' + dev).innerHTML = html;
-                
-                const card = $('card-' + dev);
-                card.classList.remove('alarm', 'warning');
-                if (a > 0) card.classList.add('alarm');
-                else if (w > 0 || arch > 0) card.classList.add('warning');
             });
             
             // Global status
@@ -3007,8 +3160,8 @@
             } else {
                 statusText.innerHTML = `<span class="dot dot-green"></span><span>Норма</span>`;
             }
-            // Overlay maintenance TO status (from backend scheduler)
-            updateMaintenanceStatusBadge();
+            // Restore per-device TO badges (innerHTML above clears them) + global status
+            applyAllMaintenanceAlerts();
         }
 
         // ============ EVENTS ============
@@ -3037,9 +3190,9 @@
                 demoInterval = null;
                 $('demoBtn').textContent = '▶ Демо';
                 setPower(false, false);
-                setDeviceStatus('g1', 'offline');
-                setDeviceStatus('g2', 'offline');
-                setDeviceStatus('spr', 'offline');
+                setDeviceStatus('g1', 'standby');
+                setDeviceStatus('g2', 'standby');
+                setDeviceStatus('spr', 'standby');
             } else {
                 $('demoBtn').textContent = '⏹ Стоп';
                 demoStep = 0;
@@ -3099,8 +3252,8 @@
                     addAlarm('spr', 'alarm', 'S02', 'Ошибка синхронизации!');
                     setPower(false, false);
                     setDeviceStatus('spr', 'alarm');
-                    setDeviceStatus('g1', 'offline');
-                    setDeviceStatus('g2', 'offline');
+                    setDeviceStatus('g1', 'standby');
+                    setDeviceStatus('g2', 'standby');
                     break;
                 case 11:
                     alarms[currentSite].spr.active.slice().forEach(a => resolveAlarm('spr', a.id));
@@ -3336,6 +3489,10 @@
                 selectSite(ids[0]);
             }
             connectWebSocket();
+            if (!window.location.search.includes('debug=1')) {
+                const demoBtn = $('demoBtn');
+                if (demoBtn) demoBtn.style.display = 'none';
+            }
         })();
     </script>
 </body>

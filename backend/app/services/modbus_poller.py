@@ -11,6 +11,7 @@ import asyncio
 import json
 import logging
 import struct
+import time as _time
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 
@@ -76,6 +77,44 @@ def build_read_registers(slave: int, start: int, count: int) -> bytes:
     frame = struct.pack(">BBhH", slave, 0x03, start, count)
     crc = crc16_modbus(frame)
     return frame + struct.pack("<H", crc)
+
+
+def build_write_coil(slave: int, address: int, value: bool) -> bytes:
+    """FC05 — Write Single Coil (FF00=ON, 0000=OFF)."""
+    data_val = 0xFF00 if value else 0x0000
+    frame = struct.pack(">BBHH", slave, 0x05, address, data_val)
+    crc = crc16_modbus(frame)
+    return frame + struct.pack("<H", crc)
+
+
+def build_write_register(slave: int, address: int, value: int) -> bytes:
+    """FC06 — Write Single Register."""
+    frame = struct.pack(">BBHH", slave, 0x06, address, value & 0xFFFF)
+    crc = crc16_modbus(frame)
+    return frame + struct.pack("<H", crc)
+
+
+def _validate_write_echo(sent_frame: bytes, response: bytes, fc_name: str) -> None:
+    """Validate FC05/FC06 echo response: CRC + address + value match."""
+    if len(response) < 8:
+        raise ConnectionError(f"{fc_name} short response ({len(response)} bytes): {response.hex()}")
+    if response[1] & 0x80:
+        error_code = response[2] if len(response) > 2 else 0
+        raise ConnectionError(f"{fc_name} error response (exception code {error_code}): {response.hex()}")
+    # Validate CRC of echo
+    payload = response[:6]
+    crc_received = struct.unpack("<H", response[6:8])[0]
+    crc_calculated = crc16_modbus(payload)
+    if crc_received != crc_calculated:
+        raise ConnectionError(
+            f"{fc_name} CRC mismatch: received 0x{crc_received:04X}, "
+            f"calculated 0x{crc_calculated:04X}, raw={response.hex()}"
+        )
+    # Validate that echo matches the sent frame (slave + fc + addr + value)
+    if response[:6] != sent_frame[:6]:
+        raise ConnectionError(
+            f"{fc_name} echo mismatch: sent={sent_frame[:6].hex()}, got={response[:6].hex()}"
+        )
 
 
 def parse_read_registers_response(data: bytes) -> list[int] | None:
@@ -324,12 +363,20 @@ MAINS_STATUS = {
 # ---------------------------------------------------------------------------
 
 class BaseReader(ABC):
-    def __init__(self, device: Device):
+    LOCK_TIMEOUT = 10.0  # max seconds to wait for lock from API calls
+
+    def __init__(self, device: Device, *, site_code: str = ""):
         self.device = device
         self.device_id = device.id
         self.ip = device.ip_address
         self.port = device.port
         self.slave_id = device.slave_id
+        self.site_code = site_code
+        # Per-device timeouts (fallback to global settings)
+        self.timeout = device.modbus_timeout or settings.MODBUS_TIMEOUT
+        self.retry_delay = device.retry_delay or settings.MODBUS_RETRY_DELAY
+        # Per-device lock: serialises poll-cycle vs API commands
+        self._lock = asyncio.Lock()
 
     @abstractmethod
     async def connect(self) -> None: ...
@@ -340,6 +387,100 @@ class BaseReader(ABC):
     @abstractmethod
     async def read_all(self) -> dict: ...
 
+    @abstractmethod
+    async def write_coil(self, address: int, value: bool) -> None: ...
+
+    @abstractmethod
+    async def write_register(self, address: int, value: int) -> None: ...
+
+    @abstractmethod
+    async def read_registers(self, address: int, count: int) -> list[int]: ...
+
+    @abstractmethod
+    async def _read_registers_unlocked(self, address: int, count: int) -> list[int]:
+        """Internal: read registers without acquiring the lock."""
+        ...
+
+    async def _write_register_unlocked(self, address: int, value: int) -> None:
+        """Internal: write single register without acquiring the lock.
+
+        Override in subclass for protocol-specific implementation.
+        Default: delegates to write_register (which acquires lock — be careful).
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement _write_register_unlocked"
+        )
+
+    async def read_registers_batch(self, requests: list[tuple[int, int]]) -> list[list[int]]:
+        """Read multiple register ranges atomically under one lock acquisition."""
+        try:
+            await asyncio.wait_for(self._lock.acquire(), timeout=self.LOCK_TIMEOUT)
+        except asyncio.TimeoutError:
+            raise ConnectionError(
+                f"Device {self.device_id}: lock timeout on batch read"
+            )
+        try:
+            results = []
+            for address, count in requests:
+                results.append(await self._read_registers_unlocked(address, count))
+            return results
+        finally:
+            self._lock.release()
+
+    async def write_registers_batch(
+        self,
+        requests: list[tuple[int, int]],
+        *,
+        unlock_register: int | None = None,
+        unlock_value: int | None = None,
+    ) -> list[int] | None:
+        """Write multiple registers atomically under one lock.
+
+        Optionally writes an unlock register first (e.g. password).
+        After all writes, reads back all values to verify.
+        Returns list of read-back values, or None if verify skipped.
+        """
+        try:
+            await asyncio.wait_for(self._lock.acquire(), timeout=self.LOCK_TIMEOUT)
+        except asyncio.TimeoutError:
+            raise ConnectionError(
+                f"Device {self.device_id}: lock timeout on batch write"
+            )
+        try:
+            # Optional unlock (password) before config writes
+            if unlock_register is not None and unlock_value is not None:
+                await self._write_register_unlocked(unlock_register, unlock_value)
+                await asyncio.sleep(0.1)
+
+            # Write all registers
+            for address, value in requests:
+                await self._write_register_unlocked(address, value)
+                await asyncio.sleep(0.05)  # Small inter-write delay
+
+            # Verify: read back all written registers
+            await asyncio.sleep(0.3)
+
+            verify_results = []
+            mismatches = []
+            for address, value in requests:
+                regs = await self._read_registers_unlocked(address, 1)
+                read_back = regs[0]
+                verify_results.append(read_back)
+                if read_back != (value & 0xFFFF):
+                    mismatches.append(
+                        f"0x{address:04X}: wrote={value} read={read_back}"
+                    )
+
+            if mismatches:
+                logger.warning(
+                    "Batch write verify mismatches device=%s: %s",
+                    self.device_id, "; ".join(mismatches),
+                )
+
+            return verify_results
+        finally:
+            self._lock.release()
+
 
 # ---------------------------------------------------------------------------
 # HGM9520N Reader — Modbus TCP (pymodbus)
@@ -348,22 +489,25 @@ class BaseReader(ABC):
 class HGM9520NReader(BaseReader):
     """Modbus TCP via pymodbus AsyncModbusTcpClient."""
 
-    def __init__(self, device: Device):
-        super().__init__(device)
+    RECONNECT_EVERY = 30  # force reconnect every N poll cycles (~60s at POLL_INTERVAL=2)
+
+    def __init__(self, device: Device, *, site_code: str = ""):
+        super().__init__(device, site_code=site_code)
         self._client: AsyncModbusTcpClient | None = None
+        self._poll_count = 0
 
     async def connect(self) -> None:
         self._client = AsyncModbusTcpClient(
             host=self.ip,
             port=self.port,
-            timeout=settings.MODBUS_TIMEOUT,
+            timeout=self.timeout,
         )
         connected = await self._client.connect()
         if not connected:
             raise ConnectionError(
                 f"HGM9520N: cannot connect to {self.ip}:{self.port}"
             )
-        logger.info("HGM9520N connected: %s:%s slave=%s", self.ip, self.port, self.slave_id)
+        logger.info("HGM9520N connected: %s:%s slave=%s timeout=%.1fs", self.ip, self.port, self.slave_id, self.timeout)
 
     async def disconnect(self) -> None:
         if self._client:
@@ -371,35 +515,139 @@ class HGM9520NReader(BaseReader):
             self._client = None
 
     async def read_all(self) -> dict:
-        if not self._client or not self._client.connected:
-            await self.connect()
+        async with self._lock:
+            self._poll_count += 1
 
-        result: dict = {}
-        for block_name, block in REGISTER_MAP_9520N.items():
-            resp = await self._client.read_holding_registers(
-                address=block["address"],
-                count=block["count"],
-                slave=self.slave_id,
+            if self._poll_count >= self.RECONNECT_EVERY:
+                self._poll_count = 0
+                await self.disconnect()
+
+            if not self._client or not self._client.connected:
+                await self.connect()
+
+            result: dict = {}
+            errors = 0
+            total_blocks = len(REGISTER_MAP_9520N)
+
+            for block_name, block in REGISTER_MAP_9520N.items():
+                try:
+                    resp = await asyncio.wait_for(
+                        self._client.read_holding_registers(
+                            address=block["address"],
+                            count=block["count"],
+                            slave=self.slave_id,
+                        ),
+                        timeout=self.timeout,
+                    )
+                except (asyncio.TimeoutError, Exception) as exc:
+                    logger.warning(
+                        "HGM9520N timeout block=%s device=%s: %s",
+                        block_name, self.device_id, exc,
+                    )
+                    errors += 1
+                    continue
+
+                if resp.isError():
+                    logger.warning(
+                        "HGM9520N read error block=%s device=%s: %s",
+                        block_name, self.device_id, resp,
+                    )
+                    errors += 1
+                    continue
+                regs = list(resp.registers)
+                for field_name, parser in block["fields"].items():
+                    try:
+                        result[field_name] = parser(regs)
+                    except Exception as exc:
+                        logger.debug("Parse error %s.%s: %s", block_name, field_name, exc)
+                        result[field_name] = None
+
+            if errors == total_blocks:
+                await self.disconnect()
+                raise ConnectionError(f"HGM9520N device={self.device_id}: all {total_blocks} blocks failed")
+
+            if errors > total_blocks // 2:
+                logger.warning("HGM9520N device=%s: %d/%d blocks failed, data may be unreliable",
+                               self.device_id, errors, total_blocks)
+
+            if "gen_status" in result:
+                code = result["gen_status"]
+                result["gen_status_text"] = GEN_STATUS_CODES.get(code, f"unknown_{code}")
+
+            return result
+
+    async def write_coil(self, address: int, value: bool) -> None:
+        """FC05 — Write Single Coil via pymodbus."""
+        try:
+            await asyncio.wait_for(self._lock.acquire(), timeout=self.LOCK_TIMEOUT)
+        except asyncio.TimeoutError:
+            raise ConnectionError(f"Device {self.device_id}: lock timeout on FC05")
+        try:
+            if not self._client or not self._client.connected:
+                await self.connect()
+            resp = await asyncio.wait_for(
+                self._client.write_coil(address=address, value=value, slave=self.slave_id),
+                timeout=self.timeout,
             )
             if resp.isError():
-                logger.warning(
-                    "HGM9520N read error block=%s device=%s: %s",
-                    block_name, self.device_id, resp,
-                )
-                continue
-            regs = list(resp.registers)
-            for field_name, parser in block["fields"].items():
-                try:
-                    result[field_name] = parser(regs)
-                except Exception as exc:
-                    logger.debug("Parse error %s.%s: %s", block_name, field_name, exc)
-                    result[field_name] = None
+                raise ConnectionError(f"FC05 error: {resp}")
+            logger.info("FC05 OK: device=%s addr=0x%04X value=%s", self.device_id, address, value)
+        finally:
+            self._lock.release()
 
-        if "gen_status" in result:
-            code = result["gen_status"]
-            result["gen_status_text"] = GEN_STATUS_CODES.get(code, f"unknown_{code}")
+    async def write_register(self, address: int, value: int) -> None:
+        """FC06 — Write Single Register via pymodbus."""
+        try:
+            await asyncio.wait_for(self._lock.acquire(), timeout=self.LOCK_TIMEOUT)
+        except asyncio.TimeoutError:
+            raise ConnectionError(f"Device {self.device_id}: lock timeout on FC06")
+        try:
+            if not self._client or not self._client.connected:
+                await self.connect()
+            resp = await asyncio.wait_for(
+                self._client.write_register(address=address, value=value, slave=self.slave_id),
+                timeout=self.timeout,
+            )
+            if resp.isError():
+                raise ConnectionError(f"FC06 error: {resp}")
+            logger.info("FC06 OK: device=%s addr=0x%04X value=%d", self.device_id, address, value)
+        finally:
+            self._lock.release()
 
-        return result
+    async def read_registers(self, address: int, count: int) -> list[int]:
+        """FC03 — Read Holding Registers via pymodbus."""
+        try:
+            await asyncio.wait_for(self._lock.acquire(), timeout=self.LOCK_TIMEOUT)
+        except asyncio.TimeoutError:
+            raise ConnectionError(f"Device {self.device_id}: lock timeout on FC03")
+        try:
+            return await self._read_registers_unlocked(address, count)
+        finally:
+            self._lock.release()
+
+    async def _read_registers_unlocked(self, address: int, count: int) -> list[int]:
+        """FC03 inner logic — no lock, called from locked context."""
+        if not self._client or not self._client.connected:
+            await self.connect()
+        resp = await asyncio.wait_for(
+            self._client.read_holding_registers(address=address, count=count, slave=self.slave_id),
+            timeout=self.timeout,
+        )
+        if resp.isError():
+            raise ConnectionError(f"FC03 error: {resp}")
+        return list(resp.registers)
+
+    async def _write_register_unlocked(self, address: int, value: int) -> None:
+        """FC06 inner logic — no lock, called from locked context (e.g. write_registers_batch)."""
+        if not self._client or not self._client.connected:
+            await self.connect()
+        resp = await asyncio.wait_for(
+            self._client.write_register(address=address, value=value, slave=self.slave_id),
+            timeout=self.timeout,
+        )
+        if resp.isError():
+            raise ConnectionError(f"FC06 error: {resp}")
+        logger.info("FC06 OK (unlocked): device=%s addr=0x%04X value=%d", self.device_id, address, value)
 
 
 # ---------------------------------------------------------------------------
@@ -412,17 +660,17 @@ class HGM9560Reader(BaseReader):
     INTER_FRAME_DELAY = 0.15
     INTER_BLOCK_DELAY = 0.05
 
-    def __init__(self, device: Device):
-        super().__init__(device)
+    def __init__(self, device: Device, *, site_code: str = ""):
+        super().__init__(device, site_code=site_code)
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
 
     async def connect(self) -> None:
         self._reader, self._writer = await asyncio.wait_for(
             asyncio.open_connection(self.ip, self.port),
-            timeout=settings.MODBUS_TIMEOUT,
+            timeout=self.timeout,
         )
-        logger.info("HGM9560 connected: %s:%s slave=%s", self.ip, self.port, self.slave_id)
+        logger.info("HGM9560 connected: %s:%s slave=%s timeout=%.1fs", self.ip, self.port, self.slave_id, self.timeout)
 
     async def disconnect(self) -> None:
         if self._writer:
@@ -442,10 +690,13 @@ class HGM9560Reader(BaseReader):
             stale = await asyncio.wait_for(self._reader.read(1024), timeout=0.05)
             if stale:
                 logger.debug("HGM9560: flushed %d stale bytes", len(stale))
-            if not stale:
-                raise ConnectionError("HGM9560: connection closed by peer (EOF on flush)")
+            elif stale is not None and len(stale) == 0:
+                # EOF — peer closed connection, reconnect
+                logger.warning("HGM9560: EOF on flush, reconnecting")
+                await self.disconnect()
+                await self.connect()
         except asyncio.TimeoutError:
-            pass
+            pass  # No stale data — normal case
 
     async def _send_and_receive(self, start: int, count: int) -> list[int] | None:
         if self._writer is None or self._reader is None:
@@ -461,7 +712,7 @@ class HGM9560Reader(BaseReader):
 
         expected_bytes = 3 + count * 2 + 2  # slave + fc + bytecount + data + crc
         response = b""
-        deadline = asyncio.get_event_loop().time() + settings.MODBUS_TIMEOUT
+        deadline = asyncio.get_event_loop().time() + self.timeout
 
         while asyncio.get_event_loop().time() < deadline:
             remaining_time = deadline - asyncio.get_event_loop().time()
@@ -500,55 +751,173 @@ class HGM9560Reader(BaseReader):
         return parse_read_registers_response(response)
 
     async def read_all(self) -> dict:
+        async with self._lock:
+            if self._writer is None or self._reader is None:
+                await self.connect()
+
+            result: dict = {}
+            errors = 0
+            total_blocks = len(REGISTER_MAP_9560)
+            first_block = True
+
+            for block_name, block in REGISTER_MAP_9560.items():
+                if not first_block:
+                    await asyncio.sleep(self.INTER_BLOCK_DELAY)
+                first_block = False
+
+                try:
+                    regs = await self._send_and_receive(block["address"], block["count"])
+                except ConnectionError:
+                    errors += 1
+                    continue
+
+                if regs is None:
+                    logger.warning(
+                        "HGM9560 read error block=%s device=%s",
+                        block_name, self.device_id,
+                    )
+                    errors += 1
+                    continue
+
+                for field_name, parser in block["fields"].items():
+                    try:
+                        result[field_name] = parser(regs)
+                    except Exception as exc:
+                        logger.debug("Parse error %s.%s: %s", block_name, field_name, exc)
+                        result[field_name] = None
+
+            if errors == total_blocks:
+                await self.disconnect()
+                raise ConnectionError(
+                    f"HGM9560 device={self.device_id}: all {total_blocks} blocks failed"
+                )
+
+            if errors > total_blocks // 2:
+                logger.warning(
+                    "HGM9560 device=%s: %d/%d blocks failed, data may be unreliable",
+                    self.device_id, errors, total_blocks,
+                )
+
+            if "genset_status" in result:
+                code = result["genset_status"]
+                result["genset_status_text"] = GENSET_STATUS_9560.get(code, f"unknown_{code}")
+            if "busbar_switch" in result:
+                result["busbar_switch_text"] = SWITCH_STATUS.get(result["busbar_switch"], "unknown")
+            if "mains_status" in result:
+                result["mains_status_text"] = MAINS_STATUS.get(result["mains_status"], "unknown")
+            if "mains_switch" in result:
+                result["mains_switch_text"] = SWITCH_STATUS.get(result["mains_switch"], "unknown")
+
+            return result
+
+    async def write_coil(self, address: int, value: bool) -> None:
+        """FC05 — Write Single Coil via raw RTU frame."""
+        try:
+            await asyncio.wait_for(self._lock.acquire(), timeout=self.LOCK_TIMEOUT)
+        except asyncio.TimeoutError:
+            raise ConnectionError(f"Device {self.device_id}: lock timeout on FC05")
+        try:
+            if self._writer is None or self._reader is None:
+                await self.connect()
+
+            await self._flush_stale()
+
+            frame = build_write_coil(self.slave_id, address, value)
+
+            self._writer.write(frame)
+            await self._writer.drain()
+
+            await asyncio.sleep(self.INTER_FRAME_DELAY)
+
+            # Read echo response (8 bytes)
+            try:
+                response = await asyncio.wait_for(self._reader.read(256), timeout=self.timeout)
+            except asyncio.TimeoutError:
+                raise ConnectionError("FC05 timeout: no response from HGM9560")
+
+            _validate_write_echo(frame, response, "FC05")
+
+            logger.info("FC05 OK: device=%s addr=0x%04X value=%s", self.device_id, address, value)
+        finally:
+            self._lock.release()
+
+    async def write_register(self, address: int, value: int) -> None:
+        """FC06 — Write Single Register via raw RTU frame with echo validation."""
+        try:
+            await asyncio.wait_for(self._lock.acquire(), timeout=self.LOCK_TIMEOUT)
+        except asyncio.TimeoutError:
+            raise ConnectionError(f"Device {self.device_id}: lock timeout on FC06")
+        try:
+            await self._write_register_unlocked(address, value)
+        finally:
+            self._lock.release()
+
+    async def _write_register_unlocked(self, address: int, value: int) -> None:
+        """FC06 inner logic — no lock, called from locked context."""
         if self._writer is None or self._reader is None:
             await self.connect()
 
-        result: dict = {}
-        first_block = True
-        for block_name, block in REGISTER_MAP_9560.items():
-            if not first_block:
-                await asyncio.sleep(self.INTER_BLOCK_DELAY)
-            first_block = False
+        await self._flush_stale()
 
-            regs = await self._send_and_receive(block["address"], block["count"])
-            if regs is None:
-                logger.warning(
-                    "HGM9560 read error block=%s device=%s",
-                    block_name, self.device_id,
-                )
-                continue
+        frame = build_write_register(self.slave_id, address, value)
 
-            for field_name, parser in block["fields"].items():
-                try:
-                    result[field_name] = parser(regs)
-                except Exception as exc:
-                    logger.debug("Parse error %s.%s: %s", block_name, field_name, exc)
-                    result[field_name] = None
+        logger.info(
+            "FC06 SEND: device=%s addr=0x%04X value=%d frame=%s",
+            self.device_id, address, value, frame.hex(),
+        )
 
-        if not result:
-            logger.warning("HGM9560 device=%s: all blocks returned empty", self.device_id)
+        self._writer.write(frame)
+        await self._writer.drain()
 
-        if "genset_status" in result:
-            code = result["genset_status"]
-            result["genset_status_text"] = GENSET_STATUS_9560.get(code, f"unknown_{code}")
-        if "busbar_switch" in result:
-            result["busbar_switch_text"] = SWITCH_STATUS.get(result["busbar_switch"], "unknown")
-        if "mains_status" in result:
-            result["mains_status_text"] = MAINS_STATUS.get(result["mains_status"], "unknown")
-        if "mains_switch" in result:
-            result["mains_switch_text"] = SWITCH_STATUS.get(result["mains_switch"], "unknown")
+        await asyncio.sleep(self.INTER_FRAME_DELAY)
 
-        return result
+        # Read echo response (8 bytes)
+        try:
+            response = await asyncio.wait_for(self._reader.read(256), timeout=self.timeout)
+        except asyncio.TimeoutError:
+            raise ConnectionError("FC06 timeout: no response from HGM9560")
+
+        logger.info(
+            "FC06 RECV: device=%s response=%s (%d bytes)",
+            self.device_id, response.hex(), len(response),
+        )
+
+        _validate_write_echo(frame, response, "FC06")
+
+        logger.info(
+            "FC06 OK: device=%s addr=0x%04X value=%d",
+            self.device_id, address, value,
+        )
+
+    async def read_registers(self, address: int, count: int) -> list[int]:
+        """FC03 — Read Holding Registers via raw RTU frame."""
+        try:
+            await asyncio.wait_for(self._lock.acquire(), timeout=self.LOCK_TIMEOUT)
+        except asyncio.TimeoutError:
+            raise ConnectionError(f"Device {self.device_id}: lock timeout on FC03")
+        try:
+            return await self._read_registers_unlocked(address, count)
+        finally:
+            self._lock.release()
+
+    async def _read_registers_unlocked(self, address: int, count: int) -> list[int]:
+        """FC03 inner logic — no lock, called from locked context."""
+        if self._writer is None or self._reader is None:
+            await self.connect()
+        regs = await self._send_and_receive(address, count)
+        if regs is None:
+            raise ConnectionError(f"FC03 read failed: addr=0x{address:04X} count={count}")
+        return regs
 
 
 # ---------------------------------------------------------------------------
 # ModbusPoller — main polling orchestrator
 # ---------------------------------------------------------------------------
 
-def _make_reader(device: Device) -> BaseReader:
+def _make_reader(device: Device, *, site_code: str = "") -> BaseReader:
     if device.protocol == ModbusProtocol.TCP:
-        return HGM9520NReader(device)
-    return HGM9560Reader(device)
+        return HGM9520NReader(device, site_code=site_code)
+    return HGM9560Reader(device, site_code=site_code)
 
 
 class ModbusPoller:
@@ -559,26 +928,61 @@ class ModbusPoller:
         self.session_factory = session_factory
         self._running = False
         self._readers: dict[int, BaseReader] = {}
+        self._last_poll: dict[int, float] = {}  # device_id -> last poll timestamp
+        self._poll_intervals: dict[int, float] = {}  # device_id -> per-device interval
 
     async def _load_devices(self) -> list[Device]:
+        from sqlalchemy.orm import selectinload
+
         async with self.session_factory() as session:
-            stmt = select(Device).where(Device.is_active == True)  # noqa: E712
+            stmt = (
+                select(Device)
+                .where(Device.is_active == True)  # noqa: E712
+                .options(selectinload(Device.site))
+            )
             result = await session.execute(stmt)
             return list(result.scalars().all())
+
+    async def _flush_stale_metrics(self) -> None:
+        """Delete all device:*:metrics keys from Redis on startup.
+
+        Prevents stale data (e.g. from a previous DemoPoller session)
+        from being served via WS snapshot to frontends.
+        """
+        cursor = 0
+        deleted = 0
+        while True:
+            cursor, keys = await self.redis.scan(
+                cursor=cursor, match="device:*:metrics", count=100,
+            )
+            if keys:
+                await self.redis.delete(*keys)
+                deleted += len(keys)
+            if cursor == 0:
+                break
+        if deleted:
+            logger.info("Flushed %d stale metric keys from Redis", deleted)
 
     async def start(self) -> None:
         self._running = True
         logger.info("ModbusPoller starting...")
+
+        # Flush stale metrics from Redis (e.g. leftover from DemoPoller)
+        await self._flush_stale_metrics()
 
         devices = await self._load_devices()
         if not devices:
             logger.warning("No active devices found in DB")
 
         for dev in devices:
-            self._readers[dev.id] = _make_reader(dev)
+            sc = dev.site.code if dev.site else ""
+            self._readers[dev.id] = _make_reader(dev, site_code=sc)
+            self._poll_intervals[dev.id] = dev.poll_interval or settings.POLL_INTERVAL
+            self._last_poll[dev.id] = 0  # poll immediately on first cycle
             logger.info(
-                "Registered reader for device %s (%s) at %s:%s [%s]",
-                dev.id, dev.name, dev.ip_address, dev.port, dev.protocol.value,
+                "Registered reader for device %s (%s) at %s:%s [%s] site=%s interval=%.1fs",
+                dev.id, dev.name, dev.ip_address, dev.port, dev.protocol.value, sc,
+                self._poll_intervals[dev.id],
             )
 
         self._reload_requested = False
@@ -589,7 +993,9 @@ class ModbusPoller:
                 self._reload_requested = False
                 await self.reload_devices()
             await self._poll_cycle()
-            await asyncio.sleep(settings.POLL_INTERVAL)
+            # Sleep at minimum interval (1s floor) to avoid busy-loop
+            min_interval = min(self._poll_intervals.values()) if self._poll_intervals else settings.POLL_INTERVAL
+            await asyncio.sleep(max(1.0, min_interval))
 
     async def stop(self) -> None:
         logger.info("ModbusPoller stopping...")
@@ -618,10 +1024,22 @@ class ModbusPoller:
             except Exception:
                 pass
             del self._readers[rid]
+            self._poll_intervals.pop(rid, None)
+            self._last_poll.pop(rid, None)
+            # Clean up stale Redis key so WS snapshot doesn't send ghost data
+            await self.redis.delete(f"device:{rid}:metrics")
 
         for dev in new_devices:
+            sc = dev.site.code if dev.site else ""
+            # Always update poll_interval (could change in settings)
+            self._poll_intervals[dev.id] = dev.poll_interval or settings.POLL_INTERVAL
+
             existing_reader = self._readers.get(dev.id)
             if existing_reader:
+                # Update per-device timeouts
+                existing_reader.timeout = dev.modbus_timeout or settings.MODBUS_TIMEOUT
+                existing_reader.retry_delay = dev.retry_delay or settings.MODBUS_RETRY_DELAY
+
                 if (existing_reader.ip != dev.ip_address
                         or existing_reader.port != dev.port
                         or existing_reader.slave_id != dev.slave_id):
@@ -634,82 +1052,89 @@ class ModbusPoller:
                         await existing_reader.disconnect()
                     except Exception:
                         pass
-                    self._readers[dev.id] = _make_reader(dev)
+                    self._readers[dev.id] = _make_reader(dev, site_code=sc)
+                else:
+                    # Update cached site_code even if connection params didn't change
+                    existing_reader.site_code = sc
             else:
                 logger.info(
                     "New device %s (%s) at %s:%s [%s]",
                     dev.id, dev.name, dev.ip_address, dev.port, dev.protocol.value,
                 )
-                self._readers[dev.id] = _make_reader(dev)
+                self._readers[dev.id] = _make_reader(dev, site_code=sc)
+                self._last_poll[dev.id] = 0  # poll immediately
 
         logger.info("ModbusPoller: reload complete. Active readers: %d", len(self._readers))
 
     async def _listen_reload(self) -> None:
         """Listen to Redis channel poller:reload for hot-reload signals."""
-        try:
+        while self._running:
             pubsub = self.redis.pubsub()
-            await pubsub.subscribe("poller:reload")
-            async for message in pubsub.listen():
-                if message["type"] == "message":
-                    logger.info("Received reload signal")
-                    self._reload_requested = True
-        except asyncio.CancelledError:
-            pass
-        except Exception as exc:
-            logger.error("Reload listener error: %s", exc)
+            try:
+                await pubsub.subscribe("poller:reload")
+                async for message in pubsub.listen():
+                    if message["type"] == "message":
+                        logger.info("Received reload signal")
+                        self._reload_requested = True
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.error("Reload listener error: %s, reconnecting in 2s", exc)
+                await asyncio.sleep(2)
+            finally:
+                try:
+                    await pubsub.unsubscribe("poller:reload")
+                    await pubsub.close()
+                except Exception:
+                    pass
 
     async def _poll_cycle(self) -> None:
-        tasks = [
-            self._poll_device(device_id, reader)
-            for device_id, reader in self._readers.items()
-        ]
-        await asyncio.gather(*tasks, return_exceptions=True)
+        now = _time.monotonic()
+        tasks = []
+        for device_id, reader in self._readers.items():
+            interval = self._poll_intervals.get(device_id, settings.POLL_INTERVAL)
+            last = self._last_poll.get(device_id, 0)
+            if now - last >= interval:
+                self._last_poll[device_id] = now
+                tasks.append(self._poll_device(device_id, reader))
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     async def _poll_device(self, device_id: int, reader: BaseReader) -> None:
         try:
             data = await reader.read_all()
             if not data:
                 logger.warning("Device %s: read_all returned empty data", device_id)
-                await self._publish(device_id, reader.device, {}, online=False, error="no data received")
+                await self._publish(device_id, reader, {}, online=False, error="no data received")
+                await reader.disconnect()
             else:
-                await self._publish(device_id, reader.device, data, online=True)
+                await self._publish(device_id, reader, data, online=True)
         except Exception as exc:
             logger.error(
                 "Poll error device=%s (%s): %s",
                 device_id, reader.ip, exc,
             )
-            await self._publish(device_id, reader.device, {}, online=False, error=str(exc))
+            await self._publish(device_id, reader, {}, online=False, error=str(exc))
             try:
                 await reader.disconnect()
             except Exception:
                 pass
-            await asyncio.sleep(settings.MODBUS_RETRY_DELAY)
+            await asyncio.sleep(reader.retry_delay)
 
     async def _publish(
         self,
         device_id: int,
-        device: Device,
+        reader: BaseReader,
         data: dict,
         *,
         online: bool,
         error: str | None = None,
     ) -> None:
-        site_code = ""
-        try:
-            async with self.session_factory() as session:
-                from models.site import Site
-                dev = await session.get(Device, device_id)
-                if dev:
-                    site = await session.get(Site, dev.site_id)
-                    if site:
-                        site_code = site.code
-        except Exception:
-            pass
-
+        # site_code cached in reader — no DB query on every publish
         payload = {
             "device_id": device_id,
-            "site_code": site_code,
-            "device_type": device.device_type.value if device.device_type else "unknown",
+            "site_code": reader.site_code,
+            "device_type": reader.device.device_type.value if reader.device.device_type else "unknown",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "online": online,
             "error": error,
@@ -719,7 +1144,8 @@ class ModbusPoller:
         json_str = json.dumps(payload, default=str)
         redis_key = f"device:{device_id}:metrics"
 
-        await self.redis.set(redis_key, json_str)
+        # TTL 30s — stale metrics auto-expire if poller stops
+        await self.redis.set(redis_key, json_str, ex=30)
         await self.redis.publish("metrics:updates", json_str)
 
         if online:

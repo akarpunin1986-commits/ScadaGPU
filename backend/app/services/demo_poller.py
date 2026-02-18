@@ -57,7 +57,8 @@ class DemoPoller:
     async def _publish(self, payload: dict) -> None:
         json_str = json.dumps(payload, default=str)
         redis_key = f"device:{payload['device_id']}:metrics"
-        await self.redis.set(redis_key, json_str)
+        # TTL 30s — stale metrics auto-expire if poller stops
+        await self.redis.set(redis_key, json_str, ex=30)
         await self.redis.publish("metrics:updates", json_str)
 
     # ------------------------------------------------------------------
