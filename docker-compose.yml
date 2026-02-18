@@ -48,7 +48,7 @@ services:
     image: nginx:alpine
     container_name: scada-frontend
     ports:
-      - "8011:80"
+      - "80:80"
     volumes:
       - ./frontend:/usr/share/nginx/html:ro
       - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
