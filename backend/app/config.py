@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # Maintenance scheduler
     MAINTENANCE_CHECK_INTERVAL: int = 30
 
+    # AI Agent (Phase 5 — maintenance manual parsing via OpenAI)
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4o"
+    OPENAI_TIMEOUT: int = 120
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
