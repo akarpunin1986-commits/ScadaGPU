@@ -150,6 +150,27 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .arc-tb{padding:5px 10px;border-radius:var(--rs);border:1px solid var(--bd);background:var(--bg3);color:var(--t3);cursor:pointer;font-size:11px;font-family:var(--m);transition:all .15s}
 .arc-tb:hover{background:var(--bg4);color:var(--t)}.arc-tb.on{background:var(--gd);border-color:rgba(0,224,154,.25);color:var(--g)}
 .arc-dt{width:155px;padding:5px 8px!important;font-size:10px!important;font-family:var(--m)!important}
+.dp-wrap{position:relative;display:inline-block}
+.dp-btn{padding:5px 10px;border-radius:var(--rs);border:1px solid var(--bd);background:var(--bg3);color:var(--t3);cursor:pointer;font-size:11px;font-family:var(--m);transition:all .15s;white-space:nowrap;min-width:130px;text-align:center}
+.dp-btn:hover{background:var(--bg4);color:var(--t);border-color:var(--bd2)}.dp-btn.has-val{color:var(--g);border-color:rgba(0,224,154,.25);background:var(--gd)}
+.dp-drop{position:absolute;top:calc(100% + 4px);right:0;z-index:999;background:var(--bg2);border:1px solid var(--bd2);border-radius:var(--rad);padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.5);display:none;width:260px}
+.dp-drop.open{display:block}
+.dp-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.dp-hdr span{font-size:12px;font-weight:600;color:var(--t);font-family:var(--u)}
+.dp-nav{background:none;border:1px solid var(--bd);border-radius:6px;color:var(--t2);cursor:pointer;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .15s}
+.dp-nav:hover{background:var(--bg4);color:var(--t);border-color:var(--bd2)}
+.dp-wk{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px}
+.dp-wk span{text-align:center;font-size:9px;color:var(--t4);font-family:var(--m);padding:2px 0}
+.dp-days{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.dp-d{text-align:center;padding:5px 2px;font-size:11px;font-family:var(--m);color:var(--t2);cursor:pointer;border-radius:6px;border:1px solid transparent;transition:all .12s}
+.dp-d:hover{background:var(--bg4);color:var(--t);border-color:var(--bd)}.dp-d.sel{background:var(--gd);color:var(--g);border-color:rgba(0,224,154,.3);font-weight:600}
+.dp-d.other{color:var(--t4)}.dp-d.today{border-color:var(--bd2)}
+.dp-time{display:flex;align-items:center;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--bd)}
+.dp-time input{width:44px;padding:4px 6px;background:var(--bg);border:1px solid var(--bd);border-radius:6px;color:var(--t);font-size:11px;font-family:var(--m);text-align:center;outline:none}
+.dp-time input:focus{border-color:var(--g)}
+.dp-time label{font-size:10px;color:var(--t3)}
+.dp-apply{width:100%;margin-top:8px;padding:6px;border-radius:var(--rs);border:none;background:var(--g);color:#080c14;font-size:11px;font-weight:600;font-family:var(--u);cursor:pointer;transition:background .15s}
+.dp-apply:hover{background:#00c888}
 .arc-chart-wrap{position:relative;height:350px;background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);padding:10px;margin-bottom:8px}
 .arc-stats{padding:8px 10px;font-size:11px;color:var(--t2);font-family:var(--m)}
 .arc-flt{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
@@ -1487,9 +1508,9 @@ mn.innerHTML=`
 <button class="arc-tb" onclick="arcRange(this,24)">24ч</button>
 <button class="arc-tb" onclick="arcRange(this,168)">7д</button>
 <button class="arc-tb" onclick="arcRange(this,720)">30д</button>
-<input type="datetime-local" class="fi arc-dt" id="arcFrom" onchange="arcCustomRange()">
+<div class="dp-wrap"><button class="dp-btn" id="arcFromBtn" onclick="dpToggle('arcFrom')">📅 От</button><div class="dp-drop" id="arcFromDrop"></div></div>
 <span style="color:var(--t3);font-size:11px">—</span>
-<input type="datetime-local" class="fi arc-dt" id="arcTo" onchange="arcCustomRange()">
+<div class="dp-wrap"><button class="dp-btn" id="arcToBtn" onclick="dpToggle('arcTo')">📅 До</button><div class="dp-drop" id="arcToDrop"></div></div>
 </div></div>
 <div class="tbs" id="arcMainTabs" style="margin-bottom:12px">
 <button class="tb on" onclick="arcTab(this,'arcCharts')">📈 Графики</button>
@@ -1522,16 +1543,98 @@ btn.classList.add('on');arcState.slot=slot;arcState.almPage=0;arcLoadChart();arc
 function arcRange(btn,hours){
 btn.parentElement.querySelectorAll('.arc-tb').forEach(b=>b.classList.remove('on'));
 btn.classList.add('on');arcState.hours=hours;arcState.almPage=0;
-const f=$('arcFrom'),t=$('arcTo');if(f)f.value='';if(t)t.value='';
+dpState.arcFrom=null;dpState.arcTo=null;
+const fb=$('arcFromBtn'),tb=$('arcToBtn');
+if(fb){fb.textContent='📅 От';fb.classList.remove('has-val')}
+if(tb){tb.textContent='📅 До';tb.classList.remove('has-val')}
 arcLoadChart();arcLoadAlarms();
 }
 function arcCustomRange(){
-const from=$('arcFrom')?.value,to=$('arcTo')?.value;
-if(!from||!to)return;
+if(!dpState.arcFrom||!dpState.arcTo)return;
 document.querySelectorAll('.arc-time .arc-tb').forEach(b=>b.classList.remove('on'));
-arcState.hours=null;arcState.customFrom=from;arcState.customTo=to;arcState.almPage=0;
+arcState.hours=null;arcState.customFrom=dpState.arcFrom;arcState.customTo=dpState.arcTo;arcState.almPage=0;
 arcLoadChart();arcLoadAlarms();
 }
+
+// ---- Date Picker ----
+const dpState={arcFrom:null,arcTo:null,_view:{},_open:null};
+const DP_MONTHS=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const DP_DAYS=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+
+function dpToggle(id){
+const drop=$(id+'Drop');if(!drop)return;
+const isOpen=drop.classList.contains('open');
+document.querySelectorAll('.dp-drop.open').forEach(d=>d.classList.remove('open'));
+if(!isOpen){
+const now=dpState[id]?new Date(dpState[id]):new Date();
+dpState._view[id]={year:now.getFullYear(),month:now.getMonth(),hour:now.getHours(),minute:now.getMinutes()};
+if(dpState[id]){const d=new Date(dpState[id]);dpState._view[id].selDay=d.getDate();dpState._view[id].selMonth=d.getMonth();dpState._view[id].selYear=d.getFullYear()}
+dpRender(id);drop.classList.add('open');dpState._open=id;
+}else{dpState._open=null}
+}
+
+function dpRender(id){
+const drop=$(id+'Drop'),v=dpState._view[id];if(!drop||!v)return;
+const year=v.year,month=v.month;
+const firstDay=new Date(year,month,1).getDay();
+const shift=firstDay===0?6:firstDay-1;
+const daysInMonth=new Date(year,month+1,0).getDate();
+const daysInPrev=new Date(year,month,0).getDate();
+const today=new Date(),ty=today.getFullYear(),tm=today.getMonth(),td=today.getDate();
+
+let html=`<div class="dp-hdr"><button class="dp-nav" onclick="dpNav('${id}',-1)">◀</button><span>${DP_MONTHS[month]} ${year}</span><button class="dp-nav" onclick="dpNav('${id}',1)">▶</button></div>`;
+html+='<div class="dp-wk">'+DP_DAYS.map(d=>`<span>${d}</span>`).join('')+'</div>';
+html+='<div class="dp-days">';
+for(let i=0;i<shift;i++){const d=daysInPrev-shift+1+i;html+=`<div class="dp-d other" onclick="dpPickDay('${id}',${year},${month-1},${d})">${d}</div>`}
+for(let d=1;d<=daysInMonth;d++){
+let cls='dp-d';
+if(d===td&&month===tm&&year===ty)cls+=' today';
+if(v.selDay===d&&v.selMonth===month&&v.selYear===year)cls+=' sel';
+html+=`<div class="${cls}" onclick="dpPickDay('${id}',${year},${month},${d})">${d}</div>`}
+const remaining=7-((shift+daysInMonth)%7);
+if(remaining<7)for(let d=1;d<=remaining;d++){html+=`<div class="dp-d other" onclick="dpPickDay('${id}',${year},${month+1},${d})">${d}</div>`}
+html+='</div>';
+html+=`<div class="dp-time"><label>Время:</label><input type="number" min="0" max="23" value="${String(v.hour).padStart(2,'0')}" id="${id}H" onchange="dpTimeChange('${id}')">
+<span style="color:var(--t3)">:</span>
+<input type="number" min="0" max="59" value="${String(v.minute).padStart(2,'0')}" id="${id}M" onchange="dpTimeChange('${id}')"></div>`;
+html+=`<button class="dp-apply" onclick="dpApply('${id}')">Применить</button>`;
+drop.innerHTML=html;
+}
+
+function dpNav(id,dir){
+const v=dpState._view[id];v.month+=dir;
+if(v.month>11){v.month=0;v.year++}if(v.month<0){v.month=11;v.year--}
+dpRender(id);
+}
+
+function dpPickDay(id,y,m,d){
+if(m>11){m=0;y++}if(m<0){m=11;y--}
+const v=dpState._view[id];v.selDay=d;v.selMonth=m;v.selYear=y;v.year=y;v.month=m;
+dpRender(id);
+}
+
+function dpTimeChange(id){
+const v=dpState._view[id];
+const h=$(id+'H'),m=$(id+'M');
+if(h)v.hour=Math.max(0,Math.min(23,parseInt(h.value)||0));
+if(m)v.minute=Math.max(0,Math.min(59,parseInt(m.value)||0));
+}
+
+function dpApply(id){
+const v=dpState._view[id];
+if(v.selDay==null)return;
+const dt=new Date(v.selYear,v.selMonth,v.selDay,v.hour,v.minute);
+dpState[id]=dt.toISOString();
+const btn=$(id+'Btn');
+if(btn){btn.textContent=dt.toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});btn.classList.add('has-val')}
+const drop=$(id+'Drop');if(drop)drop.classList.remove('open');dpState._open=null;
+arcCustomRange();
+}
+
+document.addEventListener('click',function(e){
+if(dpState._open&&!e.target.closest('.dp-wrap')){
+document.querySelectorAll('.dp-drop.open').forEach(d=>d.classList.remove('open'));dpState._open=null}
+});
 function arcTab(btn,panelId){
 const tabs=$('arcMainTabs');if(tabs)tabs.querySelectorAll('.tb').forEach(b=>b.classList.remove('on'));
 btn.classList.add('on');
