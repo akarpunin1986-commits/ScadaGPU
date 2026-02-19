@@ -203,6 +203,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .dp-apply{width:100%;margin-top:8px;padding:6px;border-radius:var(--rs);border:none;background:var(--g);color:#080c14;font-size:11px;font-weight:600;font-family:var(--u);cursor:pointer;transition:background .15s}
 .dp-apply:hover{background:#00c888}
 .arc-chart-wrap{position:relative;height:350px;background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);padding:10px;margin-bottom:8px}
+.arc-desc{padding:10px 12px;margin-bottom:6px;font-size:12px;line-height:1.6;color:var(--t2);background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);border-left:3px solid #4090ff}
+.arc-desc b{color:var(--t1);font-weight:600}
 .arc-stats{padding:8px 10px;font-size:11px;color:var(--t2);font-family:var(--m)}
 .arc-flt{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
 .arc-pag{padding:4px 0}
@@ -1705,12 +1707,32 @@ function deleteBackup(idx){const backups=getSprBackups();backups.splice(idx,1);s
 let archiveMode=false;
 let arcState={slot:'g1',hours:1,group:'power',almPage:0,almLimit:50};
 let arcChart=null;
-const ARC_GROUPS={
-power:{fields:'power_total,power_a,power_b,power_c',labels:{power_total:'P общая',power_a:'P фаза A',power_b:'P фаза B',power_c:'P фаза C'},unit:'кВт',colors:['#00e09a','#4090ff','#ffb020','#a070ff']},
-voltage:{fields:'gen_uab,gen_ubc,gen_uca,mains_uab',labels:{gen_uab:'Ген UAB',gen_ubc:'Ген UBC',gen_uca:'Ген UCA',mains_uab:'Сеть UAB'},unit:'В',colors:['#00e09a','#4090ff','#ffb020','#ff4060']},
-engine:{fields:'coolant_temp,oil_pressure,oil_temp,battery_volt',labels:{coolant_temp:'Темп. ОЖ',oil_pressure:'Давл. масла',oil_temp:'Темп. масла',battery_volt:'АКБ'},unit:'',colors:['#ff4060','#ffb020','#a070ff','#00e09a']},
-current:{fields:'current_a,current_b,current_c,load_pct',labels:{current_a:'I фаза A',current_b:'I фаза B',current_c:'I фаза C',load_pct:'Нагрузка %'},unit:'А',colors:['#4090ff','#00e09a','#ffb020','#a070ff']}
+// === ARC_GROUPS: per-device-type chart configurations ===
+const ARC_GROUPS_GEN={
+power:{fields:'power_total,power_a,power_b,power_c',labels:{power_total:'Общая мощность (кВт)',power_a:'Мощность фазы A (кВт)',power_b:'Мощность фазы B (кВт)',power_c:'Мощность фазы C (кВт)'},unit:'кВт',colors:['#00e09a','#4090ff','#ffb020','#a070ff'],
+desc:'Активная мощность генератора. «Общая мощность» — суммарная нагрузка на генератор (P = Pa + Pb + Pc). Фазные значения A, B, C показывают распределение нагрузки по фазам. Перекос более 15% между фазами — ненормально.'},
+voltage:{fields:'gen_uab,gen_ubc,gen_uca,mains_uab',labels:{gen_uab:'Генератор UAB (линейное)',gen_ubc:'Генератор UBC (линейное)',gen_uca:'Генератор UCA (линейное)',mains_uab:'Напряжение сети UAB'},unit:'В',colors:['#00e09a','#4090ff','#ffb020','#ff4060'],
+desc:'Линейные (межфазные) напряжения генератора и вводного напряжения сети. UAB — между фазами A и B, UBC — между B и C, UCA — между C и A. Норма 380-400В. Красная линия — напряжение внешней сети на вводе.'},
+engine:{fields:'coolant_temp,oil_pressure,battery_volt,fuel_level',labels:{coolant_temp:'Температура охл. жидкости (°C)',oil_pressure:'Давление масла (кПа)',battery_volt:'Напряжение АКБ (В)',fuel_level:'Уровень топлива (%)'},unit:'',colors:['#ff4060','#ffb020','#00e09a','#a070ff'],
+desc:'Параметры двигателя генератора. Температура ОЖ: норма 70-95°C, выше 100°C — перегрев. Давление масла: норма 200-500 кПа, падение ниже 100 — аварийное. АКБ: норма 24-28В (24В система). Топливо: процент заполнения бака.'},
+current:{fields:'current_a,current_b,current_c,load_pct',labels:{current_a:'Ток генератора фаза A (А)',current_b:'Ток генератора фаза B (А)',current_c:'Ток генератора фаза C (А)',load_pct:'Нагрузка генератора (%)'},unit:'А',colors:['#4090ff','#00e09a','#ffb020','#a070ff'],
+desc:'Токи на выходе генератора по трём фазам и процент нагрузки от номинала. Равномерное распределение токов по фазам — признак сбалансированной нагрузки. Нагрузка выше 80% длительно — повышенный износ.'}
 };
+const ARC_GROUPS_SPR={
+power:{fields:'mains_total_p,mains_p_a,mains_p_b,mains_p_c,busbar_p',labels:{mains_total_p:'Общая мощность сети (кВт)',mains_p_a:'Мощность сети фаза A (кВт)',mains_p_b:'Мощность сети фаза B (кВт)',mains_p_c:'Мощность сети фаза C (кВт)',busbar_p:'Мощность на шине (кВт)'},unit:'кВт',colors:['#00e09a','#4090ff','#ffb020','#a070ff','#ff4060'],
+desc:'Активная мощность на вводе от внешней сети и на общей шине. Сеть A/B/C — мощность по каждой фазе от сетевого ввода. Мощность на шине — то, что реально передаётся потребителям. Разница сеть-шина = потери в коммутации.'},
+voltage:{fields:'mains_uab,mains_ubc,mains_uca,busbar_uab,busbar_ubc,busbar_uca',labels:{mains_uab:'Напряжение сети UAB (В)',mains_ubc:'Напряжение сети UBC (В)',mains_uca:'Напряжение сети UCA (В)',busbar_uab:'Напряжение шины UAB (В)',busbar_ubc:'Напряжение шины UBC (В)',busbar_uca:'Напряжение шины UCA (В)'},unit:'В',colors:['#4090ff','#00e09a','#ffb020','#ff4060','#a070ff','#f472b6'],
+desc:'Линейные напряжения на вводе от внешней сети и на общей шине (после коммутации). Сеть — входящее напряжение от энергосбыта. Шина — напряжение, подаваемое потребителям. Норма 380-400В. Просадка шины при нагрузке — нормально до 5%.'},
+current:{fields:'mains_ia,mains_ib,mains_ic,busbar_current',labels:{mains_ia:'Ток сети фаза A (А)',mains_ib:'Ток сети фаза B (А)',mains_ic:'Ток сети фаза C (А)',busbar_current:'Суммарный ток шины (А)'},unit:'А',colors:['#4090ff','#00e09a','#ffb020','#ff4060'],
+desc:'Токи на сетевом вводе по фазам и суммарный ток на общей шине. Перекос токов более 15% между фазами указывает на неравномерную нагрузку. Ток шины — суммарное потребление всех подключённых нагрузок.'},
+frequency:{fields:'mains_freq,busbar_freq',labels:{mains_freq:'Частота внешней сети (Гц)',busbar_freq:'Частота на шине (Гц)'},unit:'Гц',colors:['#4090ff','#ff4060'],
+desc:'Частота электрической сети на вводе и на общей шине. Номинал 50.0 Гц. Отклонение ±0.5 Гц — допустимо. Провалы частоты сети ниже 49 Гц указывают на перегрузку энергосистемы. При работе от генератора частота зависит от оборотов двигателя.'}
+};
+// Tabs definition per device type: [{key, label}]
+const ARC_TABS_GEN=[{key:'power',label:'⚡ Мощность'},{key:'voltage',label:'🔌 Напряжение'},{key:'engine',label:'🛢 Двигатель'},{key:'current',label:'〰 Токи'}];
+const ARC_TABS_SPR=[{key:'power',label:'⚡ Мощность'},{key:'voltage',label:'🔌 Напряжение'},{key:'current',label:'〰 Токи'},{key:'frequency',label:'📶 Частота'}];
+function arcGetGroups(){return arcState.slot==='spr'?ARC_GROUPS_SPR:ARC_GROUPS_GEN}
+function arcGetTabs(){return arcState.slot==='spr'?ARC_TABS_SPR:ARC_TABS_GEN}
 const CHART_DEFAULTS={responsive:true,maintainAspectRatio:false,animation:{duration:300},interaction:{mode:'index',intersect:false},
 plugins:{legend:{labels:{color:'#94a3b8',font:{family:'Outfit',size:11}}},tooltip:{backgroundColor:'#0a0f1a',borderColor:'#1a2640',borderWidth:1,titleColor:'#e8edf5',bodyColor:'#94a3b8',titleFont:{family:'JetBrains Mono',size:11},bodyFont:{family:'JetBrains Mono',size:10}}},
 scales:{x:{type:'time',grid:{color:'rgba(26,38,64,.5)'},ticks:{color:'#5a6a80',font:{family:'JetBrains Mono',size:9}},time:{tooltipFormat:'dd.MM.yyyy HH:mm',displayFormats:{minute:'HH:mm',hour:'HH:mm',day:'dd.MM'}}},y:{grid:{color:'rgba(26,38,64,.5)'},ticks:{color:'#5a6a80',font:{family:'JetBrains Mono',size:9}}}}};
@@ -1750,12 +1772,9 @@ mn.innerHTML=`
 <button class="tb" onclick="arcTab(this,'arcAlarms')">🔴 Журнал аварий</button>
 <button class="tb" onclick="arcTab(this,'arcDisk')">💾 Хранилище</button></div>
 <div id="arcCharts" style="display:block">
-<div class="tbs" style="margin-bottom:8px">
-<button class="tb on" onclick="arcChGroup(this,'power')">Мощность</button>
-<button class="tb" onclick="arcChGroup(this,'voltage')">Напряжение</button>
-<button class="tb" onclick="arcChGroup(this,'engine')">Двигатель</button>
-<button class="tb" onclick="arcChGroup(this,'current')">Токи</button></div>
+<div class="tbs" style="margin-bottom:8px" id="arcChartTabs"></div>
 <div class="arc-chart-wrap"><canvas id="arcCanvas"></canvas></div>
+<div id="arcDesc" class="arc-desc"></div>
 <div id="arcStats" class="arc-stats"></div></div>
 <div id="arcAlarms" style="display:none">
 <div class="arc-flt">
@@ -1766,12 +1785,12 @@ mn.innerHTML=`
 <div id="arcAlarmTable"></div>
 <div class="arc-pag" id="arcPag"></div></div>
 <div id="arcDisk" style="display:none"><div id="arcDiskInfo"></div></div>`;
-arcLoadChart();arcLoadAlarms();arcLoadDisk();
+arcRenderChartTabs();arcLoadChart();arcLoadAlarms();arcLoadDisk();
 }
 
 function arcDev(btn,slot){
 btn.parentElement.querySelectorAll('.arc-dev').forEach(b=>b.classList.remove('on'));
-btn.classList.add('on');arcState.slot=slot;arcState.almPage=0;arcLoadChart();arcLoadAlarms();
+btn.classList.add('on');arcState.slot=slot;arcState.almPage=0;arcRenderChartTabs();arcLoadChart();arcLoadAlarms();
 }
 function arcSwitchSite(siteKey){
 if(!S[siteKey])return;arcState.siteKey=siteKey;
@@ -1783,7 +1802,7 @@ if(s.g2?.ip)devBtns+=`<button class="arc-dev${firstSlot==='g2'&&!s.g1?.ip?' on':
 if(s.spr?.ip)devBtns+=`<button class="arc-dev${firstSlot==='spr'?' on':''}" onclick="arcDev(this,'spr')">ШПР</button>`;
 const wrap=$('arcDevsWrap');if(wrap)wrap.innerHTML=devBtns;
 arcState.slot=firstSlot||'g1';arcState.almPage=0;
-arcLoadChart();arcLoadAlarms();arcLoadDisk();
+arcRenderChartTabs();arcLoadChart();arcLoadAlarms();arcLoadDisk();
 }
 function arcGetDeviceId(slot){
 const sk=arcState.siteKey;if(!sk||!S[sk])return null;
@@ -1895,6 +1914,13 @@ function arcChGroup(btn,group){
 btn.closest('.tbs').querySelectorAll('.tb').forEach(b=>b.classList.remove('on'));
 btn.classList.add('on');arcState.group=group;arcLoadChart();
 }
+function arcRenderChartTabs(){
+const wrap=$('arcChartTabs');if(!wrap)return;
+const tabs=arcGetTabs();const groups=arcGetGroups();
+// Reset group if current group doesn't exist for this device type
+if(!groups[arcState.group])arcState.group=tabs[0]?.key||'power';
+wrap.innerHTML=tabs.map(t=>`<button class="tb${t.key===arcState.group?' on':''}" onclick="arcChGroup(this,'${t.key}')">${t.label}</button>`).join('');
+}
 
 function arcBucket(hours){
 if(hours<=1)return 0;if(hours<=6)return 60;if(hours<=24)return 300;if(hours<=168)return 1800;return 3600;
@@ -1903,7 +1929,8 @@ if(hours<=1)return 0;if(hours<=6)return 60;if(hours<=24)return 300;if(hours<=168
 async function arcLoadChart(){
 const devId=arcGetDeviceId(arcState.slot);
 if(!devId){arcRenderNoData('Устройство не настроено');return}
-const grp=ARC_GROUPS[arcState.group],hours=arcState.hours;
+const grp=arcGetGroups()[arcState.group],hours=arcState.hours;
+if(!grp){arcRenderNoData('Нет данных для этой вкладки');return}
 const bucket=hours?arcBucket(hours):0;
 let url;
 if(hours){
@@ -1952,12 +1979,17 @@ borderWidth:1.5,pointRadius:0,pointHitRadius:6,tension:0.3,fill:false
 }));
 arcChart=new Chart(canvas,{type:'line',data:{datasets},options:{
 ...CHART_DEFAULTS,
+plugins:{...CHART_DEFAULTS.plugins,legend:{labels:{color:'#94a3b8',font:{family:'Outfit',size:12},padding:14,usePointStyle:true,pointStyle:'rectRounded'}}},
 scales:{...CHART_DEFAULTS.scales,
 y:{...CHART_DEFAULTS.scales.y,title:{display:!!grp.unit,text:grp.unit,color:'#5a6a80',font:{size:10}}}}}});
+// Show chart description
+const descEl=$('arcDesc');
+if(descEl)descEl.innerHTML=grp.desc?`<b>ℹ️ Пояснение:</b> ${grp.desc}`:'';
 }
 
 function arcRenderNoData(msg){
 if(arcChart){arcChart.destroy();arcChart=null}
+const descEl=$('arcDesc');if(descEl)descEl.innerHTML='';
 const el=$('arcStats');if(el)el.innerHTML=`<div style="color:var(--t3);font-size:12px;text-align:center;padding:30px">${msg}</div>`;
 }
 
@@ -2152,4 +2184,6 @@ function almRefresh(){almLoadActive();almLoadHistory()}
     // Connect WebSocket for live data
     connectWebSocket();
 })();
-</script></body></html>
+</script>
+<script src="/alarm_modal.js"></script>
+</body></html>

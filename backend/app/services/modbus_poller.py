@@ -244,6 +244,48 @@ REGISTER_MAP_9520N: dict[str, dict] = {
             "alarm_count": lambda regs: regs[0],
         },
     },
+    # Detailed alarm data table: 7 groups × 15 registers (addresses 1-105)
+    # Shutdown(1), Trip&Stop(16), Trip(31), SafetyT&S(46), SafetyTrip(61), Block(76), Warning(91)
+    "alarm_detail": {
+        "address": 1, "count": 105,
+        "fields": {
+            # Shutdown group (base 1, offsets 0-5)
+            "alarm_sd_0": lambda regs: regs[0],
+            "alarm_sd_1": lambda regs: regs[1],
+            "alarm_sd_2": lambda regs: regs[2],
+            "alarm_sd_3": lambda regs: regs[3],
+            "alarm_sd_4": lambda regs: regs[4],
+            "alarm_sd_5": lambda regs: regs[5],
+            # Trip & Stop group (base 16, offsets 0-5)
+            "alarm_ts_0": lambda regs: regs[15],
+            "alarm_ts_1": lambda regs: regs[16],
+            "alarm_ts_2": lambda regs: regs[17],
+            "alarm_ts_3": lambda regs: regs[18],
+            "alarm_ts_4": lambda regs: regs[19],
+            "alarm_ts_5": lambda regs: regs[20],
+            # Trip group (base 31, offsets 0-5)
+            "alarm_tr_0": lambda regs: regs[30],
+            "alarm_tr_1": lambda regs: regs[31],
+            "alarm_tr_2": lambda regs: regs[32],
+            "alarm_tr_3": lambda regs: regs[33],
+            "alarm_tr_4": lambda regs: regs[34],
+            "alarm_tr_5": lambda regs: regs[35],
+            # Block group (base 76, offsets 0-5)
+            "alarm_bk_0": lambda regs: regs[75],
+            "alarm_bk_1": lambda regs: regs[76],
+            "alarm_bk_2": lambda regs: regs[77],
+            "alarm_bk_3": lambda regs: regs[78],
+            "alarm_bk_4": lambda regs: regs[79],
+            "alarm_bk_5": lambda regs: regs[80],
+            # Warning group (base 91, offsets 0-5)
+            "alarm_wn_0": lambda regs: regs[90],
+            "alarm_wn_1": lambda regs: regs[91],
+            "alarm_wn_2": lambda regs: regs[92],
+            "alarm_wn_3": lambda regs: regs[93],
+            "alarm_wn_4": lambda regs: regs[94],
+            "alarm_wn_5": lambda regs: regs[95],
+        },
+    },
 }
 
 GEN_STATUS_CODES = {
@@ -360,6 +402,24 @@ REGISTER_MAP_9560: dict[str, dict] = {
             "running_minutes_a": lambda regs: regs[1],
             "running_seconds_a": lambda regs: regs[2],
             "start_times_a":     lambda regs: regs[3],
+        },
+    },
+    # Detailed alarm registers 0000-0044
+    "alarm_detail": {
+        "address": 0, "count": 45,
+        "fields": {
+            "alarm_reg_00": lambda regs: regs[0],   # Common flags + modes
+            "alarm_reg_01": lambda regs: regs[1],   # Shutdown alarms
+            "alarm_reg_02": lambda regs: regs[2],   # Shutdown cont.
+            "alarm_reg_08": lambda regs: regs[8],   # Input Shutdown 1-8
+            "alarm_reg_12": lambda regs: regs[12],  # Trip & Stop
+            "alarm_reg_14": lambda regs: regs[14],  # Trip & Stop cont.
+            "alarm_reg_16": lambda regs: regs[16],  # Trip
+            "alarm_reg_20": lambda regs: regs[20],  # Warning
+            "alarm_reg_21": lambda regs: regs[21],  # Warning cont.
+            "alarm_reg_24": lambda regs: regs[24],  # Indication
+            "alarm_reg_30": lambda regs: regs[30],  # Mains Trip
+            "alarm_reg_44": lambda regs: regs[44],  # Mains fault detail
         },
     },
 }

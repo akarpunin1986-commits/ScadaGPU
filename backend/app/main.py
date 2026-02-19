@@ -22,6 +22,8 @@ from services.maintenance_scheduler import MaintenanceScheduler
 from services.metrics_writer import MetricsWriter
 from services.alarm_detector import AlarmDetector
 from services.disk_manager import DiskSpaceManager
+from alarm_analytics.router import router as alarm_analytics_router
+from alarm_analytics.detector import AlarmAnalyticsDetector
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
@@ -86,6 +88,11 @@ async def lifespan(app: FastAPI):
     app.state.disk_manager = dm
     dm_task = asyncio.create_task(dm.start())
 
+    # Alarm Analytics — isolated module (detects individual alarm bits)
+    aa_detector = AlarmAnalyticsDetector(redis, async_session)
+    app.state.alarm_analytics_detector = aa_detector
+    aa_task = asyncio.create_task(aa_detector.start())
+
     yield
 
     # Shutdown
@@ -95,10 +102,11 @@ async def lifespan(app: FastAPI):
     await mw.stop()
     await ad.stop()
     await dm.stop()
+    await aa_detector.stop()
 
     all_tasks = [
         poller_task, ws_bridge_task, scheduler_task, alerts_bridge_task,
-        mw_task, ad_task, dm_task,
+        mw_task, ad_task, dm_task, aa_task,
     ]
     for t in all_tasks:
         t.cancel()
@@ -136,6 +144,7 @@ app.include_router(bitrix_router)
 app.include_router(ai_parser_router)
 app.include_router(history_router)
 app.include_router(ws_router)
+app.include_router(alarm_analytics_router)
 
 
 @app.get("/health")

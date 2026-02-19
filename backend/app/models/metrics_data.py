@@ -63,6 +63,25 @@ class MetricsData(Base):
     turbo_pressure: Mapped[float | None] = mapped_column(Float, default=None)
     fuel_consumption: Mapped[float | None] = mapped_column(Float, default=None)
 
+    # --- Mains power (HGM9560 SPR) ---
+    mains_total_p: Mapped[float | None] = mapped_column(Float, default=None)
+    mains_p_a: Mapped[float | None] = mapped_column(Float, default=None)
+    mains_p_b: Mapped[float | None] = mapped_column(Float, default=None)
+    mains_p_c: Mapped[float | None] = mapped_column(Float, default=None)
+    mains_total_q: Mapped[float | None] = mapped_column(Float, default=None)
+    mains_ia: Mapped[float | None] = mapped_column(Float, default=None)
+    mains_ib: Mapped[float | None] = mapped_column(Float, default=None)
+    mains_ic: Mapped[float | None] = mapped_column(Float, default=None)
+
+    # --- Busbar (HGM9560 SPR) ---
+    busbar_uab: Mapped[float | None] = mapped_column(Float, default=None)
+    busbar_ubc: Mapped[float | None] = mapped_column(Float, default=None)
+    busbar_uca: Mapped[float | None] = mapped_column(Float, default=None)
+    busbar_freq: Mapped[float | None] = mapped_column(Float, default=None)
+    busbar_current: Mapped[float | None] = mapped_column(Float, default=None)
+    busbar_p: Mapped[float | None] = mapped_column(Float, default=None)
+    busbar_q: Mapped[float | None] = mapped_column(Float, default=None)
+
     # --- Accumulated ---
     run_hours: Mapped[float | None] = mapped_column(Float, default=None)
     energy_kwh: Mapped[float | None] = mapped_column(Float, default=None)
