@@ -123,6 +123,10 @@ body{background:var(--bg);color:var(--t);font-family:var(--u);height:100vh;overf
 .conn-test{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:4px;font-size:10px;font-family:var(--m);margin-left:auto;cursor:pointer;background:var(--bg4);border:1px solid var(--bd);color:var(--t3);transition:all .15s}.conn-test:hover{color:var(--t);border-color:var(--bd2)}
 .spr-cg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
 .spr-b{padding:10px 4px;border-radius:8px;border:1px solid var(--bd);background:rgba(255,255,255,.02);color:var(--t3);cursor:pointer;font-family:var(--u);font-size:10px;text-align:center;transition:all .15s;font-weight:500}.spr-b:hover{background:var(--bg4);color:var(--t);border-color:var(--bd2)}.spr-b:active{transform:scale(.96)}.spr-b .si2{font-size:16px;display:block;margin-bottom:3px}
+.spr-b.act-g{background:var(--gd);border-color:rgba(0,224,154,.4);color:var(--g);font-weight:600;box-shadow:0 0 8px rgba(0,224,154,.15)}
+.spr-b.act-r{background:var(--rd);border-color:rgba(255,64,96,.4);color:var(--r);font-weight:600;box-shadow:0 0 8px rgba(255,64,96,.15)}
+.spr-b.act-b{background:var(--bb);border-color:rgba(64,144,255,.4);color:var(--b);font-weight:600;box-shadow:0 0 8px rgba(64,144,255,.15)}
+.spr-b.act-y{background:var(--yd);border-color:rgba(255,176,32,.4);color:var(--y);font-weight:600;box-shadow:0 0 8px rgba(255,176,32,.15)}
 .preset-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
 .preset-btn{padding:10px 6px;border-radius:8px;border:1px solid var(--bd);background:rgba(255,255,255,.02);color:var(--t2);cursor:pointer;font-family:var(--u);font-size:11px;text-align:center;transition:all .15s}
 .preset-btn:hover{background:var(--bg4);color:var(--t);border-color:var(--bd2)}.preset-btn:active{transform:scale(.96)}
@@ -566,9 +570,9 @@ function applyGenDetailed(sl, m) {
     }
 }
 
-const GENSET_ST_TEXT={0:'Standby',1:'Preheat',2:'Fuel Output',3:'Crank',4:'Crank Rest',5:'Safety Run',6:'Start Idle',7:'HS Warming Up',8:'Wait for Load',9:'Normal Running',10:'HS Cooling',11:'Stop Idle',12:'ETS',13:'Wait for Stop',14:'Stop Failure'};
-const SW_ST_TEXT={0:'Synchronizing',1:'Close Delay',2:'Wait Closing',3:'Closed',4:'Unloading',5:'Open Delay',6:'Wait Opening',7:'Opened'};
-const MAINS_ST_TEXT={0:'Mains Normal',1:'Normal Delay',2:'Abnormal',3:'Abnormal Delay'};
+const GENSET_ST_TEXT={0:'Ожидание',1:'Прогрев',2:'Подача топлива',3:'Стартер',4:'Пауза стартера',5:'Пробный пуск',6:'Холостой ход',7:'Прогрев ВС',8:'Ожид. нагрузки',9:'Работа',10:'Охлажд. ВС',11:'Холостой стоп',12:'Аварийный стоп',13:'Ожид. остановки',14:'Ошибка останова'};
+const SW_ST_TEXT={0:'Синхронизация',1:'Задерж. вкл.',2:'Ожид. замыкания',3:'Замкнут',4:'Сброс нагрузки',5:'Задерж. откл.',6:'Ожид. размыкания',7:'Разомкнут'};
+const MAINS_ST_TEXT={0:'Сеть норма',1:'Норма (задержка)',2:'Авария',3:'Авария (задержка)'};
 const MAINS_ST_RU={0:'НОРМА',1:'НОРМА (задержка)',2:'АВАРИЯ',3:'АВАРИЯ (задержка)'};
 function _v(v,d){return v!=null?v:d}
 function _f1(v){return v!=null?v.toFixed(1):'—'}
@@ -580,27 +584,44 @@ function applySprDetailed(m) {
     const bC = (m.busbar_switch === 3);
     const mC = (m.mains_switch === 3);
     const gOn = (m.genset_status === 9);
-    // Get G1 data for overview
+    // Get G1 & G2 data for overview
     const g1id = getDeviceIdForSlot('g1');
+    const g2id = getDeviceIdForSlot('g2');
     const g1 = g1id ? latestMetrics[g1id] : null;
+    const g2 = g2id ? latestMetrics[g2id] : null;
     const g1on = g1 && g1.online !== false;
+    const g2on = g2 && g2.online !== false;
 
     // === ОБЗОР TAB ===
     const sprov=$('sprov');
     if(sprov){
-    // -- Gen panel --
-    const gSt=g1on?(g1.gen_status!=null?g1.gen_status:-1):-1;
-    const gStT=GENSET_ST_TEXT[gSt]||'—';
-    const gStC=gSt===9?'background:rgba(0,224,154,.15);color:#00e09a':'background:var(--bg);color:var(--t3)';
-    const gP=g1on?_f1(g1.power_total):'—';
-    const gQ=g1on?_f1(g1.reactive_total):'—';
-    const gUab=g1on?Math.round(_v(g1.gen_uab,0)):'—';
-    const gUbc=g1on?Math.round(_v(g1.gen_ubc,0)):'—';
-    const gUca=g1on?Math.round(_v(g1.gen_uca,0)):'—';
-    const gIa=g1on?_f1(g1.current_a):'—';
-    const gIb=g1on?_f1(g1.current_b):'—';
-    const gIc=g1on?_f1(g1.current_c):'—';
-    const gF=g1on?_f2(g1.gen_freq):'—';
+    // -- Helper: build gen panel HTML for a generator --
+    function _genPanel(gx, gxon, label, gxid) {
+        const st = gxon ? (gx.gen_status != null ? gx.gen_status : -1) : (m.genset_status != null ? m.genset_status : -1);
+        const stT = GENSET_ST_TEXT[st] || '—';
+        const stC = st === 9 ? 'background:rgba(0,224,154,.15);color:#00e09a' : 'background:var(--bg);color:var(--t3)';
+        let body;
+        if (gxon) {
+            const P=_f1(gx.power_total), Q=_f1(gx.reactive_total);
+            const Uab=Math.round(_v(gx.gen_uab,0)), Ubc=Math.round(_v(gx.gen_ubc,0)), Uca=Math.round(_v(gx.gen_uca,0));
+            const Ia=_f1(gx.current_a), Ib=_f1(gx.current_b), Ic=_f1(gx.current_c);
+            const F=_f2(gx.gen_freq);
+            body = `<div class="ov-pq"><span style="color:var(--g)"><small>P:</small>${P} кВт</span><span style="color:var(--t3)"><small>Q:</small>${Q} квар</span></div>
+<table class="pt"><thead><tr><th>Фаза</th><th>U лин, В</th><th>I, А</th></tr></thead><tbody>
+<tr><td class="ph">A</td><td>${Uab}</td><td>${Ia}</td></tr>
+<tr><td class="ph">B</td><td>${Ubc}</td><td>${Ib}</td></tr>
+<tr><td class="ph">C</td><td>${Uca}</td><td>${Ic}</td></tr></tbody></table>
+<div style="text-align:center;margin-top:6px;font-family:var(--m)"><span style="color:var(--g);font-size:13px;font-weight:600">f: ${F} Гц</span></div>`;
+        } else {
+            body = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px 10px;color:var(--t4)">
+<div style="font-size:22px;margin-bottom:6px;opacity:.4">⚡</div>
+<div style="font-size:11px;font-weight:500;color:var(--t3)">${label} офлайн</div>
+<div style="font-size:10px">Нет связи с контроллером</div></div>`;
+        }
+        return `<div class="ov-panel"><div class="ov-hdr"><div class="ov-lbl"><span style="color:var(--g)">●</span> ${label}</div><span class="ov-bdg" style="${stC}">${stT}</span></div>${body}</div>`;
+    }
+    const g1Html = g1id ? _genPanel(g1, g1on, 'Г1', g1id) : '';
+    const g2Html = g2id ? _genPanel(g2, g2on, 'Г2', g2id) : '';
     // -- Mains panel --
     const mStR=MAINS_ST_RU[m.mains_status]||'—';
     const mStC=mN?'background:rgba(0,188,212,.15);color:#00bcd4':'background:rgba(255,64,96,.15);color:#ff4060';
@@ -623,16 +644,11 @@ function applySprDetailed(m) {
     const bSwC=bC?'var(--g)':'var(--r)';const mSwC=mC?'var(--g)':'var(--r)';
     const bSwT=bC?'ЗАМКНУТ':'РАЗОМКН';const mSwT=mC?'ЗАМКНУТ':'РАЗОМКН';
     const lineOn=bC||mC;
-
-    sprov.innerHTML=`<div class="ov-grid">
-<div class="ov-panel"><div class="ov-hdr"><div class="ov-lbl"><span style="color:var(--g)">●</span> Генератор</div><span class="ov-bdg" style="${gStC}">${gStT}</span></div>
-<div class="ov-pq"><span style="color:var(--g)"><small>P:</small>${gP} кВт</span><span style="color:var(--t3)"><small>Q:</small>${gQ} квар</span></div>
-<table class="pt"><thead><tr><th>Фаза</th><th>U лин, В</th><th>I, А</th></tr></thead><tbody>
-<tr><td class="ph">A</td><td>${gUab}</td><td>${gIa}</td></tr>
-<tr><td class="ph">B</td><td>${gUbc}</td><td>${gIb}</td></tr>
-<tr><td class="ph">C</td><td>${gUca}</td><td>${gIc}</td></tr></tbody></table>
-<div style="text-align:center;margin-top:6px;font-family:var(--m)"><span style="color:var(--g);font-size:13px;font-weight:600">f: ${gF} Гц</span></div>
-${!g1on?'<div style="text-align:center;color:var(--t4);font-size:10px;margin-top:4px">Нет связи с G1</div>':''}</div>
+    // Grid: if 2 gens + mains = 3 columns, if 1 gen + mains = 2 columns
+    const genCount = (g1id?1:0)+(g2id?1:0);
+    const gridCols = genCount + 1; // +1 for mains
+    sprov.innerHTML=`<div class="ov-grid" style="grid-template-columns:repeat(${gridCols},1fr)">
+${g1Html}${g2Html}
 <div class="ov-panel"><div class="ov-hdr"><div class="ov-lbl"><span style="color:var(--b)">●</span> Сеть</div><span class="ov-bdg" style="${mStC}">${mStR}</span></div>
 <div class="ov-pq"><span style="color:var(--b)"><small>P:</small>${mP} кВт</span><span style="color:var(--t3)"><small>Q:</small>${mQ} квар</span></div>
 <table class="pt"><thead><tr><th>Фаза</th><th>U лин, В</th><th>U фаз, В</th><th>I, А</th></tr></thead><tbody>
@@ -679,15 +695,15 @@ ${!g1on?'<div style="text-align:center;color:var(--t4);font-size:10px;margin-top
     if (sprs) {
         const bSwV=m.busbar_switch!=null?m.busbar_switch:-1;
         const mSwV=m.mains_switch!=null?m.mains_switch:-1;
-        const bSwT2=SW_ST_TEXT[bSwV]||'Unknown';
-        const mSwT2=SW_ST_TEXT[mSwV]||'Unknown';
+        const bSwT2=SW_ST_TEXT[bSwV]||'—';
+        const mSwT2=SW_ST_TEXT[mSwV]||'—';
         const bSwC2=bSwV===3?'var(--g)':bSwV===7?'var(--r)':'var(--y)';
         const mSwC2=mSwV===3?'var(--g)':mSwV===7?'var(--r)':'var(--y)';
         const gStV=m.genset_status!=null?m.genset_status:-1;
-        const gStT2=GENSET_ST_TEXT[gStV]||'Unknown';
+        const gStT2=GENSET_ST_TEXT[gStV]||'—';
         const gStC2=gStV===9?'var(--g)':gStV===0?'var(--t3)':'var(--y)';
         const mStV=m.mains_status!=null?m.mains_status:-1;
-        const mStT2=MAINS_ST_TEXT[mStV]||'Unknown';
+        const mStT2=MAINS_ST_TEXT[mStV]||'—';
         const mStC2=mStV===0?'var(--g)':mStV===2||mStV===3?'var(--r)':'var(--y)';
         const ind=m.indicators!=null?m.indicators:0;
         const lineOn2=bC||mC;
@@ -696,13 +712,16 @@ ${!g1on?'<div style="text-align:center;color:var(--t4);font-size:10px;margin-top
 <div class="ov-sw-item"><div class="ov-sw-lbl">Авт. сети</div><div style="font-family:var(--m);font-size:11px;font-weight:600;color:${mSwC2}">${mSwT2}</div></div></div>
 <div class="mg mg2"><div class="mc"><div class="ml">Статус генератора</div><div class="mv" style="color:${gStC2}">${gStT2}</div></div><div class="mc"><div class="ml">Статус сети</div><div class="mv" style="color:${mStC2}">${mStT2}</div></div></div>
 <div class="ind-grid">
-<div class="ind-item"><div class="ind-dot" style="background:${ind&1?'var(--g)':'var(--t4)'}"></div>Mains Normal</div>
-<div class="ind-item"><div class="ind-dot" style="background:${ind&2?'var(--g)':'var(--t4)'}"></div>Mains Close</div>
-<div class="ind-item"><div class="ind-dot" style="background:${ind&4?'var(--g)':'var(--t4)'}"></div>Busbar Normal</div>
-<div class="ind-item"><div class="ind-dot" style="background:${ind&8?'var(--g)':'var(--t4)'}"></div>Busbar Close</div>
-<div class="ind-item"><div class="ind-dot" style="background:${ind&16?'var(--r)':'var(--t4)'}"></div>Alarm</div>
-<div class="ind-item"><div class="ind-dot" style="background:${ind&32?'var(--g)':'var(--t4)'}"></div>Running</div></div>`;
+<div class="ind-item"><div class="ind-dot" style="background:${ind&1?'var(--g)':'var(--t4)'}"></div>Сеть норма</div>
+<div class="ind-item"><div class="ind-dot" style="background:${ind&2?'var(--g)':'var(--t4)'}"></div>Сеть замкн.</div>
+<div class="ind-item"><div class="ind-dot" style="background:${ind&4?'var(--g)':'var(--t4)'}"></div>Шина норма</div>
+<div class="ind-item"><div class="ind-dot" style="background:${ind&8?'var(--g)':'var(--t4)'}"></div>Шина замкн.</div>
+<div class="ind-item"><div class="ind-dot" style="background:${ind&16?'var(--r)':'var(--t4)'}"></div>Авария</div>
+<div class="ind-item"><div class="ind-dot" style="background:${ind&32?'var(--g)':'var(--t4)'}"></div>Работа</div></div>`;
     }
+
+    // === UPDATE CONTROL TAB BUTTONS ===
+    updateSprControlMode(m);
 }
 
 function updateSummary() {
@@ -745,7 +764,7 @@ function updateFlowFromMetrics() {
     const pf = $('pflow');
     if (!pf || !cur || !S[cur]) return;
 
-    let g1on = false, g2on = false, mN = false, bC = false, mC = false, p1 = 0, p2 = 0;
+    let g1on = false, g2on = false, mN = false, bC = false, mC = false, p1 = 0, p2 = 0, mP = 0, busP = 0;
 
     for (const [devId, m] of Object.entries(latestMetrics)) {
         const info = deviceSlotIndex[devId];
@@ -756,10 +775,12 @@ function updateFlowFromMetrics() {
             mN = (m.mains_status === 0);
             bC = (m.busbar_switch === 3);
             mC = (m.mains_switch === 3);
+            mP = m.mains_total_p || 0;
+            busP = m.busbar_p || 0;
         }
     }
 
-    pf.innerHTML = flowSvg(g1on, g2on, mN, bC, mC, p1, p2);
+    pf.innerHTML = flowSvg(g1on, g2on, mN, bC, mC, p1, p2, mP, busP);
 }
 
 function getDeviceIdForSlot(slot) {
@@ -986,56 +1007,80 @@ function delTOInterval(idx){const tpl=getTpl();if(tpl.intervals.length<=1)return
 function editTemplates(){const tpl=getTpl();$('tplT').textContent='Редактирование';$('tplBody').innerHTML=tpl.intervals.map((iv,i)=>`<div class="cfs"><div class="cft"><span class="dot dot-g"></span><input class="fi" style="width:80px;padding:4px 6px;font-size:12px;font-weight:600" id="tin${i}" value="${iv.name}"><span class="conn-test del" onclick="delTOInterval(${i})">✕ Удалить</span></div><div class="fg"><label class="fl">Интервал (ч)</label><input class="fi" id="tih${i}" value="${iv.hours}" type="number"></div><div class="fg"><label class="fl">Работы ([!] = критичная)</label><textarea class="ta" id="tit${i}" rows="4">${iv.tasks.map(t=>(t.c?'[!] ':'')+t.text).join('\n')}</textarea></div></div>`).join('')+`<div style="display:flex;gap:8px;margin-top:4px"><button class="bp" style="flex:1" onclick="saveTemplates()">Сохранить</button><button class="bs2" style="padding:10px" onclick="addTOInterval()">+ Добавить</button><button class="bs2" style="flex:1;padding:10px" onclick="openTOTemplates()">Назад</button></div>`}
 function saveTemplates(){const tpl=getTpl();tpl.intervals.forEach((iv,i)=>{iv.name=$('tin'+i)?.value||iv.name;iv.hours=parseInt($('tih'+i).value)||iv.hours;const lines=$('tit'+i).value.split('\n').filter(l=>l.trim());if(lines.length===0)lines.push('Осмотр');iv.tasks=lines.map((l,j)=>{const c=l.startsWith('[!]');return{id:j+1,text:l.replace('[!] ','').replace('[!]','').trim(),c:c?1:0}})});saveTpl(tpl);ae('✅ Регламенты обновлены');openTOTemplates()}
 // === POWER FLOW SVG ===
-function flowSvg(g1on,g2on,mN,bC,mC,p1,p2){
-p1=p1||0;p2=p2||0;
+// Силовая цепь: Г1,Г2 → авт.шины → ШИНА ← авт.сети ← СЕТЬ
+// Нагрузка висит на шине.
+// Три точки измерения:
+//   busP  = busbar_p    — ТТ на генераторном вводе (≈ P генератора)
+//   mP    = mains_total_p — ТТ на сетевом вводе (P сети)
+//   loadP = busP + mP   — суммарная мощность на нагрузке (расчётная)
+// Когда оба автомата замкнуты (параллель): P нагрузки = P шины + P сети
+// Когда только авт.шины замкнут (островной): P нагрузки = P шины
+// Когда только авт.сети замкнут (только сеть): P нагрузки = P сети
+function flowSvg(g1on,g2on,mN,bC,mC,p1,p2,mP,busP){
+p1=p1||0;p2=p2||0;mP=mP||0;busP=busP||0;
 const gAct=(g1on||g2on)&&bC,mAct=mN&&mC,busAct=gAct||mAct;
 const g1act=g1on&&bC,g2act=g2on&&bC;
+const genTotal=p1+p2;
+// P нагрузки = сумма вводов через замкнутые автоматы
+const loadP=(bC?busP:0)+(mC?mP:0);
 // Line thickness proportional to power (2-5px range)
 const g1w=g1act?Math.max(2,Math.min(5,p1/100)):2.5;
 const g2w=g2act?Math.max(2,Math.min(5,p2/100)):2.5;
-return`<svg viewBox="0 0 740 92" style="width:100%">
+const mw=mAct?Math.max(2,Math.min(5,mP/100)):2.5;
+// Power label formatting
+const _pw=v=>Math.abs(v)>=1000?(v/1000).toFixed(1)+' МВт':v.toFixed(1)+' кВт';
+return`<svg viewBox="0 0 740 96" style="width:100%">
 <!-- G1 (source, top-left) -->
-<circle cx="46" cy="14" r="12" fill="${g1on?'rgba(0,224,154,.08)':'rgba(255,255,255,.02)'}" stroke="${g1on?'var(--g)':'var(--t4)'}" stroke-width="1.5"/>
-<text x="46" y="12" fill="${g1on?'var(--g)':'var(--t3)'}" font-size="8" text-anchor="middle" font-family="var(--m)" font-weight="700">G1</text>
-<text x="46" y="20" fill="${g1on?'rgba(0,224,154,.6)':'var(--t4)'}" font-size="5.5" text-anchor="middle" font-family="var(--m)">${g1on?(p1>0?p1.toFixed(0)+'кВт':'РАБ'):'СТОП'}</text>
+<circle cx="46" cy="16" r="12" fill="${g1on?'rgba(0,224,154,.08)':'rgba(255,255,255,.02)'}" stroke="${g1on?'var(--g)':'var(--t4)'}" stroke-width="1.5"/>
+<text x="46" y="14" fill="${g1on?'var(--g)':'var(--t3)'}" font-size="8" text-anchor="middle" font-family="var(--m)" font-weight="700">Г1</text>
+<text x="46" y="22" fill="${g1on?'rgba(0,224,154,.6)':'var(--t4)'}" font-size="5.5" text-anchor="middle" font-family="var(--m)">${g1on?(p1>0?_pw(p1):'РАБ'):'СТОП'}</text>
 <!-- G1 → Y-join -->
-<line x1="58" y1="14" x2="100" y2="14" class="pline ${g1act?'on':''}" stroke-width="${g1w}"/>
-<line x1="100" y1="14" x2="100" y2="36" class="pline ${g1act?'on':''}" stroke-width="${g1w}"/>
+<line x1="58" y1="16" x2="100" y2="16" class="pline ${g1act?'on':''}" stroke-width="${g1w}"/>
+<line x1="100" y1="16" x2="100" y2="38" class="pline ${g1act?'on':''}" stroke-width="${g1w}"/>
 <!-- G2 (source, bottom-left) -->
-<circle cx="46" cy="58" r="12" fill="${g2on?'rgba(0,224,154,.08)':'rgba(255,255,255,.02)'}" stroke="${g2on?'var(--g)':'var(--t4)'}" stroke-width="1.5"/>
-<text x="46" y="56" fill="${g2on?'var(--g)':'var(--t3)'}" font-size="8" text-anchor="middle" font-family="var(--m)" font-weight="700">G2</text>
-<text x="46" y="64" fill="${g2on?'rgba(0,224,154,.6)':'var(--t4)'}" font-size="5.5" text-anchor="middle" font-family="var(--m)">${g2on?(p2>0?p2.toFixed(0)+'кВт':'РАБ'):'СТОП'}</text>
+<circle cx="46" cy="60" r="12" fill="${g2on?'rgba(0,224,154,.08)':'rgba(255,255,255,.02)'}" stroke="${g2on?'var(--g)':'var(--t4)'}" stroke-width="1.5"/>
+<text x="46" y="58" fill="${g2on?'var(--g)':'var(--t3)'}" font-size="8" text-anchor="middle" font-family="var(--m)" font-weight="700">Г2</text>
+<text x="46" y="66" fill="${g2on?'rgba(0,224,154,.6)':'var(--t4)'}" font-size="5.5" text-anchor="middle" font-family="var(--m)">${g2on?(p2>0?_pw(p2):'РАБ'):'СТОП'}</text>
 <!-- G2 → Y-join -->
-<line x1="58" y1="58" x2="100" y2="58" class="pline ${g2act?'on':''}" stroke-width="${g2w}"/>
-<line x1="100" y1="58" x2="100" y2="36" class="pline ${g2act?'on':''}" stroke-width="${g2w}"/>
+<line x1="58" y1="60" x2="100" y2="60" class="pline ${g2act?'on':''}" stroke-width="${g2w}"/>
+<line x1="100" y1="60" x2="100" y2="38" class="pline ${g2act?'on':''}" stroke-width="${g2w}"/>
 <!-- Y-join → Busbar Switch -->
-<line x1="100" y1="36" x2="150" y2="36" class="pline ${gAct?'on':''}"/>
+<line x1="100" y1="38" x2="150" y2="38" class="pline ${gAct?'on':''}"/>
+<!-- GEN POWER LABEL: P шины (ТТ генераторного ввода) — над линией авт.шины→шина -->
+${bC&&busP>0?`<text x="270" y="30" fill="var(--g)" font-size="7.5" text-anchor="middle" font-family="var(--m)" font-weight="700">${_pw(busP)}</text>
+<text x="270" y="38" fill="var(--t4)" font-size="5" text-anchor="middle" font-family="var(--m)">P шины</text>`:''}
 <!-- Busbar Switch -->
-<rect x="150" y="26" width="48" height="20" rx="4" fill="${bC?'rgba(0,224,154,.08)':'rgba(255,255,255,.02)'}" stroke="${bC?'var(--g)':'var(--t4)'}" stroke-width="1.5"/>
-<text x="174" y="39" fill="${bC?'var(--g)':'var(--t3)'}" font-size="6.5" text-anchor="middle" font-family="var(--m)" font-weight="600">${bC?'ЗАМКН':'РАЗОМК'}</text>
-<text x="174" y="21" fill="var(--t3)" font-size="5.5" text-anchor="middle" font-family="var(--m)">Авт. шины</text>
+<rect x="150" y="28" width="48" height="20" rx="4" fill="${bC?'rgba(0,224,154,.08)':'rgba(255,255,255,.02)'}" stroke="${bC?'var(--g)':'var(--t4)'}" stroke-width="1.5"/>
+<text x="174" y="41" fill="${bC?'var(--g)':'var(--t3)'}" font-size="6.5" text-anchor="middle" font-family="var(--m)" font-weight="600">${bC?'ЗАМКН':'РАЗОМК'}</text>
+<text x="174" y="23" fill="var(--t3)" font-size="5.5" text-anchor="middle" font-family="var(--m)">Авт. шины</text>
 <!-- Busbar Switch → BUS LEFT -->
-<line x1="198" y1="36" x2="340" y2="36" class="pline bus ${gAct?'on':(busAct?'on':'')}" stroke-width="4"/>
+<line x1="198" y1="38" x2="340" y2="38" class="pline bus ${gAct?'on':(busAct?'on':'')}" stroke-width="4"/>
 <!-- BUS CENTER LABEL -->
-<rect x="340" y="27" width="64" height="18" rx="4" fill="var(--bg3)" stroke="${busAct?'var(--g)':'var(--t4)'}" stroke-width="1"/>
-<text x="372" y="39" fill="${busAct?'var(--g)':'var(--t3)'}" font-size="8" text-anchor="middle" font-family="var(--m)" font-weight="700">ШИНА</text>
-<text x="372" y="22" fill="var(--p)" font-size="5.5" text-anchor="middle" font-family="var(--m)" font-weight="600">ШПР</text>
+<rect x="340" y="29" width="64" height="18" rx="4" fill="var(--bg3)" stroke="${busAct?'var(--g)':'var(--t4)'}" stroke-width="1"/>
+<text x="372" y="41" fill="${busAct?'var(--g)':'var(--t3)'}" font-size="8" text-anchor="middle" font-family="var(--m)" font-weight="700">ШИНА</text>
+<text x="372" y="24" fill="var(--p)" font-size="5.5" text-anchor="middle" font-family="var(--m)" font-weight="600">ШПР</text>
 <!-- BUS RIGHT → Mains Switch -->
-<line x1="404" y1="36" x2="520" y2="36" class="pline bus ${mAct?'monR':(busAct?'on':'')}" stroke-width="4"/>
+<line x1="404" y1="38" x2="520" y2="38" class="pline bus ${mAct?'monR':(busAct?'on':'')}" stroke-width="4"/>
+<!-- MAINS POWER LABEL: P сети (ТТ сетевого ввода) — над линией шина→авт.сети -->
+${mC&&mP>0?`<text x="462" y="30" fill="#4090ff" font-size="7.5" text-anchor="middle" font-family="var(--m)" font-weight="700">${_pw(mP)}</text>
+<text x="462" y="38" fill="var(--t4)" font-size="5" text-anchor="middle" font-family="var(--m)">P сети</text>`:''}
 <!-- Mains Switch -->
-<rect x="520" y="26" width="48" height="20" rx="4" fill="${mC?'rgba(64,144,255,.1)':'rgba(255,255,255,.02)'}" stroke="${mC?'#4090ff':'var(--t4)'}" stroke-width="1.5"/>
-<text x="544" y="39" fill="${mC?'#4090ff':'var(--t3)'}" font-size="6.5" text-anchor="middle" font-family="var(--m)" font-weight="600">${mC?'ЗАМКН':'РАЗОМК'}</text>
-<text x="544" y="21" fill="var(--t3)" font-size="5.5" text-anchor="middle" font-family="var(--m)">Авт. сети</text>
+<rect x="520" y="28" width="48" height="20" rx="4" fill="${mC?'rgba(64,144,255,.1)':'rgba(255,255,255,.02)'}" stroke="${mC?'#4090ff':'var(--t4)'}" stroke-width="1.5"/>
+<text x="544" y="41" fill="${mC?'#4090ff':'var(--t3)'}" font-size="6.5" text-anchor="middle" font-family="var(--m)" font-weight="600">${mC?'ЗАМКН':'РАЗОМК'}</text>
+<text x="544" y="23" fill="var(--t3)" font-size="5.5" text-anchor="middle" font-family="var(--m)">Авт. сети</text>
 <!-- Mains Switch → MAINS -->
-<line x1="568" y1="36" x2="630" y2="36" class="pline ${mAct?'monR':''}"/>
+<line x1="568" y1="38" x2="630" y2="38" class="pline ${mAct?'monR':''}" stroke-width="${mw}"/>
 <!-- MAINS (source, right) -->
-<rect x="630" y="24" width="56" height="24" rx="5" fill="${mN?'rgba(64,144,255,.1)':'rgba(255,64,96,.06)'}" stroke="${mN?'#4090ff':'#ff4060'}" stroke-width="1.5"/>
-<text x="658" y="40" fill="${mN?'#4090ff':'#ff4060'}" font-size="8.5" text-anchor="middle" font-family="var(--m)" font-weight="600">СЕТЬ</text>
-<text x="658" y="18" fill="${mN?'rgba(64,144,255,.6)':'rgba(255,64,96,.5)'}" font-size="5.5" text-anchor="middle" font-family="var(--m)">${mN?'НОРМА':'АВАРИЯ'}</text>
+<rect x="630" y="26" width="56" height="24" rx="5" fill="${mN?'rgba(64,144,255,.1)':'rgba(255,64,96,.06)'}" stroke="${mN?'#4090ff':'#ff4060'}" stroke-width="1.5"/>
+<text x="658" y="42" fill="${mN?'#4090ff':'#ff4060'}" font-size="8.5" text-anchor="middle" font-family="var(--m)" font-weight="600">СЕТЬ</text>
+<text x="658" y="20" fill="${mN?'rgba(64,144,255,.6)':'rgba(255,64,96,.5)'}" font-size="5.5" text-anchor="middle" font-family="var(--m)">${mN?'НОРМА':'АВАРИЯ'}</text>
 <!-- BUS → LOAD -->
-<line x1="372" y1="45" x2="372" y2="66" class="pline ${busAct?'on':''}"/>
-<rect x="342" y="66" width="60" height="20" rx="5" fill="${busAct?'rgba(0,224,154,.06)':'rgba(255,255,255,.02)'}" stroke="${busAct?'var(--g)':'var(--t4)'}" stroke-width="1.5"/>
-<text x="372" y="79" fill="${busAct?'var(--t)':'var(--t3)'}" font-size="7.5" text-anchor="middle" font-family="var(--m)" font-weight="600">НАГРУЗКА</text>
+<line x1="372" y1="47" x2="372" y2="68" class="pline ${busAct?'on':''}"/>
+<!-- LOAD POWER LABEL: P нагрузки = P шины + P сети -->
+${busAct&&loadP>0?`<text x="398" y="57" fill="var(--y)" font-size="7.5" text-anchor="start" font-family="var(--m)" font-weight="700">${_pw(loadP)}</text>
+<text x="398" y="66" fill="var(--t4)" font-size="5" text-anchor="start" font-family="var(--m)">P нагр.</text>`:''}
+<rect x="342" y="68" width="60" height="22" rx="5" fill="${busAct?'rgba(255,176,32,.06)':'rgba(255,255,255,.02)'}" stroke="${busAct?'var(--y)':'var(--t4)'}" stroke-width="1.5"/>
+<text x="372" y="82" fill="${busAct?'var(--y)':'var(--t3)'}" font-size="7.5" text-anchor="middle" font-family="var(--m)" font-weight="600">НАГРУЗКА</text>
 </svg>`}
 // === RENDER ===
 function renderDash(){const mn=$('mainArea');
@@ -1045,7 +1090,7 @@ mn.innerHTML=`<div class="dh"><div class="dt"><div class="ld"></div><h1>${esc(s.
 <div class="ss"><div class="sc"><div class="sl2">P шины</div><div class="sv" style="color:var(--g)" id="sP">—<span class="su">кВт</span></div></div><div class="sc"><div class="sl2">P генераторов</div><div class="sv" style="color:var(--p)" id="sPg">—<span class="su">кВт</span></div></div><div class="sc"><div class="sl2">U сети</div><div class="sv" id="sU">—<span class="su">В</span></div></div><div class="sc"><div class="sl2">Устройства</div><div class="sv" id="sG">${cfg}<span class="su">/3</span></div></div><div class="sc"><div class="sl2">Состояние</div><div id="sSt"><span class="bdg bdg-off">${cfg?'Ожидание':'—'}</span></div></div><div class="sc"><div class="sl2">Ответственный</div><div class="sv" id="sResp" style="font-size:12px">—</div></div></div>
 ${cfg===0?'<div class="empty-dash" style="padding:40px"><div style="font-size:32px;margin-bottom:10px;opacity:.4">⚙</div><p>Нажмите <b>Настройки</b></p></div>':`
 <div class="gg">${genCard('g1','Генератор 1',s.g1)}${genCard('g2','Генератор 2',s.g2)}</div>
-<div class="pflow" id="pflow">${flowSvg(false,false,false,false,false)}</div>
+<div class="pflow" id="pflow">${flowSvg(false,false,false,false,false,0,0,0,0)}</div>
 ${hs?sprCard(s.spr):''}
 `}<div class="ev"><div class="ev-t">Журнал событий</div><div id="evL">${evts.length?evts.slice(0,10).map(e=>`<div class="er"><span class="et">${e.t}</span>${esc(e.m)}</div>`).join(''):'<div style="color:var(--t4);font-size:11px">—</div>'}</div></div>`;uCk();if(demo)demoTick()}
 function genCard(sl,nm,c){
@@ -1113,13 +1158,13 @@ function sprCard(c){return`<div class="sr2"><div class="cc s-stb" id="cspr"><div
 <div id="sprCfgBanner" style="padding:8px 10px;background:var(--bg3);border:1px solid var(--bd);border-radius:6px;margin-bottom:10px;font-size:11px;color:var(--t3);font-family:var(--m);text-align:center">Откройте вкладку — конфигурация будет считана автоматически</div>
 <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Команды HGM9560 (FC05)</div>
 <div class="spr-cg">
-<button class="spr-b" onclick="cmdConfirm('ШПР','Start','▶ Пуск','FC05 0x0000')"><span class="si2">▶</span>Пуск</button>
-<button class="spr-b" onclick="cmdConfirm('ШПР','Stop','⏹ Стоп','FC05 0x0001')"><span class="si2">⏹</span>Стоп</button>
-<button class="spr-b" onclick="cmdConfirm('ШПР','Auto','🅰 Авто','FC05 0x0003')"><span class="si2">🅰</span>Авто</button>
-<button class="spr-b" onclick="cmdConfirm('ШПР','Manual','🔧 Ручн.','FC05 0x0004')"><span class="si2">🔧</span>Ручн.</button>
+<button class="spr-b" id="sprCmdStart" onclick="cmdConfirm('ШПР','Start','▶ Пуск','FC05 0x0000')"><span class="si2">▶</span>Пуск</button>
+<button class="spr-b" id="sprCmdStop" onclick="cmdConfirm('ШПР','Stop','⏹ Стоп','FC05 0x0001')"><span class="si2">⏹</span>Стоп</button>
+<button class="spr-b" id="sprCmdAuto" onclick="cmdConfirm('ШПР','Auto','🅰 Авто','FC05 0x0003')"><span class="si2">🅰</span>Авто</button>
+<button class="spr-b" id="sprCmdManual" onclick="cmdConfirm('ШПР','Manual','🔧 Ручн.','FC05 0x0004')"><span class="si2">🔧</span>Ручн.</button>
 </div><div class="spr-cg">
-<button class="spr-b" onclick="cmdConfirm('ШПР','MainsSwitch','🔌 Авт.сети','FC05 0x0005: Mains Close/Open')"><span class="si2">🔌</span>Авт.сети</button>
-<button class="spr-b" onclick="cmdConfirm('ШПР','BusbarSwitch','⚡ Авт.шины','FC05 0x0006: Busbar Close/Open')"><span class="si2">⚡</span>Авт.шины</button>
+<button class="spr-b" id="sprCmdMains" onclick="cmdConfirm('ШПР','MainsSwitch','🔌 Авт.сети','FC05 0x0005: Mains Close/Open')"><span class="si2">🔌</span>Авт.сети</button>
+<button class="spr-b" id="sprCmdBusbar" onclick="cmdConfirm('ШПР','BusbarSwitch','⚡ Авт.шины','FC05 0x0006: Busbar Close/Open')"><span class="si2">⚡</span>Авт.шины</button>
 <button class="spr-b" onclick="cmdConfirm('ШПР','Mute','🔇 Тишина','FC05 0x000C: Mute')"><span class="si2">🔇</span>Тишина</button>
 <button class="spr-b" onclick="cmdConfirm('ШПР','Confirm','✓ Подтв.','FC05 0x000B: Confirm')"><span class="si2">✓</span>Подтв.</button>
 </div>
@@ -1130,9 +1175,9 @@ function sprCard(c){return`<div class="sr2"><div class="cc s-stb" id="cspr"><div
 <b style="color:var(--p)">Load Reception (2)</b> — приём нагрузки. Генераторы плавно принимают на себя нагрузку от сети.
 </div>
 <div style="display:flex;gap:6px;margin-bottom:10px">
-<button class="spr-b" id="sprLm0" style="flex:1" onclick="setSprLoadMode(0)">Gen Ctrl</button>
-<button class="spr-b" id="sprLm1" style="flex:1" onclick="setSprLoadMode(1)">Mains Ctrl</button>
-<button class="spr-b" id="sprLm2" style="flex:1" onclick="setSprLoadMode(2)">Load Rec.</button>
+<button class="spr-b" id="sprLm0" style="flex:1" onclick="setSprLoadMode(0)">Генератор</button>
+<button class="spr-b" id="sprLm1" style="flex:1" onclick="setSprLoadMode(1)">Сеть</button>
+<button class="spr-b" id="sprLm2" style="flex:1" onclick="setSprLoadMode(2)">Приём нагр.</button>
 </div>
 <div class="slider-group">
 <div style="font-size:10px;color:var(--t3);margin-bottom:6px;line-height:1.4">P% и Q% — уставки для ШПР. В режиме <b style="color:var(--g)">Gen Ctrl</b>: P% = выходная мощность генераторов от номинала. В режиме <b style="color:var(--b)">Mains Ctrl</b>: P% = порог пик-шейвинга сети.</div>
@@ -1225,8 +1270,8 @@ function demoTick(){if(!cur||!S[cur])return;dStep++;const sc=SC[(dStep-1)%SC.len
 const on1=s1!=='standby',on2=s2!=='standby';
 // Pass actual power values to applyGen for display
 applyGen('g1',s1,S[cur].g1?.runHours||1227,p1base,true);applyGen('g2',s2,S[cur].g2?.runHours||489,p2base,true);applySpr(on1||on2,mN,bC,mC,true);
-const p1=on1?p1base+R(-10,10):0,p2=on2?p2base+R(-10,10):0,mP=mN&&mC?R(100,200):0;const el=n=>document.getElementById(n);
-const pf=$('pflow');if(pf)pf.innerHTML=flowSvg(on1,on2,mN,bC,mC,p1,p2);
+const p1=on1?p1base+R(-10,10):0,p2=on2?p2base+R(-10,10):0,mP=mN&&mC?R(100,200):0;const busP2=p1+p2+(mN&&mC?mP:0);const el=n=>document.getElementById(n);
+const pf=$('pflow');if(pf)pf.innerHTML=flowSvg(on1,on2,mN,bC,mC,p1,p2,mP,busP2);
 if(el('sP'))el('sP').innerHTML=`${(p1+p2+mP).toFixed(1)}<span class="su">кВт</span>`;
 if(el('sPg'))el('sPg').innerHTML=`${(p1+p2).toFixed(1)}<span class="su">кВт</span>`;
 if(el('sU')){if(mN)el('sU').innerHTML=`${RI(398,406)}<span class="su">В</span>`;else el('sU').innerHTML='<span style="color:var(--r)">АВАР</span>'}
@@ -1521,14 +1566,16 @@ function applySprConfigToUI(loadMode, pRaw, qRaw){
     if(qs){qs.value=qRaw;$('sprQval').textContent=(qRaw/10).toFixed(1)+'%'}
     // Current label
     const lbl=$('sprLmCurrent');
-    if(lbl)lbl.textContent='(текущий: '+(loadMode===0?'Gen Ctrl':loadMode===1?'Mains Ctrl':loadMode===2?'Load Rec.':'?')+')';
+    if(lbl)lbl.textContent='(текущий: '+(loadMode===0?'Генератор':loadMode===1?'Сеть':loadMode===2?'Приём нагрузки':'?')+')';
 }
 
 function highlightLoadMode(mode){
+    const colors=['var(--g)','var(--b)','var(--p)'];
+    const bgs=['var(--gd)','var(--bb)','var(--pd)'];
     ['sprLm0','sprLm1','sprLm2'].forEach((id,i)=>{
         const btn=$(id);if(!btn)return;
-        if(i===mode){btn.style.background='var(--ac)';btn.style.color='#fff';btn.style.borderColor='var(--ac)'}
-        else{btn.style.background='';btn.style.color='';btn.style.borderColor=''}
+        if(i===mode){btn.style.background=bgs[i]||'var(--gd)';btn.style.color=colors[i]||'var(--g)';btn.style.borderColor=colors[i]||'var(--g)';btn.style.fontWeight='600'}
+        else{btn.style.background='';btn.style.color='';btn.style.borderColor='';btn.style.fontWeight=''}
     });
 }
 
@@ -1536,6 +1583,31 @@ function setSprLoadMode(mode){
     sprSelectedLoadMode=mode;
     sprCfgDirty=true;
     highlightLoadMode(mode);
+}
+
+// Update control tab buttons to reflect current controller mode (called from applySprDetailed)
+function updateSprControlMode(mx){
+    if(!mx)return;
+    // --- Command buttons: Авто / Ручн. / Стоп ---
+    const cmdMap=[
+        {id:'sprCmdAuto',flag:'mode_auto',cls:'act-g'},
+        {id:'sprCmdManual',flag:'mode_manual',cls:'act-y'},
+        {id:'sprCmdStop',flag:'mode_stop',cls:'act-r'},
+        {id:'sprCmdStart',flag:null,cls:'act-g'}, // start = genset running (status 9)
+    ];
+    const isRunning = mx.genset_status===9;
+    cmdMap.forEach(c=>{
+        const btn=$(c.id);if(!btn)return;
+        btn.classList.remove('act-g','act-r','act-b','act-y');
+        let active=false;
+        if(c.id==='sprCmdStart') active=isRunning;
+        else if(c.flag) active=!!mx[c.flag];
+        if(active) btn.classList.add(c.cls);
+    });
+    // --- Switch buttons: Авт.сети / Авт.шины ---
+    const mSwBtn=$('sprCmdMains'), bSwBtn=$('sprCmdBusbar');
+    if(mSwBtn){mSwBtn.classList.remove('act-g','act-r','act-b','act-y');if(mx.mains_switch===3)mSwBtn.classList.add('act-g');else if(mx.mains_switch===7)mSwBtn.classList.add('act-r')}
+    if(bSwBtn){bSwBtn.classList.remove('act-g','act-r','act-b','act-y');if(mx.busbar_switch===3)bSwBtn.classList.add('act-g');else if(mx.busbar_switch===7)bSwBtn.classList.add('act-r')}
 }
 
 // Save current configuration to controller (LoadMode + P% + Q%)
