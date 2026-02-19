@@ -273,6 +273,12 @@ REGISTER_MAP_9560: dict[str, dict] = {
             "genset_status": lambda regs: regs[0],
         },
     },
+    "indicators": {
+        "address": 43, "count": 1,
+        "fields": {
+            "indicators": lambda regs: regs[0],
+        },
+    },
     "mains_voltage": {
         "address": 55, "count": 10,
         "fields": {
@@ -306,10 +312,20 @@ REGISTER_MAP_9560: dict[str, dict] = {
         },
     },
     "mains_power": {
-        "address": 109, "count": 10,
+        "address": 103, "count": 28,
         "fields": {
-            "mains_total_p": lambda regs: _signed32(regs[0], regs[1]) * 0.1,
-            "mains_total_q": lambda regs: _signed32(regs[8], regs[9]) * 0.1,
+            "mains_p_a":    lambda regs: _signed32(regs[0], regs[1]) * 0.1,
+            "mains_p_b":    lambda regs: _signed32(regs[2], regs[3]) * 0.1,
+            "mains_p_c":    lambda regs: _signed32(regs[4], regs[5]) * 0.1,
+            "mains_total_p": lambda regs: _signed32(regs[6], regs[7]) * 0.1,
+            "mains_q_a":    lambda regs: _signed32(regs[8], regs[9]) * 0.1,
+            "mains_q_b":    lambda regs: _signed32(regs[10], regs[11]) * 0.1,
+            "mains_q_c":    lambda regs: _signed32(regs[12], regs[13]) * 0.1,
+            "mains_total_q": lambda regs: _signed32(regs[14], regs[15]) * 0.1,
+            "mains_pf_a":   lambda regs: _signed16(regs[24]) * 0.01,
+            "mains_pf_b":   lambda regs: _signed16(regs[25]) * 0.01,
+            "mains_pf_c":   lambda regs: _signed16(regs[26]) * 0.01,
+            "mains_pf_avg": lambda regs: _signed16(regs[27]) * 0.01,
         },
     },
     "busbar_misc": {
@@ -335,6 +351,15 @@ REGISTER_MAP_9560: dict[str, dict] = {
             "accum_kwh":   lambda regs: _signed32(regs[0], regs[1]) * 0.1,
             "accum_kvarh": lambda regs: _signed32(regs[2], regs[3]) * 0.1,
             "maint_hours": lambda regs: regs[8],
+        },
+    },
+    "running": {
+        "address": 270, "count": 4,
+        "fields": {
+            "running_hours_a":   lambda regs: regs[0],
+            "running_minutes_a": lambda regs: regs[1],
+            "running_seconds_a": lambda regs: regs[2],
+            "start_times_a":     lambda regs: regs[3],
         },
     },
 }

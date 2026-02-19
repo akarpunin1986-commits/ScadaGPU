@@ -141,6 +141,33 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .set-tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--bd)}
 .set-tab{padding:10px 16px;font-size:12px;font-weight:500;color:var(--t3);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;font-family:var(--u);transition:all .15s}.set-tab:hover{color:var(--t)}.set-tab.on{color:var(--g);border-bottom-color:var(--g)}
 .set-panel{display:none}.set-panel.on{display:block}
+.ov-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px}
+.ov-panel{background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);padding:10px;overflow:hidden}
+.ov-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.ov-hdr .ov-lbl{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600}
+.ov-hdr .ov-sub{font-size:10px;color:var(--t3);font-family:var(--m)}
+.ov-hdr .ov-bdg{font-size:9px;padding:2px 8px;border-radius:4px;font-weight:600;font-family:var(--m)}
+.ov-pq{display:flex;gap:12px;margin-bottom:8px}
+.ov-pq span{font-family:var(--m);font-size:14px;font-weight:600}
+.ov-pq small{font-size:10px;color:var(--t3);margin-right:3px}
+.ov-bus{background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);padding:10px;margin-bottom:10px}
+.ov-bus-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;text-align:center}
+.ov-bus-grid .ov-bv{font-family:var(--m);font-size:15px;font-weight:600;color:var(--y)}
+.ov-bus-grid .ov-bl{font-size:9px;color:var(--t3)}
+.ov-sw{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;padding:8px 12px;background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad)}
+.ov-sw-item{text-align:center;font-size:11px}
+.ov-sw-item .ov-sw-lbl{font-size:9px;color:var(--t3);margin-bottom:2px}
+.ov-sw-line{flex:1;height:3px;background:var(--bd);border-radius:2px;position:relative;overflow:hidden}
+.ov-sw-line.on{background:var(--g)}
+.ov-sw-line.on::after{content:'';position:absolute;top:0;left:-30%;width:30%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);animation:swglow 1.5s linear infinite}
+@keyframes swglow{0%{left:-30%}100%{left:100%}}
+.ov-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.ov-st{background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);padding:8px;text-align:center}
+.ov-st .ov-stv{font-family:var(--m);font-size:15px;font-weight:600}
+.ov-st .ov-stl{font-size:9px;color:var(--t3);margin-top:2px}
+.ind-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.ind-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2)}
+.ind-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
 .arc-ctl{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap}
 .arc-devs{display:flex;gap:4px}
 .arc-dev{padding:6px 14px;border-radius:var(--rs);border:1px solid var(--bd);background:var(--bg3);color:var(--t2);cursor:pointer;font-size:12px;font-family:var(--u);transition:all .15s}
@@ -539,42 +566,142 @@ function applyGenDetailed(sl, m) {
     }
 }
 
+const GENSET_ST_TEXT={0:'Standby',1:'Preheat',2:'Fuel Output',3:'Crank',4:'Crank Rest',5:'Safety Run',6:'Start Idle',7:'HS Warming Up',8:'Wait for Load',9:'Normal Running',10:'HS Cooling',11:'Stop Idle',12:'ETS',13:'Wait for Stop',14:'Stop Failure'};
+const SW_ST_TEXT={0:'Synchronizing',1:'Close Delay',2:'Wait Closing',3:'Closed',4:'Unloading',5:'Open Delay',6:'Wait Opening',7:'Opened'};
+const MAINS_ST_TEXT={0:'Mains Normal',1:'Normal Delay',2:'Abnormal',3:'Abnormal Delay'};
+const MAINS_ST_RU={0:'НОРМА',1:'НОРМА (задержка)',2:'АВАРИЯ',3:'АВАРИЯ (задержка)'};
+function _v(v,d){return v!=null?v:d}
+function _f1(v){return v!=null?v.toFixed(1):'—'}
+function _f2(v){return v!=null?v.toFixed(2):'—'}
+
 function applySprDetailed(m) {
     if (!m) return;
-    const active = (m.genset_status === 9) || (m.mains_status === 0);
     const mN = (m.mains_status === 0);
     const bC = (m.busbar_switch === 3);
     const mC = (m.mains_switch === 3);
     const gOn = (m.genset_status === 9);
+    // Get G1 data for overview
+    const g1id = getDeviceIdForSlot('g1');
+    const g1 = g1id ? latestMetrics[g1id] : null;
+    const g1on = g1 && g1.online !== false;
 
-    const sprb = $('sprb');
-    if (sprb && active) {
-        const bp = m.busbar_p != null ? m.busbar_p : 0;
-        const bq = m.busbar_q != null ? m.busbar_q : 0;
-        const bi = m.busbar_current != null ? m.busbar_current : 0;
-        const buab = m.busbar_uab != null ? m.busbar_uab : 0;
-        const bubc = m.busbar_ubc != null ? m.busbar_ubc : 0;
-        const buca = m.busbar_uca != null ? m.busbar_uca : 0;
-        const bua = m.busbar_ua != null ? m.busbar_ua : 0;
-        const bub = m.busbar_ub != null ? m.busbar_ub : 0;
-        const buc = m.busbar_uc != null ? m.busbar_uc : 0;
-        sprb.innerHTML = `<div class="mg"><div class="mc"><div class="ml">P шины</div><div class="mv vg">${bp.toFixed(1)}<span class="mu">кВт</span></div></div><div class="mc"><div class="ml">Q</div><div class="mv vn">${bq.toFixed(1)}<span class="mu">квар</span></div></div><div class="mc"><div class="ml">I</div><div class="mv vn">${bi.toFixed(0)}<span class="mu">А</span></div></div></div><table class="pt"><thead><tr><th>Фаза</th><th>U лин</th><th>U фаз</th></tr></thead><tbody><tr><td class="ph">A-B</td><td>${buab}</td><td>${bua}</td></tr><tr><td class="ph">B-C</td><td>${bubc}</td><td>${bub}</td></tr><tr><td class="ph">C-A</td><td>${buca}</td><td>${buc}</td></tr></tbody></table>`;
+    // === ОБЗОР TAB ===
+    const sprov=$('sprov');
+    if(sprov){
+    // -- Gen panel --
+    const gSt=g1on?(g1.gen_status!=null?g1.gen_status:-1):-1;
+    const gStT=GENSET_ST_TEXT[gSt]||'—';
+    const gStC=gSt===9?'background:rgba(0,224,154,.15);color:#00e09a':'background:var(--bg);color:var(--t3)';
+    const gP=g1on?_f1(g1.power_total):'—';
+    const gQ=g1on?_f1(g1.reactive_total):'—';
+    const gUab=g1on?Math.round(_v(g1.gen_uab,0)):'—';
+    const gUbc=g1on?Math.round(_v(g1.gen_ubc,0)):'—';
+    const gUca=g1on?Math.round(_v(g1.gen_uca,0)):'—';
+    const gIa=g1on?_f1(g1.current_a):'—';
+    const gIb=g1on?_f1(g1.current_b):'—';
+    const gIc=g1on?_f1(g1.current_c):'—';
+    const gF=g1on?_f2(g1.gen_freq):'—';
+    // -- Mains panel --
+    const mStR=MAINS_ST_RU[m.mains_status]||'—';
+    const mStC=mN?'background:rgba(0,188,212,.15);color:#00bcd4':'background:rgba(255,64,96,.15);color:#ff4060';
+    const mP=_f1(m.mains_total_p);
+    const mQ=_f1(m.mains_total_q);
+    const mUab=_v(m.mains_uab,'—');const mUbc=_v(m.mains_ubc,'—');const mUca=_v(m.mains_uca,'—');
+    const mUa=_v(m.mains_ua,'—');const mUb=_v(m.mains_ub,'—');const mUc=_v(m.mains_uc,'—');
+    const mIa=_f1(m.mains_ia);const mIb=_f1(m.mains_ib);const mIc=_f1(m.mains_ic);
+    const mF=_f2(m.mains_freq);
+    // -- Busbar --
+    const bp=_v(m.busbar_p,0);const bq=_v(m.busbar_q,0);const bi=_v(m.busbar_current,0);
+    const bU=_v(m.busbar_uab,0);const bF=_v(m.busbar_freq,0);
+    // -- Running --
+    const rh=_v(m.running_hours_a,_v(m.maint_hours,0));
+    const rst=_v(m.start_times_a,0);
+    const kwh=_v(m.accum_kwh,0);
+    const batV=_f1(m.battery_v);
+    const maintH=_v(m.maint_hours,0);
+    // -- Switches --
+    const bSwC=bC?'var(--g)':'var(--r)';const mSwC=mC?'var(--g)':'var(--r)';
+    const bSwT=bC?'ЗАМКНУТ':'РАЗОМКН';const mSwT=mC?'ЗАМКНУТ':'РАЗОМКН';
+    const lineOn=bC||mC;
+
+    sprov.innerHTML=`<div class="ov-grid">
+<div class="ov-panel"><div class="ov-hdr"><div class="ov-lbl"><span style="color:var(--g)">●</span> Генератор</div><span class="ov-bdg" style="${gStC}">${gStT}</span></div>
+<div class="ov-pq"><span style="color:var(--g)"><small>P:</small>${gP} кВт</span><span style="color:var(--t3)"><small>Q:</small>${gQ} квар</span></div>
+<table class="pt"><thead><tr><th>Фаза</th><th>U лин, В</th><th>I, А</th></tr></thead><tbody>
+<tr><td class="ph">A</td><td>${gUab}</td><td>${gIa}</td></tr>
+<tr><td class="ph">B</td><td>${gUbc}</td><td>${gIb}</td></tr>
+<tr><td class="ph">C</td><td>${gUca}</td><td>${gIc}</td></tr></tbody></table>
+<div style="text-align:center;margin-top:6px;font-family:var(--m)"><span style="color:var(--g);font-size:13px;font-weight:600">f: ${gF} Гц</span></div>
+${!g1on?'<div style="text-align:center;color:var(--t4);font-size:10px;margin-top:4px">Нет связи с G1</div>':''}</div>
+<div class="ov-panel"><div class="ov-hdr"><div class="ov-lbl"><span style="color:var(--b)">●</span> Сеть</div><span class="ov-bdg" style="${mStC}">${mStR}</span></div>
+<div class="ov-pq"><span style="color:var(--b)"><small>P:</small>${mP} кВт</span><span style="color:var(--t3)"><small>Q:</small>${mQ} квар</span></div>
+<table class="pt"><thead><tr><th>Фаза</th><th>U лин, В</th><th>U фаз, В</th><th>I, А</th></tr></thead><tbody>
+<tr><td class="ph">A</td><td>${mUab}</td><td>${mUa}</td><td>${mIa}</td></tr>
+<tr><td class="ph">B</td><td>${mUbc}</td><td>${mUb}</td><td>${mIb}</td></tr>
+<tr><td class="ph">C</td><td>${mUca}</td><td>${mUc}</td><td>${mIc}</td></tr></tbody></table>
+<div style="text-align:center;margin-top:6px;font-family:var(--m)"><span style="color:var(--b);font-size:13px;font-weight:600">f: ${mF} Гц</span></div></div></div>
+<div class="ov-bus"><div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><span style="color:var(--y)">●</span><span style="font-size:12px;font-weight:600">ШИНА</span><span style="margin-left:auto;font-size:10px;color:var(--t3)">→ Нагрузка</span></div>
+<div class="ov-bus-grid"><div><div class="ov-bv">${(typeof bp==='number'?bp:0).toFixed(1)}</div><div class="ov-bl">P, кВт</div></div><div><div class="ov-bv">${(typeof bq==='number'?bq:0).toFixed(1)}</div><div class="ov-bl">Q, квар</div></div><div><div class="ov-bv">${(typeof bi==='number'?bi:0).toFixed(0)}</div><div class="ov-bl">I, А</div></div><div><div class="ov-bv">${bU}</div><div class="ov-bl">U, В</div></div><div><div class="ov-bv">${(typeof bF==='number'?bF:0).toFixed(2)}</div><div class="ov-bl">f, Гц</div></div></div></div>
+<div class="ov-sw"><div class="ov-sw-item"><div class="ov-sw-lbl">Авт. шины</div><div style="font-family:var(--m);font-size:11px;font-weight:600;color:${bSwC}">${bSwT}</div></div>
+<div class="ov-sw-line${lineOn?' on':''}"></div>
+<div style="font-size:10px;font-weight:600;color:var(--y)">ШИНА</div>
+<div class="ov-sw-line${lineOn?' on':''}"></div>
+<div class="ov-sw-item"><div class="ov-sw-lbl">Авт. сети</div><div style="font-family:var(--m);font-size:11px;font-weight:600;color:${mSwC}">${mSwT}</div></div></div>
+<div class="ov-stats"><div class="ov-st"><div class="ov-stv" style="color:var(--g)">${(typeof kwh==='number'?kwh:0).toLocaleString('ru-RU')}</div><div class="ov-stl">кВт·ч</div></div>
+<div class="ov-st"><div class="ov-stv" style="color:var(--t)">${rh} ч</div><div class="ov-stl">Наработка · Пусков: ${rst}</div></div>
+<div class="ov-st"><div class="ov-stv" style="color:var(--y)">${maintH} ч</div><div class="ov-stl">ТО осталось</div></div>
+<div class="ov-st"><div class="ov-stv" style="color:var(--g)">${batV} В</div><div class="ov-stl">Батарея</div></div></div>`;
     }
 
+    // === ШИНА TAB (sprb) - unchanged ===
+    const sprb = $('sprb');
+    if (sprb) {
+        const bp2=_v(m.busbar_p,0);const bq2=_v(m.busbar_q,0);const bi2=_v(m.busbar_current,0);
+        sprb.innerHTML=`<div class="mg"><div class="mc"><div class="ml">P шины</div><div class="mv vg">${(typeof bp2==='number'?bp2:0).toFixed(1)}<span class="mu">кВт</span></div></div><div class="mc"><div class="ml">Q</div><div class="mv vn">${(typeof bq2==='number'?bq2:0).toFixed(1)}<span class="mu">квар</span></div></div><div class="mc"><div class="ml">I</div><div class="mv vn">${(typeof bi2==='number'?bi2:0).toFixed(0)}<span class="mu">А</span></div></div></div><table class="pt"><thead><tr><th>Фаза</th><th>U лин</th><th>U фаз</th></tr></thead><tbody><tr><td class="ph">A-B</td><td>${_v(m.busbar_uab,0)}</td><td>${_v(m.busbar_ua,0)}</td></tr><tr><td class="ph">B-C</td><td>${_v(m.busbar_ubc,0)}</td><td>${_v(m.busbar_ub,0)}</td></tr><tr><td class="ph">C-A</td><td>${_v(m.busbar_uca,0)}</td><td>${_v(m.busbar_uc,0)}</td></tr></tbody></table>`;
+    }
+
+    // === СЕТЬ TAB (sprm) - enhanced with per-phase table ===
     const sprm = $('sprm');
     if (sprm) {
-        if (mN) {
-            const mu = m.mains_uab != null ? m.mains_uab : '—';
-            const mf = m.mains_freq != null ? m.mains_freq : '—';
-            sprm.innerHTML = `<div class="mg"><div class="mc"><div class="ml">U сети</div><div class="mv vn">${mu}<span class="mu">В</span></div></div><div class="mc"><div class="ml">f сети</div><div class="mv vn">${typeof mf === 'number' ? mf.toFixed(2) : mf}<span class="mu">Гц</span></div></div><div class="mc"><div class="ml">Статус</div><div class="mv vg">НОРМА</div></div></div>`;
-        } else {
-            sprm.innerHTML = `<div class="mg"><div class="mc"><div class="ml">Сеть</div><div class="mv va">АВАРИЯ</div></div></div>`;
-        }
+        const mStR2=MAINS_ST_RU[m.mains_status]||'—';
+        const stCls=mN?'vg':'va';
+        const mPt=_f1(m.mains_total_p);const mQt=_f1(m.mains_total_q);const mPf=m.mains_pf_avg!=null?m.mains_pf_avg.toFixed(2):'—';
+        sprm.innerHTML=`<div class="mg"><div class="mc"><div class="ml">P сети</div><div class="mv vb">${mPt}<span class="mu">кВт</span></div></div><div class="mc"><div class="ml">Q сети</div><div class="mv vn">${mQt}<span class="mu">квар</span></div></div><div class="mc"><div class="ml">cos φ</div><div class="mv vn">${mPf}</div></div></div>
+<table class="pt"><thead><tr><th>Фаза</th><th>U лин, В</th><th>U фаз, В</th><th>I, А</th><th>P, кВт</th><th>cos φ</th></tr></thead><tbody>
+<tr><td class="ph">A</td><td>${_v(m.mains_uab,'—')}</td><td>${_v(m.mains_ua,'—')}</td><td>${_f1(m.mains_ia)}</td><td>${_f1(m.mains_p_a)}</td><td>${m.mains_pf_a!=null?m.mains_pf_a.toFixed(2):'—'}</td></tr>
+<tr><td class="ph">B</td><td>${_v(m.mains_ubc,'—')}</td><td>${_v(m.mains_ub,'—')}</td><td>${_f1(m.mains_ib)}</td><td>${_f1(m.mains_p_b)}</td><td>${m.mains_pf_b!=null?m.mains_pf_b.toFixed(2):'—'}</td></tr>
+<tr><td class="ph">C</td><td>${_v(m.mains_uca,'—')}</td><td>${_v(m.mains_uc,'—')}</td><td>${_f1(m.mains_ic)}</td><td>${_f1(m.mains_p_c)}</td><td>${m.mains_pf_c!=null?m.mains_pf_c.toFixed(2):'—'}</td></tr></tbody></table>
+<div style="text-align:center;margin-top:6px;font-family:var(--m)"><span style="color:var(--b);font-size:13px;font-weight:600">f: ${_f2(m.mains_freq)} Гц</span> <span style="margin-left:12px;font-size:11px;color:var(--t3)">Статус:</span> <span class="mv ${stCls}" style="font-size:11px">${mStR2}</span></div>`;
     }
 
+    // === КОММУТАЦИЯ TAB (sprs) - enhanced ===
     const sprs = $('sprs');
     if (sprs) {
-        sprs.innerHTML = `<div class="mg mg2"><div class="mc"><div class="ml">Авт.шины</div><div class="mv ${bC?'vg':'vm'}">${bC?'ЗАМКНУТ':'РАЗОМКН'}</div></div><div class="mc"><div class="ml">Авт.сети</div><div class="mv ${mC?'vb':'vm'}">${mC?'ЗАМКНУТ':'РАЗОМКН'}</div></div><div class="mc"><div class="ml">Сеть</div><div class="mv ${mN?'vg':'va'}">${mN?'НОРМА':'АВАРИЯ'}</div></div><div class="mc"><div class="ml">Генераторы</div><div class="mv ${gOn?'vg':'vm'}">${gOn?'РАБОТА':'СТОП'}</div></div></div>`;
+        const bSwV=m.busbar_switch!=null?m.busbar_switch:-1;
+        const mSwV=m.mains_switch!=null?m.mains_switch:-1;
+        const bSwT2=SW_ST_TEXT[bSwV]||'Unknown';
+        const mSwT2=SW_ST_TEXT[mSwV]||'Unknown';
+        const bSwC2=bSwV===3?'var(--g)':bSwV===7?'var(--r)':'var(--y)';
+        const mSwC2=mSwV===3?'var(--g)':mSwV===7?'var(--r)':'var(--y)';
+        const gStV=m.genset_status!=null?m.genset_status:-1;
+        const gStT2=GENSET_ST_TEXT[gStV]||'Unknown';
+        const gStC2=gStV===9?'var(--g)':gStV===0?'var(--t3)':'var(--y)';
+        const mStV=m.mains_status!=null?m.mains_status:-1;
+        const mStT2=MAINS_ST_TEXT[mStV]||'Unknown';
+        const mStC2=mStV===0?'var(--g)':mStV===2||mStV===3?'var(--r)':'var(--y)';
+        const ind=m.indicators!=null?m.indicators:0;
+        const lineOn2=bC||mC;
+        sprs.innerHTML=`<div class="ov-sw" style="margin-bottom:12px"><div class="ov-sw-item"><div class="ov-sw-lbl">Авт. шины</div><div style="font-family:var(--m);font-size:11px;font-weight:600;color:${bSwC2}">${bSwT2}</div></div>
+<div class="ov-sw-line${lineOn2?' on':''}"></div><div style="font-size:10px;font-weight:600;color:var(--y)">ШИНА</div><div class="ov-sw-line${lineOn2?' on':''}"></div>
+<div class="ov-sw-item"><div class="ov-sw-lbl">Авт. сети</div><div style="font-family:var(--m);font-size:11px;font-weight:600;color:${mSwC2}">${mSwT2}</div></div></div>
+<div class="mg mg2"><div class="mc"><div class="ml">Статус генератора</div><div class="mv" style="color:${gStC2}">${gStT2}</div></div><div class="mc"><div class="ml">Статус сети</div><div class="mv" style="color:${mStC2}">${mStT2}</div></div></div>
+<div class="ind-grid">
+<div class="ind-item"><div class="ind-dot" style="background:${ind&1?'var(--g)':'var(--t4)'}"></div>Mains Normal</div>
+<div class="ind-item"><div class="ind-dot" style="background:${ind&2?'var(--g)':'var(--t4)'}"></div>Mains Close</div>
+<div class="ind-item"><div class="ind-dot" style="background:${ind&4?'var(--g)':'var(--t4)'}"></div>Busbar Normal</div>
+<div class="ind-item"><div class="ind-dot" style="background:${ind&8?'var(--g)':'var(--t4)'}"></div>Busbar Close</div>
+<div class="ind-item"><div class="ind-dot" style="background:${ind&16?'var(--r)':'var(--t4)'}"></div>Alarm</div>
+<div class="ind-item"><div class="ind-dot" style="background:${ind&32?'var(--g)':'var(--t4)'}"></div>Running</div></div>`;
     }
 }
 
@@ -972,8 +1099,9 @@ function sprCard(c){return`<div class="sr2"><div class="cc s-stb" id="cspr"><div
 </div><div class="cmd-st" id="cs-ШПР"></div></div>
 <div class="cv" onclick="tog('cspr')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
 <div class="ce"><div class="ei">
-<div class="tbs"><button class="tb on" onclick="stab(this,'sprb')">Шина</button><button class="tb" onclick="stab(this,'sprm')">Сеть</button><button class="tb" onclick="stab(this,'sprs')">Коммутация</button><button class="tb" onclick="stab(this,'spra')">Аварии</button><button class="tb" onclick="stab(this,'sprc');onSprControlTabOpen()">Управление</button><button class="tb" onclick="stab(this,'sprp')">Пресеты</button></div>
-<div class="tp on" id="sprb"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Ожидание...</div></div>
+<div class="tbs"><button class="tb on" onclick="stab(this,'sprov')">Обзор</button><button class="tb" onclick="stab(this,'sprb')">Шина</button><button class="tb" onclick="stab(this,'sprm')">Сеть</button><button class="tb" onclick="stab(this,'sprs')">Коммутация</button><button class="tb" onclick="stab(this,'spra')">Аварии</button><button class="tb" onclick="stab(this,'sprc');onSprControlTabOpen()">Управление</button><button class="tb" onclick="stab(this,'sprp')">Пресеты</button></div>
+<div class="tp on" id="sprov"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Ожидание...</div></div>
+<div class="tp" id="sprb"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Ожидание...</div></div>
 <div class="tp" id="sprm"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Ожидание...</div></div>
 <div class="tp" id="sprs"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Ожидание...</div></div>
 <div class="tp" id="spra">
@@ -1182,10 +1310,8 @@ const mode=gOn&&!mC?'ГЕН':mC&&!gOn?'СЕТЬ':gOn&&mC?'ПАРАЛ':'—';
 kvs[4].className='kv '+(gOn&&mC?'vp':gOn?'vg':mN?'vb':'vm');kvs[4].textContent=mN&&!gOn?'СЕТЬ':mode;
 }else kvs.forEach(k=>{k.className='kv vm';k.textContent='—'});
 card.querySelector('.lo').className='lo '+(isOnline?'lo-g':'lo-r');card.querySelector('.li span:last-child').textContent=isOnline?'live':'offline';
-const sprb=$('sprb');if(sprb&&isOnline){const m3=latestMetrics[getDeviceIdForSlot('spr')];const rBp=m3?.busbar_p!=null?m3.busbar_p:0;const rBq=m3?.busbar_q!=null?m3.busbar_q:0;const rBi=m3?.busbar_current!=null?m3.busbar_current:0;const rBuab=m3?.busbar_uab||0;const rBubc=m3?.busbar_ubc||0;const rBuca=m3?.busbar_uca||0;const rBua=m3?.busbar_ua||0;const rBub=m3?.busbar_ub||0;const rBuc=m3?.busbar_uc||0;
-sprb.innerHTML=`<div class="mg"><div class="mc"><div class="ml">P шины</div><div class="mv ${rBp>0?'vg':'vn'}">${rBp.toFixed(1)}<span class="mu">кВт</span></div></div><div class="mc"><div class="ml">Q</div><div class="mv vn">${rBq.toFixed(1)}<span class="mu">квар</span></div></div><div class="mc"><div class="ml">I</div><div class="mv vn">${rBi.toFixed(0)}<span class="mu">А</span></div></div></div><table class="pt"><thead><tr><th>Фаза</th><th>U лин</th><th>U фаз</th></tr></thead><tbody><tr><td class="ph">A-B</td><td>${rBuab}</td><td>${rBua}</td></tr><tr><td class="ph">B-C</td><td>${rBubc}</td><td>${rBub}</td></tr><tr><td class="ph">C-A</td><td>${rBuca}</td><td>${rBuc}</td></tr></tbody></table>`}else if(sprb){sprb.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:15px">—</div>'}
-const sprm=$('sprm');if(sprm&&isOnline){const m3=latestMetrics[getDeviceIdForSlot('spr')];const rMu=m3?.mains_uab||0;const rMf=m3?.mains_freq||0;sprm.innerHTML=mN?`<div class="mg"><div class="mc"><div class="ml">U сети</div><div class="mv vn">${rMu}<span class="mu">В</span></div></div><div class="mc"><div class="ml">f сети</div><div class="mv vn">${rMf.toFixed(2)}<span class="mu">Гц</span></div></div><div class="mc"><div class="ml">Статус</div><div class="mv vg">НОРМА</div></div></div>`:`<div class="mg"><div class="mc"><div class="ml">Сеть</div><div class="mv va">АВАРИЯ</div></div><div class="mc"><div class="ml">U</div><div class="mv vm">${rMu}<span class="mu">В</span></div></div><div class="mc"><div class="ml">f</div><div class="mv vm">${rMf.toFixed(2)}<span class="mu">Гц</span></div></div></div>`}
-const sprs=$('sprs');if(sprs)sprs.innerHTML=`<div class="mg mg2"><div class="mc"><div class="ml">Авт.шины</div><div class="mv ${bC?'vg':'vm'}">${bC?'ЗАМКНУТ':'РАЗОМКН'}</div></div><div class="mc"><div class="ml">Авт.сети</div><div class="mv ${mC?'vb':'vm'}">${mC?'ЗАМКНУТ':'РАЗОМКН'}</div></div><div class="mc"><div class="ml">Сеть</div><div class="mv ${mN?'vg':'va'}">${mN?'НОРМА':'АВАРИЯ'}</div></div><div class="mc"><div class="ml">Генераторы</div><div class="mv ${gOn?'vg':'vm'}">${gOn?'РАБОТА':'СТОП'}</div></div></div>`;
+// Tabs (Обзор/Шина/Сеть/Коммутация) are rendered by applySprDetailed() via WS updates
+if(isOnline){const m3=latestMetrics[getDeviceIdForSlot('spr')];if(m3)applySprDetailed(m3)}
 const sprAct=$('spra-act');if(sprAct){if(!mN){sprAct.innerHTML=`<div class="ai aa">🔴 <b style="color:var(--r)">M001</b> ${ALARM_CODES['M001']}<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;if(Math.random()<0.2)addAlarmToArchive('spr','M001',ALARM_CODES['M001'],'alarm')}else if(isOnline){sprAct.innerHTML='<div style="color:var(--g);font-size:12px;text-align:center;padding:15px">✓ Нет активных аварий</div>'}else{sprAct.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:15px">Нет связи с контроллером</div>'}}}
 // === BITRIX24 INTEGRATION ===
 function getBxConfig(){try{return JSON.parse(localStorage.getItem('s5bx'))||{}}catch(e){return{}}}
