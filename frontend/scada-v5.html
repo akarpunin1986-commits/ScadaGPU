@@ -1488,20 +1488,26 @@ const CHART_DEFAULTS={responsive:true,maintainAspectRatio:false,animation:{durat
 plugins:{legend:{labels:{color:'#94a3b8',font:{family:'Outfit',size:11}}},tooltip:{backgroundColor:'#0a0f1a',borderColor:'#1a2640',borderWidth:1,titleColor:'#e8edf5',bodyColor:'#94a3b8',titleFont:{family:'JetBrains Mono',size:11},bodyFont:{family:'JetBrains Mono',size:10}}},
 scales:{x:{type:'time',grid:{color:'rgba(26,38,64,.5)'},ticks:{color:'#5a6a80',font:{family:'JetBrains Mono',size:9}},time:{tooltipFormat:'dd.MM.yyyy HH:mm',displayFormats:{minute:'HH:mm',hour:'HH:mm',day:'dd.MM'}}},y:{grid:{color:'rgba(26,38,64,.5)'},ticks:{color:'#5a6a80',font:{family:'JetBrains Mono',size:9}}}}};
 
-function showArchive(){
-if(!cur||!S[cur]){ae('⚠ Выберите объект');return}
-archiveMode=true;const s=S[cur],mn=$('mainArea');
-let devBtns='';
+function showArchive(siteKey){
+const keys=Object.keys(S);if(!keys.length){ae('⚠ Нет объектов');return}
+const sk=siteKey||(cur&&S[cur]?cur:keys[0]);
+arcState.siteKey=sk;archiveMode=true;
+const s=S[sk],mn=$('mainArea');
+// Site selector options
+let siteOpts=keys.map(k=>`<option value="${k}"${k===sk?' selected':''}>${esc(S[k].name)}</option>`).join('');
+// Device buttons for selected site
 const firstSlot=s.g1?.ip?'g1':s.g2?.ip?'g2':s.spr?.ip?'spr':null;
+let devBtns='';
 if(s.g1?.ip)devBtns+=`<button class="arc-dev${firstSlot==='g1'?' on':''}" onclick="arcDev(this,'g1')">Генератор 1</button>`;
-if(s.g2?.ip)devBtns+=`<button class="arc-dev${!s.g1?.ip&&firstSlot==='g2'?' on':''}" onclick="arcDev(this,'g2')">Генератор 2</button>`;
+if(s.g2?.ip)devBtns+=`<button class="arc-dev${firstSlot==='g2'&&!s.g1?.ip?' on':''}" onclick="arcDev(this,'g2')">Генератор 2</button>`;
 if(s.spr?.ip)devBtns+=`<button class="arc-dev${firstSlot==='spr'?' on':''}" onclick="arcDev(this,'spr')">ШПР</button>`;
 arcState.slot=firstSlot||'g1';arcState.hours=1;arcState.group='power';arcState.almPage=0;
 mn.innerHTML=`
-<div class="dh"><div class="dt"><h1>📊 Архив — ${esc(s.name)}</h1></div>
+<div class="dh"><div class="dt"><h1>📊 Архив</h1>
+<select class="fi" id="arcSiteSelect" style="margin-left:12px;width:auto;padding:6px 12px;font-size:13px;font-weight:500;background:var(--bg3);border-color:var(--bd2)" onchange="arcSwitchSite(this.value)">${siteOpts}</select></div>
 <div class="da"><button onclick="archiveMode=false;renderDash()">← Мониторинг</button></div></div>
 <div class="arc-ctl">
-<div class="arc-devs">${devBtns}</div>
+<div class="arc-devs" id="arcDevsWrap">${devBtns}</div>
 <div class="arc-time">
 <button class="arc-tb on" onclick="arcRange(this,1)">1ч</button>
 <button class="arc-tb" onclick="arcRange(this,6)">6ч</button>
@@ -1539,6 +1545,22 @@ arcLoadChart();arcLoadAlarms();arcLoadDisk();
 function arcDev(btn,slot){
 btn.parentElement.querySelectorAll('.arc-dev').forEach(b=>b.classList.remove('on'));
 btn.classList.add('on');arcState.slot=slot;arcState.almPage=0;arcLoadChart();arcLoadAlarms();
+}
+function arcSwitchSite(siteKey){
+if(!S[siteKey])return;arcState.siteKey=siteKey;
+const s=S[siteKey];
+const firstSlot=s.g1?.ip?'g1':s.g2?.ip?'g2':s.spr?.ip?'spr':null;
+let devBtns='';
+if(s.g1?.ip)devBtns+=`<button class="arc-dev${firstSlot==='g1'?' on':''}" onclick="arcDev(this,'g1')">Генератор 1</button>`;
+if(s.g2?.ip)devBtns+=`<button class="arc-dev${firstSlot==='g2'&&!s.g1?.ip?' on':''}" onclick="arcDev(this,'g2')">Генератор 2</button>`;
+if(s.spr?.ip)devBtns+=`<button class="arc-dev${firstSlot==='spr'?' on':''}" onclick="arcDev(this,'spr')">ШПР</button>`;
+const wrap=$('arcDevsWrap');if(wrap)wrap.innerHTML=devBtns;
+arcState.slot=firstSlot||'g1';arcState.almPage=0;
+arcLoadChart();arcLoadAlarms();arcLoadDisk();
+}
+function arcGetDeviceId(slot){
+const sk=arcState.siteKey;if(!sk||!S[sk])return null;
+return S[sk][slot]?._deviceId||null;
 }
 function arcRange(btn,hours){
 btn.parentElement.querySelectorAll('.arc-tb').forEach(b=>b.classList.remove('on'));
@@ -1652,7 +1674,7 @@ if(hours<=1)return 0;if(hours<=6)return 60;if(hours<=24)return 300;if(hours<=168
 }
 
 async function arcLoadChart(){
-const devId=getDeviceIdForSlot(arcState.slot);
+const devId=arcGetDeviceId(arcState.slot);
 if(!devId){arcRenderNoData('Устройство не настроено');return}
 const grp=ARC_GROUPS[arcState.group],hours=arcState.hours;
 const bucket=hours?arcBucket(hours):0;
@@ -1674,7 +1696,7 @@ const stats=await api.get(`/api/history/metrics/${devId}/stats`);arcRenderStats(
 }
 
 async function arcLoadAlarms(){
-const devId=getDeviceIdForSlot(arcState.slot);
+const devId=arcGetDeviceId(arcState.slot);
 if(!devId){const el=$('arcAlarmTable');if(el)el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:30px">Устройство не настроено</div>';return}
 const sev=$('arcSev')?.value||'',activeOnly=$('arcActiveOnly')?.checked,hours=arcState.hours;
 let url=`/api/history/alarms?device_id=${devId}&limit=${arcState.almLimit}&offset=${arcState.almPage*arcState.almLimit}`;
