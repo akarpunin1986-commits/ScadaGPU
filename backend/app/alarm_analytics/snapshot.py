@@ -123,7 +123,7 @@ def build_snapshot_hgm9560(raw_data: dict) -> dict:
         },
         "genset_status": genset_status_val,
         "genset_status_text": GENSET_STATUS_9560_TEXT.get(genset_status_val, "Unknown") if genset_status_val is not None else "N/A",
-        "battery_voltage": g(raw_data, "battery_v", 0),
+        "battery_voltage": g(raw_data, "battery_volt", 0),
         "mode": _detect_mode(raw_data),
         "indicators": g(raw_data, "indicators"),
         "mains_fault_detail": _decode_mains_fault(g(raw_data, "alarm_reg_44")),

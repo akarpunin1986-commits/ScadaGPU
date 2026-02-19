@@ -11,7 +11,7 @@ an alarm_event with code CONN_LOST is created; when it comes back online, cleare
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 
 from redis.asyncio import Redis
 from sqlalchemy import select, and_

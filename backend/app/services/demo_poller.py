@@ -175,6 +175,12 @@ class DemoPoller:
             "start_count": start_count,
             "energy_kwh": energy_kwh,
             "alarm_count": 0,
+
+            # Power limit (demo: ~75% P, ~50% Q with small noise)
+            "current_p_pct": round(75.0 + noise(2), 1),
+            "target_p_pct": 75.0,
+            "current_q_pct": round(50.0 + noise(1.5), 1),
+            "target_q_pct": 50.0,
         }
 
     # ------------------------------------------------------------------
@@ -259,7 +265,7 @@ class DemoPoller:
             "mains_total_q": round(mains_total_q, 1),
 
             "busbar_current": round(busbar_current, 1),
-            "battery_v": round(battery_v, 1),
+            "battery_volt": round(battery_v, 1),
 
             "busbar_p": round(busbar_p, 1),
             "busbar_q": round(busbar_q, 1),
@@ -273,4 +279,8 @@ class DemoPoller:
             "accum_kwh": round(45230 + t * 0.15, 1),
             "accum_kvarh": round(8920 + t * 0.03, 1),
             "maint_hours": max(0, 163 - t // 3600),
+
+            # Power limit status bits (demo)
+            "power_limit_active": False,
+            "power_limit_trip": False,
         }

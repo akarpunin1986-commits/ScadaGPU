@@ -22,6 +22,7 @@ from services.maintenance_scheduler import MaintenanceScheduler
 from services.metrics_writer import MetricsWriter
 from services.alarm_detector import AlarmDetector
 from services.disk_manager import DiskSpaceManager
+from api.power_limit import router as power_limit_router
 from alarm_analytics.router import router as alarm_analytics_router
 from alarm_analytics.detector import AlarmAnalyticsDetector
 
@@ -144,6 +145,7 @@ app.include_router(bitrix_router)
 app.include_router(ai_parser_router)
 app.include_router(history_router)
 app.include_router(ws_router)
+app.include_router(power_limit_router)
 app.include_router(alarm_analytics_router)
 
 

@@ -117,7 +117,7 @@ class MetricsWriter:
             try:
                 ts = datetime.fromisoformat(ts)
             except (ValueError, TypeError):
-                ts = datetime.utcnow()
+                ts = datetime.now(timezone.utc)
         # Strip timezone info — DB column is TIMESTAMP WITHOUT TIME ZONE
         if ts and hasattr(ts, 'tzinfo') and ts.tzinfo is not None:
             ts = ts.replace(tzinfo=None)
@@ -146,7 +146,7 @@ class MetricsWriter:
             "coolant_temp": p.get("coolant_temp"),
             "oil_pressure": p.get("oil_pressure"),
             "oil_temp": p.get("oil_temp"),
-            "battery_volt": p.get("battery_volt") or p.get("battery_v"),
+            "battery_volt": p.get("battery_volt"),
             "fuel_level": p.get("fuel_level"),
             "load_pct": p.get("load_pct"),
             "fuel_pressure": p.get("fuel_pressure"),
@@ -170,7 +170,7 @@ class MetricsWriter:
             "busbar_p": p.get("busbar_p"),
             "busbar_q": p.get("busbar_q"),
             # --- Accumulated ---
-            "run_hours": p.get("run_hours"),
-            "energy_kwh": p.get("energy_kwh"),
+            "run_hours": p.get("run_hours") or p.get("running_hours_a"),
+            "energy_kwh": p.get("energy_kwh") or p.get("accum_kwh"),
             "gen_status": p.get("gen_status"),
         }

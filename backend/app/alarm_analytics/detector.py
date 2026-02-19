@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 
 from redis.asyncio import Redis
 from sqlalchemy import select, and_
@@ -215,7 +215,7 @@ class AlarmAnalyticsDetector:
                         result = await session.execute(stmt)
                         active_alarm = result.scalar_one_or_none()
                         if active_alarm:
-                            active_alarm.cleared_at = datetime.now(timezone.utc)
+                            active_alarm.cleared_at = datetime.utcnow()
                             active_alarm.is_active = False
                             logger.info(
                                 "AA ALARM OFF: device=%d code=%s",

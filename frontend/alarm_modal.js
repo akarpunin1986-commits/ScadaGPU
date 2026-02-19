@@ -536,9 +536,14 @@
     });
 
     // Observe DOM for new .ai elements (alarm items are dynamically generated)
+    // Debounced to avoid excessive calls during real-time metric updates
+    let _almObsTimer = null;
     const observer = new MutationObserver(function() {
-        attachHandlers();
-        attachAlarmsPageHandlers();
+        if (_almObsTimer) clearTimeout(_almObsTimer);
+        _almObsTimer = setTimeout(function() {
+            attachHandlers();
+            attachAlarmsPageHandlers();
+        }, 300);
     });
     observer.observe(document.body, { childList: true, subtree: true });
 

@@ -186,6 +186,15 @@ REGISTER_MAP_9520N: dict[str, dict] = {
             "phase_diff": lambda regs: _signed16(regs[18]) * 0.1,
         },
     },
+    "power_limit": {
+        "address": 159, "count": 4,
+        "fields": {
+            "current_p_pct": lambda regs: _signed16(regs[0]) * 0.1,   # reg 0159
+            "target_p_pct":  lambda regs: _signed16(regs[1]) * 0.1,   # reg 0160
+            "current_q_pct": lambda regs: _signed16(regs[2]) * 0.1,   # reg 0161
+            "target_q_pct":  lambda regs: _signed16(regs[3]) * 0.1,   # reg 0162
+        },
+    },
     "gen_current": {
         "address": 166, "count": 8,
         "fields": {
@@ -374,7 +383,7 @@ REGISTER_MAP_9560: dict[str, dict] = {
         "address": 134, "count": 12,
         "fields": {
             "busbar_current": lambda regs: regs[0] * 0.1,
-            "battery_v":      lambda regs: regs[8] * 0.1,
+            "battery_volt":   lambda regs: regs[8] * 0.1,
         },
     },
     "busbar_power": {
@@ -420,6 +429,9 @@ REGISTER_MAP_9560: dict[str, dict] = {
             "alarm_reg_24": lambda regs: regs[24],  # Indication
             "alarm_reg_30": lambda regs: regs[30],  # Mains Trip
             "alarm_reg_44": lambda regs: regs[44],  # Mains fault detail
+            # Power Limit status bits
+            "power_limit_active": lambda regs: bool(regs[21] & (1 << 15)),  # reg 0021 bit15
+            "power_limit_trip":   lambda regs: bool(regs[30] & (1 << 10)),  # reg 0030 bit10
         },
     },
 }

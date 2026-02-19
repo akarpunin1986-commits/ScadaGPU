@@ -4,6 +4,8 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2/dist/chartjs-plugin-zoom.min.js"></script>
 <style>
 :root{
 --bg:#06090f;--bg2:#0a0f1a;--bg3:#0f1525;--bg4:#152035;--bg5:#1a2840;
@@ -76,6 +78,24 @@ body{background:var(--bg);color:var(--t);font-family:var(--u);height:100vh;overf
 .to-bar{height:3px;background:var(--bg);border-radius:2px;overflow:hidden;margin-bottom:2px}.to-fill{height:100%;border-radius:2px;transition:width .5s}
 .to-tasks{font-size:10px;color:var(--t3);line-height:1.4;max-height:0;overflow:hidden;transition:max-height .3s}.to-block.exp .to-tasks{max-height:140px}.to-hint{font-size:9px;color:var(--t4);text-align:right}
 .mds{display:flex;gap:2px;margin-top:3px}.mdt{font-size:8px;font-family:var(--m);font-weight:600;padding:2px 6px;border-radius:3px;border:1px solid var(--bd);color:var(--t4);transition:all .2s}.mdt.on{border-color:var(--g);color:var(--g);background:var(--gd)}
+/* Power Limit block */
+.pl-block{margin-top:3px;padding:5px 8px;background:rgba(160,112,255,.04);border:1px solid rgba(160,112,255,.15);border-radius:var(--rs);transition:all .2s}
+.pl-block:hover{border-color:rgba(160,112,255,.3)}
+.pl-hdr{font-size:9px;font-weight:600;color:var(--p);margin-bottom:4px;letter-spacing:.3px}
+.pl-rows{display:flex;flex-direction:column;gap:3px}
+.pl-row{display:flex;align-items:center;gap:6px;font-size:10px;font-family:var(--m);color:var(--t2)}
+.pl-lbl{width:12px;flex-shrink:0;font-weight:600;color:var(--t3)}
+.pl-bar{flex:1;height:4px;background:var(--bg);border-radius:2px;overflow:hidden}
+.pl-fill{height:100%;border-radius:2px;transition:width .5s,background .3s;background:var(--g)}
+.pl-fill.pl-q{background:var(--b)}
+.pl-fill.pl-warn{background:var(--y)}.pl-fill.pl-crit{background:var(--r)}
+.pl-val{font-size:9px;color:var(--t2);width:90px;text-align:right;flex-shrink:0;white-space:nowrap}
+.pl-btn{margin-top:4px;width:100%;padding:3px;border-radius:4px;border:1px solid rgba(160,112,255,.2);background:rgba(160,112,255,.06);color:var(--p);cursor:pointer;font-family:var(--u);font-size:9px;font-weight:500;transition:all .15s}
+.pl-btn:hover{background:rgba(160,112,255,.15);border-color:rgba(160,112,255,.4)}
+.pl-block.disabled{opacity:.4;pointer-events:none}.pl-block.disabled .pl-btn{cursor:default}
+.sum-popup{position:fixed;z-index:9999;background:var(--bg2);border:1px solid var(--bd);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.5);padding:10px 14px;min-width:220px;max-width:340px;animation:fadeIn .15s}
+.sum-pop-hdr{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--bd)}
+.sum-pop-row{font-size:12px;color:var(--t);padding:4px 0;line-height:1.4}
 .cv{display:flex;justify-content:center;padding:3px;color:var(--t4);transition:transform .3s}.cc.op .cv{transform:rotate(180deg)}
 .ce{max-height:0;overflow:hidden;transition:max-height .4s ease}.cc.op .ce{max-height:2500px}.ei{padding:0 10px 8px}
 .tbs{display:flex;gap:0;border-bottom:1px solid var(--bd);margin-bottom:8px;overflow-x:auto}
@@ -202,10 +222,17 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .dp-time label{font-size:10px;color:var(--t3)}
 .dp-apply{width:100%;margin-top:8px;padding:6px;border-radius:var(--rs);border:none;background:var(--g);color:#080c14;font-size:11px;font-weight:600;font-family:var(--u);cursor:pointer;transition:background .15s}
 .dp-apply:hover{background:#00c888}
-.arc-chart-wrap{position:relative;height:350px;background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);padding:10px;margin-bottom:8px}
+.arc-chart-wrap{position:relative;height:480px;background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);padding:14px 14px 10px;margin-bottom:8px}
+.arc-zoom-btn{position:absolute;top:8px;right:8px;z-index:10;padding:4px 10px;border-radius:6px;border:1px solid rgba(64,144,255,.3);background:rgba(10,15,26,.85);color:#4090ff;font-size:11px;font-family:var(--u);cursor:pointer;transition:all .15s;backdrop-filter:blur(4px)}
+.arc-zoom-btn:hover{background:rgba(64,144,255,.15);border-color:rgba(64,144,255,.5);color:#60b0ff}
 .arc-desc{padding:10px 12px;margin-bottom:6px;font-size:12px;line-height:1.6;color:var(--t2);background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);border-left:3px solid #4090ff}
 .arc-desc b{color:var(--t1);font-weight:600}
 .arc-stats{padding:8px 10px;font-size:11px;color:var(--t2);font-family:var(--m)}
+.arc-fstats{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:8px}
+.arc-fs{padding:10px 12px;background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);border-left:3px solid var(--g)}
+.arc-fs-name{font-size:11px;font-weight:600;color:var(--t);margin-bottom:6px;font-family:var(--u);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.arc-fs-row{display:flex;justify-content:space-between;font-size:10px;font-family:var(--m);padding:1px 0}
+.arc-fs-lbl{color:var(--t3)}.arc-fs-val{color:var(--t);font-weight:500}
 .arc-flt{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
 .arc-pag{padding:4px 0}
 .arc-stat-card{padding:12px;background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad)}
@@ -326,8 +353,8 @@ let S,cur,editId=null,delId=null,evts=[];try{S=JSON.parse(localStorage.getItem('
 let demo=false,demoIv=null,dStep=0;
 
 // ===================== API / WS INTEGRATION LAYER =====================
-const API_BASE = (window.location.port === '8011')
-    ? '' // nginx proxy — same origin
+const API_BASE = (window.location.port === '8011' || window.location.port === '80' || window.location.port === '')
+    ? '' // nginx proxy — same origin (ports 80, 8011, or default)
     : 'http://' + window.location.hostname + ':8010';
 const WS_BASE = API_BASE
     ? API_BASE.replace(/^http/, 'ws')
@@ -525,7 +552,7 @@ function handleMetricsUpdate(m) {
         const mC = (m.mains_switch === 3);  // 3 = closed
 
         applySpr(gOn, mN, bC, mC, m.online !== false);
-        applySprDetailed(m);
+        if(m.online !== false) applySprDetailed(m);
 
         updateSummary();
         updateFlowFromMetrics();
@@ -601,9 +628,14 @@ function applySprDetailed(m) {
     if(sprov){
     // -- Helper: build gen panel HTML for a generator --
     function _genPanel(gx, gxon, label, gxid) {
-        const st = gxon ? (gx.gen_status != null ? gx.gen_status : -1) : (m.genset_status != null ? m.genset_status : -1);
-        const stT = GENSET_ST_TEXT[st] || '—';
-        const stC = st === 9 ? 'background:rgba(0,224,154,.15);color:#00e09a' : 'background:var(--bg);color:var(--t3)';
+        let st, stT, stC;
+        if (!gxon) {
+            st = -1; stT = 'Нет связи'; stC = 'background:rgba(255,64,96,.12);color:var(--r)';
+        } else {
+            st = gx.gen_status != null ? gx.gen_status : (m.genset_status != null ? m.genset_status : -1);
+            stT = GENSET_ST_TEXT[st] || '—';
+            stC = st === 9 ? 'background:rgba(0,224,154,.15);color:#00e09a' : 'background:var(--bg);color:var(--t3)';
+        }
         let body;
         if (gxon) {
             const P=_f1(gx.power_total), Q=_f1(gx.reactive_total);
@@ -622,7 +654,8 @@ function applySprDetailed(m) {
 <div style="font-size:11px;font-weight:500;color:var(--t3)">${label} офлайн</div>
 <div style="font-size:10px">Нет связи с контроллером</div></div>`;
         }
-        return `<div class="ov-panel"><div class="ov-hdr"><div class="ov-lbl"><span style="color:var(--g)">●</span> ${label}</div><span class="ov-bdg" style="${stC}">${stT}</span></div>${body}</div>`;
+        const dotC = gxon ? 'var(--g)' : 'var(--r)';
+        return `<div class="ov-panel"><div class="ov-hdr"><div class="ov-lbl"><span style="color:${dotC}">●</span> ${label}</div><span class="ov-bdg" style="${stC}">${stT}</span></div>${body}</div>`;
     }
     const g1Html = g1id ? _genPanel(g1, g1on, 'Г1', g1id) : '';
     const g2Html = g2id ? _genPanel(g2, g2on, 'Г2', g2id) : '';
@@ -642,7 +675,7 @@ function applySprDetailed(m) {
     const rh=_v(m.running_hours_a,_v(m.maint_hours,0));
     const rst=_v(m.start_times_a,0);
     const kwh=_v(m.accum_kwh,0);
-    const batV=_f1(m.battery_v);
+    const batV=_f1(m.battery_volt);
     const maintH=_v(m.maint_hours,0);
     // -- Switches --
     const bSwC=bC?'var(--g)':'var(--r)';const mSwC=mC?'var(--g)':'var(--r)';
@@ -728,40 +761,113 @@ ${g1Html}${g2Html}
     updateSprControlMode(m);
 }
 
+let _summaryIssues = []; // shared for popup
 function updateSummary() {
     const s = S[cur];
     if (!s) return;
 
-    // Collect powers from latestMetrics for all devices of current site
+    // Collect powers and issues from latestMetrics
     let totalP = 0, genP = 0, mainsU = null, hasAlarm = false, hasWarning = false, running = 0;
+    let allOffline = true, deviceCount = 0, anyOffline = false, onlineCount = 0;
+    const issues = [];
+
+    const slotNames = {g1: 'Генератор 1', g2: 'Генератор 2', spr: 'ШПР'};
 
     for (const [devId, m] of Object.entries(latestMetrics)) {
         const info = deviceSlotIndex[devId];
         if (!info || info.siteKey !== cur) continue;
+        deviceCount++;
+        const devName = slotNames[info.slot] || ('Устройство ' + devId);
+
+        if (m.online === false) {
+            anyOffline = true;
+            issues.push({severity: 'error', text: devName + ' — нет связи'});
+        } else {
+            allOffline = false;
+            onlineCount++;
+        }
+
         if (info.slot === 'g1' || info.slot === 'g2') {
             const p = m.power_total || 0;
-            if (m.gen_status === 9) { genP += p; running++; }
-            if (m.alarm_common || m.alarm_shutdown) hasAlarm = true;
-            if (m.alarm_warning) hasWarning = true;
+            if (m.online !== false && m.gen_status === 9) { genP += p; running++; }
+            if (m.online !== false && (m.alarm_common || m.alarm_shutdown)) {
+                hasAlarm = true;
+                issues.push({severity: 'error', text: devName + ' — авария'});
+            }
+            if (m.online !== false && m.alarm_warning) {
+                hasWarning = true;
+                issues.push({severity: 'warn', text: devName + ' — предупреждение'});
+            }
         }
         if (info.slot === 'spr') {
-            totalP = m.busbar_p || 0;
-            mainsU = m.mains_uab;
-            if (m.alarm_common) hasAlarm = true;
+            if (m.online !== false) {
+                totalP = m.busbar_p || 0;
+                mainsU = m.mains_uab;
+                if (m.alarm_common) {
+                    hasAlarm = true;
+                    issues.push({severity: 'error', text: devName + ' — авария'});
+                }
+                // Mains lost
+                if (m.mains_status != null && m.mains_status !== 0) {
+                    issues.push({severity: 'warn', text: 'Сеть — аварийная'});
+                }
+            }
         }
     }
     if (!totalP) totalP = genP;
+    _summaryIssues = issues;
 
     const el = n => document.getElementById(n);
-    if (el('sP')) el('sP').innerHTML = `${totalP.toFixed(1)}<span class="su">кВт</span>`;
-    if (el('sPg')) el('sPg').innerHTML = `${genP.toFixed(1)}<span class="su">кВт</span>`;
+    if (el('sP')) el('sP').innerHTML = allOffline ? '—<span class="su">кВт</span>' : `${totalP.toFixed(1)}<span class="su">кВт</span>`;
+    if (el('sPg')) el('sPg').innerHTML = allOffline ? '—<span class="su">кВт</span>' : `${genP.toFixed(1)}<span class="su">кВт</span>`;
     if (el('sU')) el('sU').innerHTML = mainsU != null ? `${mainsU.toFixed(0)}<span class="su">В</span>` : '—<span class="su">В</span>';
-    if (el('sG')) el('sG').innerHTML = `${running}<span class="su">/2</span>`;
+    if (el('sG')) el('sG').innerHTML = `${onlineCount}<span class="su">/${deviceCount}</span>`;
     if (el('sSt')) {
-        if (hasAlarm) el('sSt').innerHTML = '<span class="bdg bdg-a" onclick="scrollToAlarm()" style="cursor:pointer">● Авария</span>';
-        else if (hasWarning) el('sSt').innerHTML = '<span class="bdg bdg-w" onclick="scrollToAlarm()" style="cursor:pointer">● Предупр.</span>';
-        else if (running > 0 || totalP > 0) el('sSt').innerHTML = '<span class="bdg bdg-ok">● Норма</span>';
+        const hasIssues = issues.length > 0;
+        const clk = hasIssues ? ' onclick="showSummaryIssues(event)" style="cursor:pointer"' : '';
+        if (deviceCount > 0 && allOffline) {
+            el('sSt').innerHTML = `<span class="bdg bdg-a"${clk}>● Нет связи (${issues.length})</span>`;
+        } else if (hasAlarm || anyOffline) {
+            const lbl = hasAlarm ? 'Авария' : 'Ошибка';
+            el('sSt').innerHTML = `<span class="bdg bdg-a"${clk}>● ${lbl} (${issues.length})</span>`;
+        } else if (hasWarning) {
+            el('sSt').innerHTML = `<span class="bdg bdg-w"${clk}>● Предупр. (${issues.length})</span>`;
+        } else if (running > 0 || totalP > 0) {
+            el('sSt').innerHTML = '<span class="bdg bdg-ok">● Норма</span>';
+        } else {
+            el('sSt').innerHTML = '<span class="bdg bdg-off">● Стоп</span>';
+        }
     }
+}
+
+function showSummaryIssues(e) {
+    e.stopPropagation();
+    // Remove existing popup
+    let pop = document.getElementById('summaryPopup');
+    if (pop) { pop.remove(); return; }
+    if (!_summaryIssues.length) return;
+    pop = document.createElement('div');
+    pop.id = 'summaryPopup';
+    pop.className = 'sum-popup';
+    let html = '<div class="sum-pop-hdr">Проблемы объекта</div>';
+    for (const iss of _summaryIssues) {
+        const ic = iss.severity === 'error' ? '🔴' : '🟡';
+        html += `<div class="sum-pop-row">${ic} ${iss.text}</div>`;
+    }
+    pop.innerHTML = html;
+    // Position near the badge
+    const rect = e.target.getBoundingClientRect();
+    pop.style.top = (rect.bottom + 8) + 'px';
+    pop.style.left = Math.max(8, rect.left - 60) + 'px';
+    document.body.appendChild(pop);
+    // Close on click outside
+    setTimeout(() => {
+        document.addEventListener('click', function _closePop() {
+            const p = document.getElementById('summaryPopup');
+            if (p) p.remove();
+            document.removeEventListener('click', _closePop);
+        }, {once: true});
+    }, 50);
 }
 
 function updateFlowFromMetrics() {
@@ -1117,7 +1223,15 @@ return`<div class="cc s-stb" id="c${sl}"><div class="ch" onclick="tog('c${sl}')"
 <div class="cr1"><div class="cid"><div class="cdot cd-x"></div><div><div class="cn">${nm}</div><div class="csb">HGM9520N · ${esc(c.ip)}:${c.port||502} <span id="${sl}-rh" style="color:var(--t);font-weight:600;margin-left:6px">⏱ ${rh} ч</span></div></div></div><span class="bdg bdg-off" onclick="event.stopPropagation();openAlarms('c${sl}','${sl}a')" title="Нажми для просмотра аварий">ОЖИДАНИЕ</span></div>
 <div class="kr"><div class="kp"><div class="kl">P</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">U</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">I</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">f</div><div class="kv vm">—</div></div></div>
 <div class="to-block" id="${sl}-to" onclick="event.stopPropagation();${to.unknown?'openSet()':'this.classList.toggle(&quot;exp&quot;)'}"><div class="to-head"><span class="to-name ${to.unknown?'to-y':tc}">${to.unknown?'⚠ Укажите последнее ТО':to.name+' → '+to.dueAt+'ч'}</span><span class="to-remain">${to.unknown?'<span style=&quot;color:var(--y);cursor:pointer&quot;>Настройки →</span>':(to.remain>0?to.remain+'ч ост.':(to.remain<0?'просроч. '+Math.abs(to.remain)+'ч':'сейчас'))+' · '+rh+'ч'}</span></div>${to.unknown?'':`<div class="to-bar"><div class="to-fill" style="width:${to.pct}%;background:${bc}"></div></div><div class="to-tasks">${to.tasks?.slice(0,5).map(t=>'• '+(t.c?'<b>':'')+t.text+(t.c?'</b>':'')).join('<br>')||''}</div><div class="to-hint">▼ работы · <span style="color:var(--g);cursor:pointer" onclick="event.stopPropagation();openTO('${sl}')">ТО</span></div>`}</div>
-<div class="mds"><span class="mdt">AUTO</span><span class="mdt">MAN</span><span class="mdt">TEST</span><span class="mdt">STOP</span></div></div>
+<div class="mds"><span class="mdt">AUTO</span><span class="mdt">MAN</span><span class="mdt">TEST</span><span class="mdt">STOP</span></div>
+<div class="pl-block" id="${sl}-pl" style="display:none">
+<div class="pl-hdr">⚡ Огр. мощности</div>
+<div class="pl-rows">
+<div class="pl-row"><span class="pl-lbl">P</span><div class="pl-bar"><div class="pl-fill" id="${sl}-pl-pf"></div></div><span class="pl-val" id="${sl}-pl-pv">—</span></div>
+<div class="pl-row"><span class="pl-lbl">Q</span><div class="pl-bar"><div class="pl-fill pl-q" id="${sl}-pl-qf"></div></div><span class="pl-val" id="${sl}-pl-qv">—</span></div>
+</div>
+<button class="pl-btn" onclick="event.stopPropagation();openPowerLimitModal('${sl}')">⚙ Настроить</button>
+</div></div>
 <!-- QUICK CONTROLS always visible -->
 <div style="padding:0 10px 5px"><div class="qc">
 <button class="qb q-start" onclick="event.stopPropagation();cmdConfirm('${nm}','Start','▶ Пуск','FC05 coil 0x0000: Remote Start')">▶ Пуск</button>
@@ -1264,7 +1378,10 @@ setInterval(uCk,1000);
 // === DEMO ===
 function togDemo(){demo=!demo;
 if(demo){if(cur&&S[cur]){const s=S[cur];if(!s.g1?.ip){s.g1={ip:'192.168.97.10',port:502,slaveId:1,runHours:1227};s.g2={ip:'192.168.97.11',port:502,slaveId:1,runHours:489};s.spr={ip:'10.11.0.2',port:26,slaveId:1};sv();renderDash()}}dStep=0;ae('▶ Демо');demoTick();demoIv=setInterval(demoTick,2500)}
-else{clearInterval(demoIv);demoIv=null;ae('⏹ Стоп');renderDash()}
+else{clearInterval(demoIv);demoIv=null;
+// Clean up demo power_limit data from latestMetrics
+for(const did of Object.keys(latestMetrics)){const mx=latestMetrics[did];if(mx){delete mx.current_p_pct;delete mx.target_p_pct;delete mx.current_q_pct;delete mx.target_q_pct}}
+ae('⏹ Стоп');renderDash()}
 const b=$('demoBtn');if(b){b.textContent=demo?'⏹ Стоп':'▶ Демо';b.classList.toggle('demo-on',demo)}}
 // Demo scenario: [g1state, g2state, mainsNormal, busbarClosed, mainsClosed, g1power, g2power]
 // Shows realistic ATS: mains fail → generators start → parallel → mains return → transfer back
@@ -1285,6 +1402,10 @@ const SC=[
 const ST={running:{dot:'cd-g',bdg:'bdg-run',txt:'РАБОТА',cls:'s-run'},warning:{dot:'cd-y',bdg:'bdg-w',txt:'ПРЕДУПР.',cls:'s-wrn'},alarm:{dot:'cd-r',bdg:'bdg-a',txt:'АВАРИЯ',cls:'s-alm'},standby:{dot:'cd-x',bdg:'bdg-off',txt:'СТОП',cls:'s-stb'}};
 function demoTick(){if(!cur||!S[cur])return;dStep++;const sc=SC[(dStep-1)%SC.length],s1=sc[0],s2=sc[1],mN=sc[2],bC=sc[3],mC=sc[4],p1base=sc[5],p2base=sc[6];
 const on1=s1!=='standby',on2=s2!=='standby';
+// Inject ONLY power_limit fields for demo (do NOT touch online/power_total/modes — that breaks real WS data)
+const _g1id=getDeviceIdForSlot('g1'),_g2id=getDeviceIdForSlot('g2');
+if(_g1id){if(!latestMetrics[_g1id])latestMetrics[_g1id]={};latestMetrics[_g1id].current_p_pct=on1?75+R(-2,2):null;latestMetrics[_g1id].target_p_pct=on1?75:null;latestMetrics[_g1id].current_q_pct=on1?50+R(-1.5,1.5):null;latestMetrics[_g1id].target_q_pct=on1?50:null}
+if(_g2id){if(!latestMetrics[_g2id])latestMetrics[_g2id]={};latestMetrics[_g2id].current_p_pct=on2?80+R(-3,3):null;latestMetrics[_g2id].target_p_pct=on2?80:null;latestMetrics[_g2id].current_q_pct=on2?45+R(-2,2):null;latestMetrics[_g2id].target_q_pct=on2?45:null}
 // Pass actual power values to applyGen for display
 applyGen('g1',s1,S[cur].g1?.runHours||1227,p1base,true);applyGen('g2',s2,S[cur].g2?.runHours||489,p2base,true);applySpr(on1||on2,mN,bC,mC,true);
 const p1=on1?p1base+R(-10,10):0,p2=on2?p2base+R(-10,10):0,mP=mN&&mC?R(100,200):0;const busP2=p1+p2+(mN&&mC?mP:0);const el=n=>document.getElementById(n);
@@ -1307,19 +1428,21 @@ const u=mx?.gen_uab!=null?mx.gen_uab:R(398,406);
 const I=mx?.current_a!=null?(mx.current_a+mx.current_b+mx.current_c):(basePower?Math.round(basePower*2.5+R(-20,20)):RI(1100,1350));
 const f=mx?.gen_freq!=null?mx.gen_freq:R(49.96,50.04);
 const kvs=card.querySelectorAll('.kv');
-if(on){kvs[0].className='kv vg';kvs[0].innerHTML=p.toFixed(1)+'<span class="ku">кВт</span>';kvs[1].className='kv vn';kvs[1].innerHTML=u.toFixed(0)+'<span class="ku">В</span>';kvs[2].className='kv vn';kvs[2].innerHTML=Math.round(I)+'<span class="ku">А</span>';kvs[3].className='kv vn';kvs[3].innerHTML=f.toFixed(2)+'<span class="ku">Гц</span>'}else kvs.forEach(k=>{k.className='kv vm';k.textContent='—'});
+if(on&&isOnline){kvs[0].className='kv vg';kvs[0].innerHTML=p.toFixed(1)+'<span class="ku">кВт</span>';kvs[1].className='kv vn';kvs[1].innerHTML=u.toFixed(0)+'<span class="ku">В</span>';kvs[2].className='kv vn';kvs[2].innerHTML=Math.round(I)+'<span class="ku">А</span>';kvs[3].className='kv vn';kvs[3].innerHTML=f.toFixed(2)+'<span class="ku">Гц</span>'}else kvs.forEach(k=>{k.className='kv vm';k.textContent='—'});
 const modes=card.querySelectorAll('.mdt');modes.forEach(m=>m.classList.remove('on'));
 if(mx){if(mx.mode_auto)modes[0]?.classList.add('on');if(mx.mode_manual)modes[1]?.classList.add('on');if(mx.mode_test)modes[2]?.classList.add('on');if(mx.mode_stop)modes[3]?.classList.add('on')}else{if(on)modes[0]?.classList.add('on');else modes[3]?.classList.add('on')}
+// Power Limit block
+const plb=$(sl+'-pl');if(plb){const hasPL=mx&&(mx.current_p_pct!=null||mx.target_p_pct!=null);if(hasPL&&isOnline){plb.style.display='';plb.classList.remove('disabled');const cpP=mx.current_p_pct??0,tpP=mx.target_p_pct,cpQ=mx.current_q_pct??0,tpQ=mx.target_q_pct;const pfEl=$(sl+'-pl-pf'),qfEl=$(sl+'-pl-qf'),pvEl=$(sl+'-pl-pv'),qvEl=$(sl+'-pl-qv');if(pfEl){pfEl.style.width=Math.min(cpP,100)+'%';pfEl.className='pl-fill'+(cpP>80?' pl-crit':cpP>50?' pl-warn':'')}if(qfEl){qfEl.style.width=Math.min(Math.abs(cpQ),100)+'%';qfEl.className='pl-fill pl-q'+(Math.abs(cpQ)>80?' pl-crit':Math.abs(cpQ)>50?' pl-warn':'')}if(pvEl)pvEl.textContent=cpP.toFixed(1)+'%'+(tpP!=null?' → '+tpP.toFixed(1)+'%':'');if(qvEl)qvEl.textContent=cpQ.toFixed(1)+'%'+(tpQ!=null?' → '+tpQ.toFixed(1)+'%':'')}else if(hasPL&&!isOnline){plb.style.display='';plb.classList.add('disabled')}else{plb.style.display='none'}}
 // Update run hours display in header
-const rhEl=$(sl+'-rh');if(rhEl){const rhVal=mx?.run_hours!=null?mx.run_hours:rh;rhEl.textContent='⏱ '+(typeof rhVal==='number'?rhVal.toFixed(0):rhVal)+' ч'}
-const tob=$(sl+'-to');if(tob){const to=getNextTO(rh,cur,sl);if(to.unknown){tob.querySelector('.to-head').innerHTML=`<span class="to-name to-y">⚠ Укажите последнее ТО</span><span class="to-remain" style="color:var(--y);cursor:pointer" onclick="event.stopPropagation();openSet()">Настройки →</span>`;tob.onclick=function(e){e.stopPropagation();openSet()};const bar=tob.querySelector('.to-bar');if(bar)bar.style.display='none';const tasks=tob.querySelector('.to-tasks');if(tasks)tasks.style.display='none';const hint=tob.querySelector('.to-hint');if(hint)hint.style.display='none'}else{const tc2=to.remain<0?'to-r':to.pct>85?'to-r':to.pct>65?'to-y':'to-g';const bc2=to.remain<0?'var(--r)':to.pct>85?'var(--r)':to.pct>65?'var(--y)':'var(--g)';tob.querySelector('.to-head').innerHTML=`<span class="to-name ${tc2}">${to.name} → ${to.dueAt}ч</span><span class="to-remain">${to.remain>0?to.remain+'ч ост.':(to.remain<0?'просроч. '+Math.abs(to.remain)+'ч':'сейчас')} · ${rh}ч</span>`;const fill=tob.querySelector('.to-fill');if(fill){fill.parentElement.style.display='';fill.style.cssText=`width:${to.pct}%;background:${bc2}`}}}
+const rhEl=$(sl+'-rh');if(rhEl){if(!isOnline){rhEl.textContent='⏱ — ч';rhEl.style.opacity='0.4'}else{const rhVal=mx?.run_hours!=null?mx.run_hours:rh;rhEl.textContent='⏱ '+(typeof rhVal==='number'?rhVal.toFixed(0):rhVal)+' ч';rhEl.style.opacity=''}}
+const tob=$(sl+'-to');if(tob){if(!isOnline){tob.querySelector('.to-head').innerHTML=`<span class="to-name" style="color:var(--t3)">⚠ Нет связи — моточасы недоступны</span>`;const bar=tob.querySelector('.to-bar');if(bar)bar.style.display='none';const tasks=tob.querySelector('.to-tasks');if(tasks)tasks.style.display='none';const hint=tob.querySelector('.to-hint');if(hint)hint.style.display='none'}else{const to=getNextTO(rh,cur,sl);if(to.unknown){tob.querySelector('.to-head').innerHTML=`<span class="to-name to-y">⚠ Укажите последнее ТО</span><span class="to-remain" style="color:var(--y);cursor:pointer" onclick="event.stopPropagation();openSet()">Настройки →</span>`;tob.onclick=function(e){e.stopPropagation();openSet()};const bar=tob.querySelector('.to-bar');if(bar)bar.style.display='none';const tasks=tob.querySelector('.to-tasks');if(tasks)tasks.style.display='none';const hint=tob.querySelector('.to-hint');if(hint)hint.style.display='none'}else{const tc2=to.remain<0?'to-r':to.pct>85?'to-r':to.pct>65?'to-y':'to-g';const bc2=to.remain<0?'var(--r)':to.pct>85?'var(--r)':to.pct>65?'var(--y)':'var(--g)';tob.querySelector('.to-head').innerHTML=`<span class="to-name ${tc2}">${to.name} → ${to.dueAt}ч</span><span class="to-remain">${to.remain>0?to.remain+'ч ост.':(to.remain<0?'просроч. '+Math.abs(to.remain)+'ч':'сейчас')} · ${rh}ч</span>`;const fill=tob.querySelector('.to-fill');if(fill){fill.parentElement.style.display='';fill.style.cssText=`width:${to.pct}%;background:${bc2}`}}}}
 // online/offline indicator: isOnline=true means WS data arrives, separate from gen running
 const connOk=isOnline!==undefined?isOnline:(mx?.online===true);
 card.querySelector('.lo').className='lo '+(connOk?'lo-g':'lo-r');card.querySelector('.li span:last-child').textContent=connOk?(on?'live':'standby'):'offline';
 // Detailed tabs — use real WS data if available
 const ct=mx?.coolant_temp!=null?mx.coolant_temp:(status==='warning'?RI(93,99):(status==='alarm'?RI(100,108):RI(75,88)));
 const op=mx?.oil_pressure!=null?mx.oil_pressure:(status==='alarm'?RI(150,250):RI(350,450));
-const eT=$(sl+'e');if(eT&&on){const pp=mx?.power_total!=null?mx.power_total:(basePower||p);
+const eT=$(sl+'e');if(eT&&on&&isOnline){const pp=mx?.power_total!=null?mx.power_total:(basePower||p);
 const q=mx?.reactive_total!=null?mx.reactive_total:R(30,55);
 const pf=mx?.pf_avg!=null?mx.pf_avg:R(.97,.999);
 const uab=mx?.gen_uab!=null?mx.gen_uab:u;
@@ -1335,8 +1458,8 @@ const ld=mx?.load_pct!=null?mx.load_pct:Math.round(pp/5);
 const ekwh=mx?.energy_kwh!=null?mx.energy_kwh:RI(400,500);
 const starts=mx?.start_count!=null?mx.start_count:RI(300,400);
 eT.innerHTML=`<div class="mg"><div class="mc"><div class="ml">P</div><div class="mv vg">${pp.toFixed?pp.toFixed(1):pp}<span class="mu">кВт</span></div></div><div class="mc"><div class="ml">Q</div><div class="mv vn">${typeof q==='number'?q.toFixed(1):q}<span class="mu">квар</span></div></div><div class="mc"><div class="ml">Cos φ</div><div class="mv vn">${typeof pf==='number'?pf.toFixed(3):pf}</div></div></div><table class="pt"><thead><tr><th>Фаза</th><th>U</th><th>I</th><th>P</th></tr></thead><tbody><tr><td class="ph">A-B</td><td>${typeof uab==='number'?uab.toFixed(0):uab}</td><td>${typeof ia==='number'?ia.toFixed(1):ia}</td><td>${typeof pa==='number'?pa.toFixed(1):pa}</td></tr><tr><td class="ph">B-C</td><td>${typeof ubc==='number'?ubc.toFixed(0):ubc}</td><td>${typeof ib==='number'?ib.toFixed(1):ib}</td><td>${typeof pb==='number'?pb.toFixed(1):pb}</td></tr><tr><td class="ph">C-A</td><td>${typeof uca==='number'?uca.toFixed(0):uca}</td><td>${typeof ic==='number'?ic.toFixed(1):ic}</td><td>${typeof pc==='number'?pc.toFixed(1):pc}</td></tr></tbody></table><div class="mg mg4" style="margin-top:10px"><div class="mc"><div class="ml">Нагрузка</div><div class="mv vn">${ld}%</div></div><div class="mc"><div class="ml">Энергия</div><div class="mv vn">${ekwh}<span class="mu">кВт·ч</span></div></div><div class="mc"><div class="ml">Моточасы</div><div class="mv vn">${typeof rh==='number'?rh.toFixed(0):rh}<span class="mu">ч</span></div></div><div class="mc"><div class="ml">Пусков</div><div class="mv vn">${starts}</div></div></div>`}
-else if(eT&&!on)eT.innerHTML=`<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">${connOk?'Остановлен':'Нет связи'}</div>`;
-const mT=$(sl+'m');if(mT&&on){
+else if(eT&&(!on||!isOnline))eT.innerHTML=`<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">${connOk?'Остановлен':'Нет связи'}</div>`;
+const mT=$(sl+'m');if(mT&&on&&isOnline){
 const rpm=mx?.engine_speed!=null?mx.engine_speed:1500;
 const oilT=mx?.oil_temp!=null?mx.oil_temp:RI(70,85);
 const fuel=mx?.fuel_level!=null?mx.fuel_level:RI(30,90);
@@ -1347,7 +1470,7 @@ const ctC=(typeof ct==='number'&&ct>95)?'va':(typeof ct==='number'&&ct>88)?'vw':
 const opC=(typeof op==='number'&&op<300)?'va':'vn';
 const fuelC=(typeof fuel==='number'&&fuel<50)?'vw':'vn';
 mT.innerHTML=`<div class="mg"><div class="mc"><div class="ml">Обороты</div><div class="mv vn">${rpm}</div></div><div class="mc"><div class="ml">Темп.ОЖ</div><div class="mv ${ctC}">${ct}°C</div></div><div class="mc"><div class="ml">Давл.масла</div><div class="mv ${opC}">${op} кПа</div></div><div class="mc"><div class="ml">Темп.масла</div><div class="mv vn">${oilT}°C</div></div><div class="mc"><div class="ml">Топливо</div><div class="mv ${fuelC}">${fuel}%</div></div><div class="mc"><div class="ml">Расход</div><div class="mv vn">${typeof fc==='number'?fc.toFixed(1):fc} л/ч</div></div><div class="mc"><div class="ml">Турбо</div><div class="mv vn">${turbo} кПа</div></div><div class="mc"><div class="ml">Батарея</div><div class="mv vn">${typeof batt==='number'?batt.toFixed(1):batt}В</div></div></div>`}
-else if(mT&&!on)mT.innerHTML=`<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">${connOk?'—':'Нет связи'}</div>`;
+else if(mT&&(!on||!isOnline))mT.innerHTML=`<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">${connOk?'—':'Нет связи'}</div>`;
 const aT=$(sl+'a-act');if(aT){let ah='';
 if(!connOk) ah+=`<div class="ai aa">🔴 <b style="color:var(--r)">CONN_LOST</b> Нет связи с HGM9520N<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
 if(mx?.alarm_common) ah+=`<div class="ai aa"${ah?' style="margin-top:2px"':''}>🔴 <b style="color:var(--r)">COMMON</b> Общая авария<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
@@ -1463,7 +1586,7 @@ var dl=new Date();dl.setDate(dl.getDate()+(+cfg.deadlineDays||3));var dlStr=dl.t
 var desc='[B]Объект:[/B] '+s.name+'\n[B]Генератор:[/B] '+genName+'\n[B]Моточасы:[/B] '+(s[dev]?.runHours||0)+'\n[B]Ответственный:[/B] '+respName+'\n\n[B]Работы ТО:[/B]\n';
 for(var ti=0;ti<tasks.length;ti++){desc+=(ti+1)+'. '+tasks[ti].text+(tasks[ti].c?' [COLOR=red][!] ОБЯЗАТЕЛЬНО[/COLOR]':'')+'\n'}
 var auditors=cfg.auditor?'['+cfg.auditor+']':'[]';
-var payload='{\n  "fields": {\n    "TITLE": "'+title.replace(/"/g,'\\"')+'",\n    "DESCRIPTION": "'+desc.replace(/"/g,'\\"').replace(/\n/g,'\\n')+'",\n    "DESCRIPTION_IN_BBCODE": "Y",\n    "RESPONSIBLE_ID": '+respId+',\n    "GROUP_ID": '+(cfg.groupId||'null')+',\n    "DEADLINE": "'+dlStr+'",\n    "PRIORITY": '+(cfg.priority||1)+',\n    "AUDITORS": '+auditors+',\n    "ALLOW_CHANGE_DEADLINE": "N"\n  }\n}';
+var payload=JSON.stringify({fields:{TITLE:title,DESCRIPTION:desc,DESCRIPTION_IN_BBCODE:"Y",RESPONSIBLE_ID:+respId||null,GROUP_ID:cfg.groupId?+cfg.groupId:null,DEADLINE:dlStr,PRIORITY:+(cfg.priority||1),AUDITORS:cfg.auditor?[+cfg.auditor]:[],ALLOW_CHANGE_DEADLINE:"N"}},null,2);
 var chkPayload='// Для каждой работы:\ntask.checklistitem.add\n[TASK_ID, {"TITLE": "текст работы"}]';
 $('toBody').innerHTML+='<div style="padding:10px;background:var(--gd);border:1px solid rgba(0,224,154,.2);border-radius:8px;margin-top:10px"><div style="font-size:12px;color:var(--g);font-weight:600;margin-bottom:8px">📋 Задача для Битрикс24</div><div style="font-size:11px;color:var(--t2);line-height:1.5"><b>TITLE:</b> '+esc(title)+'<br><b>RESPONSIBLE_ID:</b> '+respId+' ('+esc(respName)+')<br><b>GROUP_ID:</b> '+(cfg.groupId||'—')+'<br><b>DEADLINE:</b> '+dlStr+'<br><b>PRIORITY:</b> '+(cfg.priority||1)+'<br><b>AUDITORS:</b> '+auditors+'<br><b>Чеклист:</b> '+tasks.length+' пунктов'+(cfg.addChecklist!==false?' (task.checklistitem.add)':' (отключён)')+'</div><details style="margin-top:8px"><summary style="cursor:pointer;font-size:10px;color:var(--t3)">Показать JSON payload</summary><pre style="font-size:9px;color:var(--t3);background:var(--bg);padding:8px;border-radius:4px;margin-top:4px;overflow-x:auto;white-space:pre-wrap">POST {webhook}/tasks.task.add\n'+esc(payload)+'</pre></details><div style="margin-top:8px;font-size:9px;color:var(--t4)">Требуется backend для отправки. URL: '+esc((cfg.url||'https://...').substring(0,35))+'...</div></div>';ae('📋 Б24 задача: '+title)}
 function initBxModal(){var cfg=getBxConfig();if($('bxUrl'))$('bxUrl').value=cfg.url||'';if($('bxFolderId'))$('bxFolderId').value=cfg.folderId||'';if($('bxGroupId'))$('bxGroupId').value=cfg.groupId||'';if($('bxTaskTitle'))$('bxTaskTitle').value=cfg.taskTitle||'{TO_NAME} — {SITE_NAME} — {GEN_NAME}';if($('bxDeadlineDays'))$('bxDeadlineDays').value=cfg.deadlineDays||3;if($('bxPriority'))$('bxPriority').value=cfg.priority||'1';if($('bxAutoCreate'))$('bxAutoCreate').checked=cfg.autoCreate||false;if($('bxAddChecklist'))$('bxAddChecklist').checked=cfg.addChecklist!==false;if($('bxDescBBCode'))$('bxDescBBCode').checked=cfg.descBBCode!==false;var aud=$('bxAuditor');if(aud){var users=getBxUsers();aud.innerHTML='<option value="">— нет —</option>';for(var i=0;i<users.length;i++){var u=users[i];aud.innerHTML+='<option value="'+u.id+'"'+(u.id===(cfg.auditor||'')?'selected':'')+'>'+u.name+'</option>'}}}
@@ -1719,12 +1842,12 @@ current:{fields:'current_a,current_b,current_c,load_pct',labels:{current_a:'То
 desc:'Токи на выходе генератора по трём фазам и процент нагрузки от номинала. Равномерное распределение токов по фазам — признак сбалансированной нагрузки. Нагрузка выше 80% длительно — повышенный износ.'}
 };
 const ARC_GROUPS_SPR={
-power:{fields:'mains_total_p,mains_p_a,mains_p_b,mains_p_c,busbar_p',labels:{mains_total_p:'Общая мощность сети (кВт)',mains_p_a:'Мощность сети фаза A (кВт)',mains_p_b:'Мощность сети фаза B (кВт)',mains_p_c:'Мощность сети фаза C (кВт)',busbar_p:'Мощность на шине (кВт)'},unit:'кВт',colors:['#00e09a','#4090ff','#ffb020','#a070ff','#ff4060'],
-desc:'Активная мощность на вводе от внешней сети и на общей шине. Сеть A/B/C — мощность по каждой фазе от сетевого ввода. Мощность на шине — то, что реально передаётся потребителям. Разница сеть-шина = потери в коммутации.'},
+power:{fields:'mains_total_p,mains_p_a,mains_p_b,mains_p_c,busbar_p',labels:{mains_total_p:'Σ P сети (кВт)',mains_p_a:'P сети ф.A (кВт)',mains_p_b:'P сети ф.B (кВт)',mains_p_c:'P сети ф.C (кВт)',busbar_p:'P шины (кВт)'},unit:'кВт',colors:['#00e09a','#4090ff','#ffb020','#a070ff','#ff4060'],
+desc:'Активная мощность на вводе от внешней сети и на общей шине. <b>Σ P сети</b> = сумма трёх фаз ввода. <b>P шины</b> — реальная мощность на потребителей. Разница P сети − P шины = потери в коммутации.'},
 voltage:{fields:'mains_uab,mains_ubc,mains_uca,busbar_uab,busbar_ubc,busbar_uca',labels:{mains_uab:'Напряжение сети UAB (В)',mains_ubc:'Напряжение сети UBC (В)',mains_uca:'Напряжение сети UCA (В)',busbar_uab:'Напряжение шины UAB (В)',busbar_ubc:'Напряжение шины UBC (В)',busbar_uca:'Напряжение шины UCA (В)'},unit:'В',colors:['#4090ff','#00e09a','#ffb020','#ff4060','#a070ff','#f472b6'],
 desc:'Линейные напряжения на вводе от внешней сети и на общей шине (после коммутации). Сеть — входящее напряжение от энергосбыта. Шина — напряжение, подаваемое потребителям. Норма 380-400В. Просадка шины при нагрузке — нормально до 5%.'},
-current:{fields:'mains_ia,mains_ib,mains_ic,busbar_current',labels:{mains_ia:'Ток сети фаза A (А)',mains_ib:'Ток сети фаза B (А)',mains_ic:'Ток сети фаза C (А)',busbar_current:'Суммарный ток шины (А)'},unit:'А',colors:['#4090ff','#00e09a','#ffb020','#ff4060'],
-desc:'Токи на сетевом вводе по фазам и суммарный ток на общей шине. Перекос токов более 15% между фазами указывает на неравномерную нагрузку. Ток шины — суммарное потребление всех подключённых нагрузок.'},
+current:{fields:'mains_ia,mains_ib,mains_ic,busbar_current',labels:{mains_ia:'Ток ввода сети ф.A (А)',mains_ib:'Ток ввода сети ф.B (А)',mains_ic:'Ток ввода сети ф.C (А)',busbar_current:'Σ ток шины (А)'},unit:'А',colors:['#4090ff','#00e09a','#ffb020','#ff4060'],
+desc:'Токи на <b>сетевом вводе</b> по фазам A/B/C и суммарный ток на общей шине. Пофазные токи — это измерения трансформаторов тока на вводе внешней сети. <b>Σ ток шины</b> — суммарное потребление всех нагрузок (пофазное разделение недоступно на HGM9560). Перекос токов ввода >15% — неравномерная нагрузка.'},
 frequency:{fields:'mains_freq,busbar_freq',labels:{mains_freq:'Частота внешней сети (Гц)',busbar_freq:'Частота на шине (Гц)'},unit:'Гц',colors:['#4090ff','#ff4060'],
 desc:'Частота электрической сети на вводе и на общей шине. Номинал 50.0 Гц. Отклонение ±0.5 Гц — допустимо. Провалы частоты сети ниже 49 Гц указывают на перегрузку энергосистемы. При работе от генератора частота зависит от оборотов двигателя.'}
 };
@@ -1733,9 +1856,66 @@ const ARC_TABS_GEN=[{key:'power',label:'⚡ Мощность'},{key:'voltage',la
 const ARC_TABS_SPR=[{key:'power',label:'⚡ Мощность'},{key:'voltage',label:'🔌 Напряжение'},{key:'current',label:'〰 Токи'},{key:'frequency',label:'📶 Частота'}];
 function arcGetGroups(){return arcState.slot==='spr'?ARC_GROUPS_SPR:ARC_GROUPS_GEN}
 function arcGetTabs(){return arcState.slot==='spr'?ARC_TABS_SPR:ARC_TABS_GEN}
-const CHART_DEFAULTS={responsive:true,maintainAspectRatio:false,animation:{duration:300},interaction:{mode:'index',intersect:false},
-plugins:{legend:{labels:{color:'#94a3b8',font:{family:'Outfit',size:11}}},tooltip:{backgroundColor:'#0a0f1a',borderColor:'#1a2640',borderWidth:1,titleColor:'#e8edf5',bodyColor:'#94a3b8',titleFont:{family:'JetBrains Mono',size:11},bodyFont:{family:'JetBrains Mono',size:10}}},
-scales:{x:{type:'time',grid:{color:'rgba(26,38,64,.5)'},ticks:{color:'#5a6a80',font:{family:'JetBrains Mono',size:9}},time:{tooltipFormat:'dd.MM.yyyy HH:mm',displayFormats:{minute:'HH:mm',hour:'HH:mm',day:'dd.MM'}}},y:{grid:{color:'rgba(26,38,64,.5)'},ticks:{color:'#5a6a80',font:{family:'JetBrains Mono',size:9}}}}};
+const CHART_DEFAULTS={responsive:true,maintainAspectRatio:false,animation:{duration:400},
+interaction:{mode:'index',intersect:false,axis:'x'},
+plugins:{
+  legend:{position:'top',align:'start',
+    labels:{color:'#c8d4e6',font:{family:'Outfit',size:12,weight:'500'},padding:16,usePointStyle:true,pointStyle:'circle',pointStyleWidth:10,
+      generateLabels:function(chart){
+        const orig=Chart.defaults.plugins.legend.labels.generateLabels(chart);
+        return orig.map(item=>{
+          const ds=chart.data.datasets[item.datasetIndex];
+          if(ds&&ds.data&&ds.data.length){
+            const last=ds.data[ds.data.length-1];
+            const val=last&&last.y!=null?last.y.toFixed(1):'—';
+            item.text=ds.label+' ('+val+')';
+          }
+          return item;
+        });
+      }
+    }
+  },
+  tooltip:{
+    backgroundColor:'rgba(10,15,26,.95)',borderColor:'rgba(64,144,255,.3)',borderWidth:1,
+    titleColor:'#e8edf5',bodyColor:'#c8d4e6',footerColor:'#5a6a80',
+    titleFont:{family:'JetBrains Mono',size:12,weight:'600'},
+    bodyFont:{family:'JetBrains Mono',size:11},
+    footerFont:{family:'JetBrains Mono',size:9},
+    padding:12,cornerRadius:8,displayColors:true,boxPadding:4,
+    caretSize:6,caretPadding:8,
+    callbacks:{
+      label:function(ctx){return ' '+ctx.dataset.label.split(' (')[0]+': '+(ctx.parsed.y!=null?ctx.parsed.y.toFixed(2):'—')},
+      footer:function(items){if(!items.length)return '';const d=items[0].parsed.x;return new Date(d).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'})}
+    }
+  },
+  crosshair:false,
+  zoom:{
+    pan:{enabled:true,mode:'x',modifierKey:null},
+    zoom:{
+      wheel:{enabled:true,speed:0.08},
+      pinch:{enabled:true},
+      drag:{enabled:false},
+      mode:'x'
+    },
+    limits:{x:{minRange:30000}} // min 30 sec range
+  }
+},
+scales:{
+  x:{type:'time',
+    grid:{color:'rgba(40,60,100,.35)',lineWidth:1,drawTicks:true,tickLength:4},
+    border:{color:'rgba(40,60,100,.5)'},
+    ticks:{color:'#7a8ca0',font:{family:'JetBrains Mono',size:10},maxRotation:0,autoSkipPadding:20},
+    time:{tooltipFormat:'dd.MM.yyyy HH:mm:ss',displayFormats:{second:'HH:mm:ss',minute:'HH:mm',hour:'HH:mm',day:'dd.MM',week:'dd.MM',month:'MMM yyyy'}}
+  },
+  y:{
+    grid:{color:'rgba(40,60,100,.3)',lineWidth:1},
+    border:{color:'rgba(40,60,100,.5)'},
+    ticks:{color:'#7a8ca0',font:{family:'JetBrains Mono',size:10},padding:8,
+      callback:function(v){return v>=1000?(v/1000).toFixed(1)+'k':v>=100?Math.round(v):v.toFixed(1)}
+    }
+  }
+}
+};
 
 function showArchive(siteKey){
 const keys=Object.keys(S);if(!keys.length){ae('⚠ Нет объектов');return}
@@ -1773,7 +1953,8 @@ mn.innerHTML=`
 <button class="tb" onclick="arcTab(this,'arcDisk')">💾 Хранилище</button></div>
 <div id="arcCharts" style="display:block">
 <div class="tbs" style="margin-bottom:8px" id="arcChartTabs"></div>
-<div class="arc-chart-wrap"><canvas id="arcCanvas"></canvas></div>
+<div class="arc-chart-wrap"><canvas id="arcCanvas"></canvas><button id="arcResetZoom" class="arc-zoom-btn" onclick="arcResetZoom()" style="display:none">↩ Сбросить зум</button></div>
+<div id="arcFieldStats" class="arc-fstats"></div>
 <div id="arcDesc" class="arc-desc"></div>
 <div id="arcStats" class="arc-stats"></div></div>
 <div id="arcAlarms" style="display:none">
@@ -1945,6 +2126,7 @@ else url=`/api/history/metrics/${devId}?start=${from}&end=${to}&fields=${grp.fie
 }
 try{
 const data=await api.get(url);arcRenderChart(data,grp);
+arcRenderFieldStats(data,grp);
 const stats=await api.get(`/api/history/metrics/${devId}/stats`);arcRenderStats(stats);
 }catch(e){console.warn('Archive chart error:',e);arcRenderNoData('Ошибка загрузки: '+e.message)}
 }
@@ -1964,6 +2146,18 @@ try{const d=await api.get('/api/history/disk');arcRenderDisk(d)}
 catch(e){const el=$('arcDiskInfo');if(el)el.innerHTML=`<div style="color:var(--r);font-size:12px;padding:20px;text-align:center">Ошибка: ${esc(e.message)}</div>`}
 }
 
+// Crosshair vertical line plugin
+const crosshairPlugin={id:'crosshairLine',
+afterDraw(chart){
+  if(chart.tooltip&&chart.tooltip._active&&chart.tooltip._active.length){
+    const x=chart.tooltip._active[0].element.x;
+    const yA=chart.scales.y;
+    const ctx=chart.ctx;
+    ctx.save();ctx.beginPath();ctx.moveTo(x,yA.top);ctx.lineTo(x,yA.bottom);
+    ctx.lineWidth=1;ctx.strokeStyle='rgba(100,140,200,.4)';ctx.setLineDash([4,3]);ctx.stroke();ctx.restore();
+  }
+}};
+
 function arcRenderChart(data,grp){
 const canvas=$('arcCanvas');if(!canvas)return;
 if(arcChart){arcChart.destroy();arcChart=null}
@@ -1971,25 +2165,110 @@ if(!data||!data.length){arcRenderNoData('Нет данных за выбранн
 if(typeof Chart==='undefined'){arcRenderNoData('Chart.js не загружен');return}
 const fieldNames=grp.fields.split(',');
 const timeKey=data[0].bucket!==undefined?'bucket':'timestamp';
-const datasets=fieldNames.map((f,i)=>({
-label:grp.labels[f]||f,
-data:data.map(row=>({x:new Date(row[timeKey]),y:row[f]})),
-borderColor:grp.colors[i],backgroundColor:grp.colors[i]+'20',
-borderWidth:1.5,pointRadius:0,pointHitRadius:6,tension:0.3,fill:false
-}));
-arcChart=new Chart(canvas,{type:'line',data:{datasets},options:{
-...CHART_DEFAULTS,
-plugins:{...CHART_DEFAULTS.plugins,legend:{labels:{color:'#94a3b8',font:{family:'Outfit',size:12},padding:14,usePointStyle:true,pointStyle:'rectRounded'}}},
-scales:{...CHART_DEFAULTS.scales,
-y:{...CHART_DEFAULTS.scales.y,title:{display:!!grp.unit,text:grp.unit,color:'#5a6a80',font:{size:10}}}}}});
+
+// Calculate adaptive point radius based on data density
+const totalPts=data.length;
+const showPts=totalPts<80;
+const ptRadius=totalPts<30?3:totalPts<80?2:0;
+const hoverRadius=totalPts<200?4:3;
+
+const datasets=fieldNames.map((f,i)=>{
+  const pts=data.map(row=>({x:new Date(row[timeKey]),y:row[f]!=null?Number(row[f]):null}));
+  const hasData=pts.some(p=>p.y!=null);
+  return {
+    label:grp.labels[f]||f,
+    data:pts,
+    borderColor:grp.colors[i],
+    backgroundColor:grp.colors[i]+'18',
+    borderWidth:2.2,
+    pointRadius:showPts?ptRadius:0,
+    pointHoverRadius:hoverRadius,
+    pointBackgroundColor:grp.colors[i],
+    pointBorderColor:grp.colors[i],
+    pointHitRadius:8,
+    tension:0.25,
+    fill:fieldNames.length<=2,
+    spanGaps:true,
+    hidden:!hasData
+  };
+});
+
+// Compute Y-axis bounds with padding
+let yMin=Infinity,yMax=-Infinity;
+for(const ds of datasets){
+  if(ds.hidden)continue;
+  for(const pt of ds.data){if(pt.y!=null){if(pt.y<yMin)yMin=pt.y;if(pt.y>yMax)yMax=pt.y}}
+}
+if(!isFinite(yMin)){yMin=0;yMax=100}
+const yRange=yMax-yMin||1;
+const yPad=yRange*0.08;
+const sugMin=Math.max(0,yMin-yPad);
+const sugMax=yMax+yPad;
+
+// Merge zoom callbacks into plugin options
+const zoomPluginOpts={...CHART_DEFAULTS.plugins.zoom,
+  zoom:{...CHART_DEFAULTS.plugins.zoom?.zoom,
+    onZoom:function(){const b=$('arcResetZoom');if(b)b.style.display=''},
+  },
+  pan:{...CHART_DEFAULTS.plugins.zoom?.pan,
+    onPan:function(){const b=$('arcResetZoom');if(b)b.style.display=''},
+  }
+};
+
+arcChart=new Chart(canvas,{type:'line',data:{datasets},
+plugins:[crosshairPlugin],
+options:{
+  ...CHART_DEFAULTS,
+  plugins:{...CHART_DEFAULTS.plugins, zoom:zoomPluginOpts},
+  scales:{...CHART_DEFAULTS.scales,
+    y:{...CHART_DEFAULTS.scales.y,
+      suggestedMin:sugMin,suggestedMax:sugMax,
+      title:{display:!!grp.unit,text:grp.unit,color:'#7a8ca0',font:{family:'Outfit',size:11,weight:'500'},padding:{bottom:6}}
+    }
+  }
+}});
+// Hide reset button initially
+const rb=$('arcResetZoom');if(rb)rb.style.display='none';
+// Update legend with latest values after render
+arcChart.update();
 // Show chart description
 const descEl=$('arcDesc');
 if(descEl)descEl.innerHTML=grp.desc?`<b>ℹ️ Пояснение:</b> ${grp.desc}`:'';
 }
 
+function arcResetZoom(){
+if(arcChart){arcChart.resetZoom();const b=$('arcResetZoom');if(b)b.style.display='none'}
+}
+
+function arcRenderFieldStats(data,grp){
+const wrap=$('arcFieldStats');if(!wrap)return;
+if(!data||!data.length){wrap.innerHTML='';return}
+const fieldNames=grp.fields.split(',');
+let html='';
+for(let i=0;i<fieldNames.length;i++){
+  const f=fieldNames[i];
+  const vals=data.map(r=>r[f]).filter(v=>v!=null&&isFinite(v));
+  if(!vals.length)continue;
+  const mn=Math.min(...vals),mx=Math.max(...vals),avg=vals.reduce((a,b)=>a+b,0)/vals.length;
+  const last=vals[vals.length-1];
+  const lbl=grp.labels[f]||f;
+  const shortLbl=lbl.split(' (')[0]; // remove unit from label
+  const u=grp.unit?' '+grp.unit:'';
+  html+=`<div class="arc-fs" style="border-left-color:${grp.colors[i]}">
+<div class="arc-fs-name" style="color:${grp.colors[i]}">${shortLbl}</div>
+<div class="arc-fs-row"><span class="arc-fs-lbl">Мин</span><span class="arc-fs-val">${mn.toFixed(1)}${u}</span></div>
+<div class="arc-fs-row"><span class="arc-fs-lbl">Средн</span><span class="arc-fs-val">${avg.toFixed(1)}${u}</span></div>
+<div class="arc-fs-row"><span class="arc-fs-lbl">Макс</span><span class="arc-fs-val">${mx.toFixed(1)}${u}</span></div>
+<div class="arc-fs-row"><span class="arc-fs-lbl">Текущ</span><span class="arc-fs-val" style="color:${grp.colors[i]}">${last.toFixed(1)}${u}</span></div>
+</div>`;
+}
+wrap.innerHTML=html;
+}
+
 function arcRenderNoData(msg){
 if(arcChart){arcChart.destroy();arcChart=null}
 const descEl=$('arcDesc');if(descEl)descEl.innerHTML='';
+const fsEl=$('arcFieldStats');if(fsEl)fsEl.innerHTML='';
 const el=$('arcStats');if(el)el.innerHTML=`<div style="color:var(--t3);font-size:12px;text-align:center;padding:30px">${msg}</div>`;
 }
 
@@ -2162,6 +2441,64 @@ if(pag)pag.innerHTML=`<div style="display:flex;gap:8px;align-items:center;margin
 function almRefresh(){almLoadActive();almLoadHistory()}
 // ===================== END ALARMS PAGE =====================
 
+// ===================== POWER LIMIT =====================
+var _plSlot=null,_plDeviceId=null,_plDeviceType=null;
+function openPowerLimitModal(slot){
+_plSlot=slot;_plDeviceId=getDeviceIdForSlot(slot);_plDeviceType=null;
+if(!_plDeviceId){ae('⚠ Устройство не найдено');return}
+const m=$('plModal');if(!m)return;m.classList.add('sh');
+const nm=slot==='g1'?'Генератор 1':slot==='g2'?'Генератор 2':'ШПР';
+$('plTitle').textContent='⚡ Ограничение мощности — '+nm;
+$('plLiveP').textContent='—';$('plLiveQ').textContent='—';
+$('plSliderP').value=75;$('plNumP').textContent='75.0%';
+$('plSliderQ').value=50;$('plNumQ').textContent='50.0%';
+$('plLoadModeWrap').style.display='none';
+$('plStatus').innerHTML='';
+// Load current values from API
+if(apiAvailable){
+fetch(API_BASE+'/api/devices/'+_plDeviceId+'/power-limit').then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(d=>{
+if(d.success){
+_plDeviceType=d.device_type;
+if(d.current_p_pct!=null)$('plLiveP').textContent=d.current_p_pct.toFixed(1)+'%';
+if(d.current_q_pct!=null)$('plLiveQ').textContent=d.current_q_pct.toFixed(1)+'%';
+if(d.config_p_raw!=null){$('plSliderP').value=Math.round(d.config_p_raw/10);$('plNumP').textContent=(d.config_p_raw/10).toFixed(1)+'%'}
+if(d.config_q_raw!=null){$('plSliderQ').value=Math.round(d.config_q_raw/10);$('plNumQ').textContent=(d.config_q_raw/10).toFixed(1)+'%'}
+if(d.device_type==='ats'){$('plLoadModeWrap').style.display='';document.querySelectorAll('input[name=plMode]').forEach(r=>{r.checked=d.load_mode!=null&&+r.value===d.load_mode})}
+}}).catch(e=>{console.warn('PL read error:',e);$('plStatus').innerHTML='<div style="padding:6px 10px;background:var(--yd);border:1px solid rgba(255,176,32,.2);border-radius:6px;font-size:11px;color:var(--y)">⚠ Не удалось считать конфиг: '+e.message+'</div>'})}
+else{
+// Use WS data as fallback
+const mx=latestMetrics[_plDeviceId];
+if(mx){
+if(mx.current_p_pct!=null)$('plLiveP').textContent=mx.current_p_pct.toFixed(1)+'%';
+if(mx.current_q_pct!=null)$('plLiveQ').textContent=mx.current_q_pct.toFixed(1)+'%';
+if(mx.target_p_pct!=null){$('plSliderP').value=Math.round(mx.target_p_pct);$('plNumP').textContent=mx.target_p_pct.toFixed(1)+'%'}
+if(mx.target_q_pct!=null){$('plSliderQ').value=Math.round(mx.target_q_pct);$('plNumQ').textContent=mx.target_q_pct.toFixed(1)+'%'}
+}}}
+function closePowerLimitModal(){const m=$('plModal');if(m)m.classList.remove('sh');_plSlot=null}
+function plSliderUpdate(which){
+const sl=$('plSlider'+which),num=$('plNum'+which);
+if(sl&&num)num.textContent=parseFloat(sl.value).toFixed(1)+'%'}
+function plQuickP(p,q){$('plSliderP').value=p;$('plNumP').textContent=p.toFixed(1)+'%';$('plSliderQ').value=q;$('plNumQ').textContent=q.toFixed(1)+'%'}
+async function savePowerLimit(){
+if(!_plDeviceId){ae('⚠ Нет устройства');return}
+const pVal=parseInt($('plSliderP').value),qVal=parseInt($('plSliderQ').value);
+const pRaw=pVal*10,qRaw=qVal*10;
+const st=$('plStatus');
+if(!confirm('Записать P='+pVal+'%, Q='+qVal+'% в контроллер?\n\n⚠ Это изменит реальное распределение электрической нагрузки!')){return}
+const body={p_raw:pRaw,q_raw:qRaw};
+const modeEl=document.querySelector('input[name=plMode]:checked');
+if(modeEl)body.load_mode=parseInt(modeEl.value);
+st.innerHTML='<div style="padding:6px 10px;background:var(--yd);border:1px solid rgba(255,176,32,.2);border-radius:6px;font-size:11px;color:var(--y);font-family:var(--m)">⏳ Запись в контроллер...</div>';
+if(!apiAvailable){st.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r)">❌ Backend недоступен</div>';return}
+try{
+const r=await fetch(API_BASE+'/api/devices/'+_plDeviceId+'/power-limit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+const d=await r.json();
+if(d.success&&d.verified){st.innerHTML='<div style="padding:6px 10px;background:var(--gd);border:1px solid rgba(0,224,154,.2);border-radius:6px;font-size:11px;color:var(--g);font-family:var(--m)">✅ '+d.message+'</div>';ae('⚡ P='+pVal+'% Q='+qVal+'% записано')}
+else if(d.success){st.innerHTML='<div style="padding:6px 10px;background:var(--yd);border:1px solid rgba(255,176,32,.2);border-radius:6px;font-size:11px;color:var(--y);font-family:var(--m)">⚠ '+d.message+'</div>';ae('⚠ PL записано, но не верифицировано')}
+else{st.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r)">❌ '+(d.detail||d.message||'Ошибка')+'</div>'}
+}catch(e){st.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r)">❌ '+e.message+'</div>'}}
+// ===================== END POWER LIMIT =====================
+
 // === INIT ===
 (async function init() {
     // Try loading from API first
@@ -2186,4 +2523,41 @@ function almRefresh(){almLoadActive();almLoadHistory()}
 })();
 </script>
 <script src="/alarm_modal.js"></script>
+<!-- Power Limit Modal -->
+<div class="mbg" id="plModal" onclick="if(event.target===this)closePowerLimitModal()">
+<div class="mod" style="max-width:460px">
+<div class="mhd"><h3 id="plTitle">⚡ Ограничение мощности</h3><button class="mx" onclick="closePowerLimitModal()">&times;</button></div>
+<div class="mbd">
+<div style="display:flex;gap:12px;margin-bottom:12px">
+<div style="flex:1;padding:8px 10px;background:var(--bg);border:1px solid var(--bd);border-radius:6px;text-align:center"><div style="font-size:9px;color:var(--t3);margin-bottom:2px">Текущая P</div><div style="font-family:var(--m);font-size:16px;font-weight:600;color:var(--g)" id="plLiveP">—</div></div>
+<div style="flex:1;padding:8px 10px;background:var(--bg);border:1px solid var(--bd);border-radius:6px;text-align:center"><div style="font-size:9px;color:var(--t3);margin-bottom:2px">Текущая Q</div><div style="font-family:var(--m);font-size:16px;font-weight:600;color:var(--b)" id="plLiveQ">—</div></div>
+</div>
+<div class="slider-group">
+<div class="slider-row"><span class="slider-label">P%</span><input type="range" id="plSliderP" min="0" max="100" step="1" value="75" oninput="plSliderUpdate('P')"><span class="slider-val" id="plNumP">75.0%</span></div>
+<div class="slider-row"><span class="slider-label">Q%</span><input type="range" id="plSliderQ" min="0" max="100" step="1" value="50" oninput="plSliderUpdate('Q')"><span class="slider-val" id="plNumQ">50.0%</span></div>
+</div>
+<div id="plLoadModeWrap" style="display:none;margin-bottom:10px;padding:8px 10px;background:rgba(255,255,255,.02);border:1px solid var(--bd);border-radius:6px">
+<div style="font-size:10px;color:var(--t3);margin-bottom:6px;font-weight:600">Load Mode (ШПР)</div>
+<div style="display:flex;gap:6px">
+<label style="flex:1;display:flex;align-items:center;gap:4px;font-size:11px;color:var(--t2);cursor:pointer"><input type="radio" name="plMode" value="0" style="accent-color:var(--g)"> Gen Control</label>
+<label style="flex:1;display:flex;align-items:center;gap:4px;font-size:11px;color:var(--t2);cursor:pointer"><input type="radio" name="plMode" value="1" style="accent-color:var(--b)"> Mains Control</label>
+<label style="flex:1;display:flex;align-items:center;gap:4px;font-size:11px;color:var(--t2);cursor:pointer"><input type="radio" name="plMode" value="2" style="accent-color:var(--y)"> Load Reception</label>
+</div>
+</div>
+<div style="font-size:10px;color:var(--t3);margin-bottom:6px;font-weight:600">Быстрые пресеты</div>
+<div class="preset-grid" style="margin-bottom:10px">
+<button class="preset-btn" onclick="plQuickP(100,100)"><div class="preset-name">Максимум</div><div class="preset-desc">P:100 Q:100</div></button>
+<button class="preset-btn" onclick="plQuickP(75,50)"><div class="preset-name">75% нагр.</div><div class="preset-desc">P:75 Q:50</div></button>
+<button class="preset-btn" onclick="plQuickP(50,50)"><div class="preset-name">50/50</div><div class="preset-desc">P:50 Q:50</div></button>
+<button class="preset-btn" onclick="plQuickP(10,10)"><div class="preset-name">Минимум</div><div class="preset-desc">P:10 Q:10</div></button>
+</div>
+<div style="padding:8px 10px;background:var(--yd);border:1px solid rgba(255,176,32,.2);border-radius:6px;margin-bottom:12px;font-size:10px;color:var(--y)">⚠ Изменение влияет на реальное распределение электрической нагрузки!</div>
+<div id="plStatus"></div>
+<div style="display:flex;gap:8px;margin-top:10px">
+<button class="bs2" style="flex:1;padding:10px" onclick="closePowerLimitModal()">Отмена</button>
+<button class="bp" style="flex:2" onclick="savePowerLimit()">⚡ Применить</button>
+</div>
+</div>
+</div>
+</div>
 </body></html>

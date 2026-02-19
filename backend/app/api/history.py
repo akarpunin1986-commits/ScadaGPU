@@ -4,7 +4,7 @@ Endpoints for reading stored metrics and alarms from PostgreSQL.
 Supports time range queries, field filtering, downsampling for charts.
 """
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -153,7 +153,7 @@ async def get_metrics_downsampled(
     start: Optional[datetime] = Query(None),
     end: Optional[datetime] = Query(None),
     last_hours: float = Query(24),
-    bucket_seconds: int = Query(60, description="Aggregation bucket in seconds"),
+    bucket_seconds: int = Query(60, ge=1, description="Aggregation bucket in seconds"),
     fields: str = Query("power_total", description="Comma-sep fields to average"),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict]:
