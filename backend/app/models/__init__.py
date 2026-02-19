@@ -9,6 +9,8 @@ from models.maintenance import (
     MaintenanceLogItem,
 )
 from models.maintenance_alert import MaintenanceAlert, AlertSeverity, AlertStatus
+from models.metrics_data import MetricsData
+from models.alarm_event import AlarmEvent, AlarmSeverityEvent
 
 __all__ = [
     "Base",
@@ -27,4 +29,7 @@ __all__ = [
     "MaintenanceAlert",
     "AlertSeverity",
     "AlertStatus",
+    "MetricsData",
+    "AlarmEvent",
+    "AlarmSeverityEvent",
 ]

@@ -15,9 +15,13 @@ from api.maintenance import router as maintenance_router
 from api.commands import router as commands_router
 from api.bitrix import router as bitrix_router
 from api.ai_parser import router as ai_parser_router
+from api.history import router as history_router
 from core.websocket import router as ws_router, redis_to_ws_bridge, maintenance_alerts_bridge
 from services.modbus_poller import ModbusPoller
 from services.maintenance_scheduler import MaintenanceScheduler
+from services.metrics_writer import MetricsWriter
+from services.alarm_detector import AlarmDetector
+from services.disk_manager import DiskSpaceManager
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
@@ -57,20 +61,50 @@ async def lifespan(app: FastAPI):
     # Maintenance alerts → WebSocket bridge
     alerts_bridge_task = asyncio.create_task(maintenance_alerts_bridge(redis))
 
+    # Phase 6 — Metrics persistence
+    mw = MetricsWriter(
+        redis, async_session,
+        batch_size=settings.METRICS_WRITER_BATCH_SIZE,
+        flush_interval=settings.METRICS_WRITER_FLUSH_INTERVAL,
+    )
+    app.state.metrics_writer = mw
+    mw_task = asyncio.create_task(mw.start())
+
+    # Phase 6 — Alarm detector
+    ad = AlarmDetector(redis, async_session)
+    app.state.alarm_detector = ad
+    ad_task = asyncio.create_task(ad.start())
+
+    # Phase 6 — Disk space manager
+    dm = DiskSpaceManager(
+        async_session,
+        check_interval=settings.DISK_CHECK_INTERVAL,
+        max_db_size_mb=settings.DISK_MAX_DB_SIZE_MB,
+        cleanup_threshold_pct=settings.DISK_CLEANUP_THRESHOLD_PCT,
+        cleanup_batch_size=settings.DISK_CLEANUP_BATCH_SIZE,
+    )
+    app.state.disk_manager = dm
+    dm_task = asyncio.create_task(dm.start())
+
     yield
 
     # Shutdown
     logger.info("SCADA Backend shutting down...")
     await poller.stop()
     await scheduler.stop()
-    poller_task.cancel()
-    ws_bridge_task.cancel()
-    scheduler_task.cancel()
-    alerts_bridge_task.cancel()
+    await mw.stop()
+    await ad.stop()
+    await dm.stop()
 
-    for task in [poller_task, ws_bridge_task, scheduler_task, alerts_bridge_task]:
+    all_tasks = [
+        poller_task, ws_bridge_task, scheduler_task, alerts_bridge_task,
+        mw_task, ad_task, dm_task,
+    ]
+    for t in all_tasks:
+        t.cancel()
+    for t in all_tasks:
         try:
-            await task
+            await t
         except asyncio.CancelledError:
             pass
 
@@ -81,7 +115,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="SCADA GPU API",
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 
@@ -100,9 +134,10 @@ app.include_router(maintenance_router)
 app.include_router(commands_router)
 app.include_router(bitrix_router)
 app.include_router(ai_parser_router)
+app.include_router(history_router)
 app.include_router(ws_router)
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": "0.2.0"}
+    return {"status": "ok", "version": "0.3.0"}

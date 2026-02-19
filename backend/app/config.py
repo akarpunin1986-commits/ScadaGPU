@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     GROK_API_KEY: str = ""
     GROK_MODEL: str = "grok-3-mini"
 
+    # Phase 6 — Metrics persistence & disk management
+    METRICS_WRITER_BATCH_SIZE: int = 50
+    METRICS_WRITER_FLUSH_INTERVAL: float = 5.0
+    DISK_CHECK_INTERVAL: int = 300          # seconds (5 min)
+    DISK_MAX_DB_SIZE_MB: int = 10240        # 10 GB default
+    DISK_CLEANUP_THRESHOLD_PCT: float = 80  # start FIFO at 80%
+    DISK_CLEANUP_BATCH_SIZE: int = 10000
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
