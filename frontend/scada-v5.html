@@ -2,6 +2,8 @@
 <html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>SCADA GPU v5.0</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23080c14'/%3E%3Cpath d='M17 4L8 18h6l-3 10 10-14h-6l3-10z' fill='%2300e09a' filter='url(%23g)'/%3E%3Cdefs%3E%3Cfilter id='g'%3E%3CfeDropShadow dx='0' dy='0' stdDeviation='1.5' flood-color='%2300e09a' flood-opacity='.6'/%3E%3C/filter%3E%3C/defs%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <style>
 :root{
 --bg:#06090f;--bg2:#0a0f1a;--bg3:#0f1525;--bg4:#152035;--bg5:#1a2840;
@@ -139,6 +141,20 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .set-tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--bd)}
 .set-tab{padding:10px 16px;font-size:12px;font-weight:500;color:var(--t3);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;font-family:var(--u);transition:all .15s}.set-tab:hover{color:var(--t)}.set-tab.on{color:var(--g);border-bottom-color:var(--g)}
 .set-panel{display:none}.set-panel.on{display:block}
+.arc-ctl{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.arc-devs{display:flex;gap:4px}
+.arc-dev{padding:6px 14px;border-radius:var(--rs);border:1px solid var(--bd);background:var(--bg3);color:var(--t2);cursor:pointer;font-size:12px;font-family:var(--u);transition:all .15s}
+.arc-dev:hover{background:var(--bg4);color:var(--t);border-color:var(--bd2)}
+.arc-dev.on{background:var(--gd);border-color:rgba(0,224,154,.25);color:var(--g);font-weight:600}
+.arc-time{display:flex;align-items:center;gap:4px}
+.arc-tb{padding:5px 10px;border-radius:var(--rs);border:1px solid var(--bd);background:var(--bg3);color:var(--t3);cursor:pointer;font-size:11px;font-family:var(--m);transition:all .15s}
+.arc-tb:hover{background:var(--bg4);color:var(--t)}.arc-tb.on{background:var(--gd);border-color:rgba(0,224,154,.25);color:var(--g)}
+.arc-dt{width:155px;padding:5px 8px!important;font-size:10px!important;font-family:var(--m)!important}
+.arc-chart-wrap{position:relative;height:350px;background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);padding:10px;margin-bottom:8px}
+.arc-stats{padding:8px 10px;font-size:11px;color:var(--t2);font-family:var(--m)}
+.arc-flt{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.arc-pag{padding:4px 0}
+.arc-stat-card{padding:12px;background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad)}
 </style></head><body>
 <div class="app">
 <div class="sb"><div class="sb-hd">
@@ -147,6 +163,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 <button class="sb-btn" onclick="openTOTemplates()">📋 Регламенты ТО</button>
 <button class="sb-btn" onclick="initBxModal();showM('bitrix')">🔗 Битрикс24</button>
 <button class="sb-btn" onclick="initAIModal();showM('aiconf')">🤖 AI Провайдер</button>
+<button class="sb-btn" onclick="showArchive()">📊 Архив</button>
 </div><div class="sb-sites" id="sbSites"></div></div>
 <div class="mn" id="mainArea"></div></div>
 <!-- MODALS -->
@@ -646,7 +663,7 @@ document.querySelectorAll('.mbg').forEach(m=>m.addEventListener('click',e=>{if(e
 function R(a,b){return+(a+Math.random()*(b-a)).toFixed(1)}function RI(a,b){return Math.floor(a+Math.random()*(b-a))}
 function now(){return new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
 function renderSB(){const k=Object.keys(S);$('sbSites').innerHTML=k.length?k.map(id=>`<div class="si ${id===cur?'on':''}" onclick="sel('${id}')"><div class="si-dot" style="background:${id===cur?'var(--g)':'var(--t4)'}"></div><span class="si-name">${esc(S[id].name)}</span><div class="si-acts"><button class="si-btn" onclick="event.stopPropagation();openEdit('${id}')">✏</button><button class="si-btn del" onclick="event.stopPropagation();openDel('${id}')">✕</button></div></div>`).join(''):'<div style="padding:20px;text-align:center;color:var(--t3);font-size:12px">Нет объектов</div>'}
-function sel(id){cur=id;sv();renderSB();renderDash()}
+function sel(id){archiveMode=false;cur=id;sv();renderSB();renderDash()}
 function openAddSite(){editId=null;$('smT').textContent='Новый объект';$('fN').value='';$('fC').value='';$('fC').disabled=false;$('fD').value='';populateRespSelect('');$('smA').innerHTML='<button class="bp" onclick="saveSite()">Создать</button>';showM('site')}
 function openEdit(id){editId=id;const s=S[id];$('smT').textContent='Редактировать: '+s.name;$('fN').value=s.name;$('fC').value=id;$('fC').disabled=true;$('fD').value=s.desc||'';populateRespSelect(s.responsible||'');$('smA').innerHTML=`<div style="display:flex;gap:8px"><button class="bp" style="flex:1" onclick="saveSite()">Сохранить</button><button class="bdn" style="flex:0;padding:10px 16px" onclick="hideM('site');openDel('${id}')">🗑</button></div>`;showM('site')}
 async function saveSite(){const n=$('fN').value.trim(),c=$('fC').value.trim().toLowerCase().replace(/[^a-z0-9_-]/g,''),d=$('fD').value.trim(),resp=$('fResp').value;if(!n||!c){ae('⚠ Укажите название и код');return}if(!editId&&S[c]){ae('⚠ Объект с кодом «'+c+'» уже существует');return}if(editId){S[editId].name=n;S[editId].desc=d;S[editId].responsible=resp;ae('✏ '+n);
@@ -1436,6 +1453,216 @@ else{ae('📂 Бэкап загружен в UI (не записан в конт
 function downloadBackup(idx){const backups=getSprBackups();const b=backups[idx];if(!b)return;
 const json=JSON.stringify(b,null,2);const blob=new Blob([json],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='spr_backup_'+b.date.replace(/[\s:.,]/g,'_')+'.json';a.click();URL.revokeObjectURL(url);ae('⬇ Бэкап скачан')}
 function deleteBackup(idx){const backups=getSprBackups();backups.splice(idx,1);saveSprBackups(backups);renderBackupList();ae('🗑 Бэкап удалён')}
+// ===================== ARCHIVE PAGE =====================
+let archiveMode=false;
+let arcState={slot:'g1',hours:1,group:'power',almPage:0,almLimit:50};
+let arcChart=null;
+const ARC_GROUPS={
+power:{fields:'power_total,power_a,power_b,power_c',labels:{power_total:'P общая',power_a:'P фаза A',power_b:'P фаза B',power_c:'P фаза C'},unit:'кВт',colors:['#00e09a','#4090ff','#ffb020','#a070ff']},
+voltage:{fields:'gen_uab,gen_ubc,gen_uca,mains_uab',labels:{gen_uab:'Ген UAB',gen_ubc:'Ген UBC',gen_uca:'Ген UCA',mains_uab:'Сеть UAB'},unit:'В',colors:['#00e09a','#4090ff','#ffb020','#ff4060']},
+engine:{fields:'coolant_temp,oil_pressure,oil_temp,battery_volt',labels:{coolant_temp:'Темп. ОЖ',oil_pressure:'Давл. масла',oil_temp:'Темп. масла',battery_volt:'АКБ'},unit:'',colors:['#ff4060','#ffb020','#a070ff','#00e09a']},
+current:{fields:'current_a,current_b,current_c,load_pct',labels:{current_a:'I фаза A',current_b:'I фаза B',current_c:'I фаза C',load_pct:'Нагрузка %'},unit:'А',colors:['#4090ff','#00e09a','#ffb020','#a070ff']}
+};
+const CHART_DEFAULTS={responsive:true,maintainAspectRatio:false,animation:{duration:300},interaction:{mode:'index',intersect:false},
+plugins:{legend:{labels:{color:'#94a3b8',font:{family:'Outfit',size:11}}},tooltip:{backgroundColor:'#0a0f1a',borderColor:'#1a2640',borderWidth:1,titleColor:'#e8edf5',bodyColor:'#94a3b8',titleFont:{family:'JetBrains Mono',size:11},bodyFont:{family:'JetBrains Mono',size:10}}},
+scales:{x:{type:'time',grid:{color:'rgba(26,38,64,.5)'},ticks:{color:'#5a6a80',font:{family:'JetBrains Mono',size:9}},time:{tooltipFormat:'dd.MM.yyyy HH:mm',displayFormats:{minute:'HH:mm',hour:'HH:mm',day:'dd.MM'}}},y:{grid:{color:'rgba(26,38,64,.5)'},ticks:{color:'#5a6a80',font:{family:'JetBrains Mono',size:9}}}}};
+
+function showArchive(){
+if(!cur||!S[cur]){ae('⚠ Выберите объект');return}
+archiveMode=true;const s=S[cur],mn=$('mainArea');
+let devBtns='';
+const firstSlot=s.g1?.ip?'g1':s.g2?.ip?'g2':s.spr?.ip?'spr':null;
+if(s.g1?.ip)devBtns+=`<button class="arc-dev${firstSlot==='g1'?' on':''}" onclick="arcDev(this,'g1')">Генератор 1</button>`;
+if(s.g2?.ip)devBtns+=`<button class="arc-dev${!s.g1?.ip&&firstSlot==='g2'?' on':''}" onclick="arcDev(this,'g2')">Генератор 2</button>`;
+if(s.spr?.ip)devBtns+=`<button class="arc-dev${firstSlot==='spr'?' on':''}" onclick="arcDev(this,'spr')">ШПР</button>`;
+arcState.slot=firstSlot||'g1';arcState.hours=1;arcState.group='power';arcState.almPage=0;
+mn.innerHTML=`
+<div class="dh"><div class="dt"><h1>📊 Архив — ${esc(s.name)}</h1></div>
+<div class="da"><button onclick="archiveMode=false;renderDash()">← Мониторинг</button></div></div>
+<div class="arc-ctl">
+<div class="arc-devs">${devBtns}</div>
+<div class="arc-time">
+<button class="arc-tb on" onclick="arcRange(this,1)">1ч</button>
+<button class="arc-tb" onclick="arcRange(this,6)">6ч</button>
+<button class="arc-tb" onclick="arcRange(this,24)">24ч</button>
+<button class="arc-tb" onclick="arcRange(this,168)">7д</button>
+<button class="arc-tb" onclick="arcRange(this,720)">30д</button>
+<input type="datetime-local" class="fi arc-dt" id="arcFrom" onchange="arcCustomRange()">
+<span style="color:var(--t3);font-size:11px">—</span>
+<input type="datetime-local" class="fi arc-dt" id="arcTo" onchange="arcCustomRange()">
+</div></div>
+<div class="tbs" id="arcMainTabs" style="margin-bottom:12px">
+<button class="tb on" onclick="arcTab(this,'arcCharts')">📈 Графики</button>
+<button class="tb" onclick="arcTab(this,'arcAlarms')">🔴 Журнал аварий</button>
+<button class="tb" onclick="arcTab(this,'arcDisk')">💾 Хранилище</button></div>
+<div id="arcCharts" style="display:block">
+<div class="tbs" style="margin-bottom:8px">
+<button class="tb on" onclick="arcChGroup(this,'power')">Мощность</button>
+<button class="tb" onclick="arcChGroup(this,'voltage')">Напряжение</button>
+<button class="tb" onclick="arcChGroup(this,'engine')">Двигатель</button>
+<button class="tb" onclick="arcChGroup(this,'current')">Токи</button></div>
+<div class="arc-chart-wrap"><canvas id="arcCanvas"></canvas></div>
+<div id="arcStats" class="arc-stats"></div></div>
+<div id="arcAlarms" style="display:none">
+<div class="arc-flt">
+<select class="fi" id="arcSev" style="width:140px;padding:6px 8px;font-size:11px" onchange="arcLoadAlarms()">
+<option value="">Все уровни</option><option value="error">🔴 Ошибка</option><option value="warning">🟡 Предупр.</option><option value="mains">🔵 Сеть</option></select>
+<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--t2)"><input type="checkbox" id="arcActiveOnly" style="accent-color:var(--g)" onchange="arcLoadAlarms()"> Только активные</label>
+<button class="sb-btn" style="padding:5px 10px;font-size:11px;width:auto" onclick="arcLoadAlarms()">🔄 Обновить</button></div>
+<div id="arcAlarmTable"></div>
+<div class="arc-pag" id="arcPag"></div></div>
+<div id="arcDisk" style="display:none"><div id="arcDiskInfo"></div></div>`;
+arcLoadChart();arcLoadAlarms();arcLoadDisk();
+}
+
+function arcDev(btn,slot){
+btn.parentElement.querySelectorAll('.arc-dev').forEach(b=>b.classList.remove('on'));
+btn.classList.add('on');arcState.slot=slot;arcState.almPage=0;arcLoadChart();arcLoadAlarms();
+}
+function arcRange(btn,hours){
+btn.parentElement.querySelectorAll('.arc-tb').forEach(b=>b.classList.remove('on'));
+btn.classList.add('on');arcState.hours=hours;arcState.almPage=0;
+const f=$('arcFrom'),t=$('arcTo');if(f)f.value='';if(t)t.value='';
+arcLoadChart();arcLoadAlarms();
+}
+function arcCustomRange(){
+const from=$('arcFrom')?.value,to=$('arcTo')?.value;
+if(!from||!to)return;
+document.querySelectorAll('.arc-time .arc-tb').forEach(b=>b.classList.remove('on'));
+arcState.hours=null;arcState.customFrom=from;arcState.customTo=to;arcState.almPage=0;
+arcLoadChart();arcLoadAlarms();
+}
+function arcTab(btn,panelId){
+const tabs=$('arcMainTabs');if(tabs)tabs.querySelectorAll('.tb').forEach(b=>b.classList.remove('on'));
+btn.classList.add('on');
+['arcCharts','arcAlarms','arcDisk'].forEach(id=>{const el=$(id);if(el)el.style.display='none'});
+const target=$(panelId);if(target)target.style.display='block';
+if(panelId==='arcDisk')arcLoadDisk();
+}
+function arcChGroup(btn,group){
+btn.closest('.tbs').querySelectorAll('.tb').forEach(b=>b.classList.remove('on'));
+btn.classList.add('on');arcState.group=group;arcLoadChart();
+}
+
+function arcBucket(hours){
+if(hours<=1)return 0;if(hours<=6)return 60;if(hours<=24)return 300;if(hours<=168)return 1800;return 3600;
+}
+
+async function arcLoadChart(){
+const devId=getDeviceIdForSlot(arcState.slot);
+if(!devId){arcRenderNoData('Устройство не настроено');return}
+const grp=ARC_GROUPS[arcState.group],hours=arcState.hours;
+const bucket=hours?arcBucket(hours):0;
+let url;
+if(hours){
+if(bucket>0)url=`/api/history/metrics/${devId}/downsampled?last_hours=${hours}&bucket_seconds=${bucket}&fields=${grp.fields}`;
+else url=`/api/history/metrics/${devId}?last_hours=${hours}&fields=${grp.fields}&limit=5000`;
+}else{
+const from=new Date(arcState.customFrom).toISOString(),to=new Date(arcState.customTo).toISOString();
+const rangeH=(new Date(arcState.customTo)-new Date(arcState.customFrom))/3600000;
+const cb=arcBucket(rangeH);
+if(cb>0)url=`/api/history/metrics/${devId}/downsampled?start=${from}&end=${to}&bucket_seconds=${cb}&fields=${grp.fields}`;
+else url=`/api/history/metrics/${devId}?start=${from}&end=${to}&fields=${grp.fields}&limit=5000`;
+}
+try{
+const data=await api.get(url);arcRenderChart(data,grp);
+const stats=await api.get(`/api/history/metrics/${devId}/stats`);arcRenderStats(stats);
+}catch(e){console.warn('Archive chart error:',e);arcRenderNoData('Ошибка загрузки: '+e.message)}
+}
+
+async function arcLoadAlarms(){
+const devId=getDeviceIdForSlot(arcState.slot);
+if(!devId){const el=$('arcAlarmTable');if(el)el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:30px">Устройство не настроено</div>';return}
+const sev=$('arcSev')?.value||'',activeOnly=$('arcActiveOnly')?.checked,hours=arcState.hours;
+let url=`/api/history/alarms?device_id=${devId}&limit=${arcState.almLimit}&offset=${arcState.almPage*arcState.almLimit}`;
+if(sev)url+=`&severity=${sev}`;if(activeOnly)url+='&is_active=true';if(hours)url+=`&last_hours=${hours}`;
+try{const alarms=await api.get(url);arcRenderAlarms(alarms)}
+catch(e){const el=$('arcAlarmTable');if(el)el.innerHTML=`<div style="color:var(--r);font-size:12px;padding:20px;text-align:center">Ошибка: ${esc(e.message)}</div>`}
+}
+
+async function arcLoadDisk(){
+try{const d=await api.get('/api/history/disk');arcRenderDisk(d)}
+catch(e){const el=$('arcDiskInfo');if(el)el.innerHTML=`<div style="color:var(--r);font-size:12px;padding:20px;text-align:center">Ошибка: ${esc(e.message)}</div>`}
+}
+
+function arcRenderChart(data,grp){
+const canvas=$('arcCanvas');if(!canvas)return;
+if(arcChart){arcChart.destroy();arcChart=null}
+if(!data||!data.length){arcRenderNoData('Нет данных за выбранный период');return}
+if(typeof Chart==='undefined'){arcRenderNoData('Chart.js не загружен');return}
+const fieldNames=grp.fields.split(',');
+const timeKey=data[0].bucket!==undefined?'bucket':'timestamp';
+const datasets=fieldNames.map((f,i)=>({
+label:grp.labels[f]||f,
+data:data.map(row=>({x:new Date(row[timeKey]),y:row[f]})),
+borderColor:grp.colors[i],backgroundColor:grp.colors[i]+'20',
+borderWidth:1.5,pointRadius:0,pointHitRadius:6,tension:0.3,fill:false
+}));
+arcChart=new Chart(canvas,{type:'line',data:{datasets},options:{
+...CHART_DEFAULTS,
+scales:{...CHART_DEFAULTS.scales,
+y:{...CHART_DEFAULTS.scales.y,title:{display:!!grp.unit,text:grp.unit,color:'#5a6a80',font:{size:10}}}}}});
+}
+
+function arcRenderNoData(msg){
+if(arcChart){arcChart.destroy();arcChart=null}
+const el=$('arcStats');if(el)el.innerHTML=`<div style="color:var(--t3);font-size:12px;text-align:center;padding:30px">${msg}</div>`;
+}
+
+function arcRenderStats(stats){
+const el=$('arcStats');if(!el)return;
+el.innerHTML=`<div style="display:flex;gap:16px;flex-wrap:wrap">
+<span>📊 Записей: <b>${stats.total_rows?.toLocaleString()||0}</b></span>
+<span>📅 Период: <b>${stats.days_stored||0}</b> дней</span>
+<span>🕐 От: <b>${stats.oldest?new Date(stats.oldest).toLocaleString('ru-RU'):'—'}</b></span>
+<span>🕐 До: <b>${stats.newest?new Date(stats.newest).toLocaleString('ru-RU'):'—'}</b></span></div>`;
+}
+
+function arcRenderAlarms(alarms){
+const el=$('arcAlarmTable');if(!el)return;
+if(!alarms||!alarms.length){el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:30px">Нет аварий за выбранный период ✓</div>';const p=$('arcPag');if(p)p.innerHTML='';return}
+const sevI={error:'🔴',warning:'🟡',mains:'🔵'},sevL={error:'Ошибка',warning:'Предупр.',mains:'Сеть'};
+const rows=alarms.map(a=>{
+const occ=new Date(a.occurred_at),clr=a.cleared_at?new Date(a.cleared_at):null;
+const dur=clr?Math.round((clr-occ)/60000):'—';
+return`<tr>
+<td style="white-space:nowrap">${occ.toLocaleString('ru-RU')}</td>
+<td style="font-family:var(--m)">${esc(a.alarm_code)}</td>
+<td>${sevI[a.severity]||'⚪'} ${sevL[a.severity]||a.severity}</td>
+<td>${esc(a.message)}</td>
+<td>${typeof dur==='number'?dur+' мин':dur}</td>
+<td>${a.is_active?'<span style="color:var(--r);font-weight:600">● Активна</span>':'<span style="color:var(--t3)">✓ Снята</span>'}</td></tr>`}).join('');
+el.innerHTML=`<table class="pt"><thead><tr><th>Время</th><th>Код</th><th>Уровень</th><th>Сообщение</th><th>Длит.</th><th>Статус</th></tr></thead><tbody>${rows}</tbody></table>`;
+const pag=$('arcPag'),hasMore=alarms.length===arcState.almLimit;
+if(pag)pag.innerHTML=`<div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+<button class="sb-btn" style="padding:5px 12px;font-size:11px;width:auto" onclick="arcState.almPage=Math.max(0,arcState.almPage-1);arcLoadAlarms()" ${arcState.almPage===0?'disabled style="opacity:.4;pointer-events:none;padding:5px 12px;font-size:11px;width:auto"':''}>← Назад</button>
+<span style="font-size:11px;color:var(--t3);font-family:var(--m)">Стр. ${arcState.almPage+1}</span>
+<button class="sb-btn" style="padding:5px 12px;font-size:11px;width:auto" onclick="arcState.almPage++;arcLoadAlarms()" ${!hasMore?'disabled style="opacity:.4;pointer-events:none;padding:5px 12px;font-size:11px;width:auto"':''}>Вперёд →</button></div>`;
+}
+
+function arcRenderDisk(d){
+const el=$('arcDiskInfo');if(!el)return;
+const pct=d.usage_pct||0;
+const barColor=pct>85?'var(--r)':pct>65?'var(--y)':'var(--g)';
+el.innerHTML=`<div style="max-width:500px">
+<div style="font-size:13px;font-weight:600;margin-bottom:12px">💾 Использование хранилища</div>
+<div style="margin-bottom:12px">
+<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px">
+<span>PostgreSQL</span><span style="font-family:var(--m)">${d.db_size_mb} МБ / ${d.max_db_size_mb} МБ (${pct}%)</span></div>
+<div style="height:8px;background:var(--bg);border-radius:4px;overflow:hidden">
+<div style="height:100%;width:${Math.min(pct,100)}%;background:${barColor};border-radius:4px;transition:width .5s"></div></div></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+<div class="arc-stat-card">
+<div style="font-size:10px;color:var(--t3);margin-bottom:4px">Таблица метрик</div>
+<div style="font-family:var(--m);font-size:16px;font-weight:600;color:var(--g)">${d.metrics_table_size_mb} МБ</div>
+<div style="font-size:10px;color:var(--t3);font-family:var(--m)">${(d.metrics_row_count>=0?d.metrics_row_count:0).toLocaleString()} записей</div></div>
+<div class="arc-stat-card">
+<div style="font-size:10px;color:var(--t3);margin-bottom:4px">Таблица аварий</div>
+<div style="font-family:var(--m);font-size:16px;font-weight:600;color:var(--r)">${(d.alarms_row_count>=0?d.alarms_row_count:0).toLocaleString()}</div>
+<div style="font-size:10px;color:var(--t3)">записей</div></div></div></div>`;
+}
+// ===================== END ARCHIVE PAGE =====================
+
 // === INIT ===
 (async function init() {
     // Try loading from API first
