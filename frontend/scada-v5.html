@@ -181,6 +181,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 <div class="sb"><div class="sb-hd">
 <div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg><b>SCADA</b><span>v5</span></div>
 <button class="sb-btn primary" onclick="openAddSite()">+ Объект</button>
+<button class="sb-btn" onclick="archiveMode=false;if(cur&&S[cur])renderDash()">⚡ Мониторинг</button>
 <button class="sb-btn" onclick="openTOTemplates()">📋 Регламенты ТО</button>
 <button class="sb-btn" onclick="initBxModal();showM('bitrix')">🔗 Битрикс24</button>
 <button class="sb-btn" onclick="initAIModal();showM('aiconf')">🤖 AI Провайдер</button>
