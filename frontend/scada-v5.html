@@ -213,6 +213,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 <div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg><b>SCADA</b><span>v5</span></div>
 <button class="sb-btn primary" onclick="openAddSite()">+ Объект</button>
 <button class="sb-btn" onclick="archiveMode=false;if(cur&&S[cur])renderDash()">⚡ Мониторинг</button>
+<button class="sb-btn" onclick="showAlarms()">🚨 Аварии</button>
 <button class="sb-btn" onclick="showArchive()">📊 Архив</button>
 <button class="sb-btn" onclick="openTOTemplates()">📋 Регламенты ТО</button>
 <button class="sb-btn" onclick="initBxModal();showM('bitrix')">🔗 Битрикс24</button>
@@ -497,7 +498,8 @@ function handleMetricsUpdate(m) {
         }
         // Determine status
         let status = 'standby';
-        if (m.alarm_common || m.alarm_shutdown) status = 'alarm';
+        if (m.online === false) status = 'alarm'; // CONN_LOST — no connection to controller
+        else if (m.alarm_common || m.alarm_shutdown) status = 'alarm';
         else if (m.alarm_warning) status = 'warning';
         else if (m.gen_status === 9 || m.gen_status_text === 'running') status = 'running';
         else if (m.gen_status >= 1 && m.gen_status <= 8) status = 'running'; // starting sequence
@@ -1344,11 +1346,17 @@ const opC=(typeof op==='number'&&op<300)?'va':'vn';
 const fuelC=(typeof fuel==='number'&&fuel<50)?'vw':'vn';
 mT.innerHTML=`<div class="mg"><div class="mc"><div class="ml">Обороты</div><div class="mv vn">${rpm}</div></div><div class="mc"><div class="ml">Темп.ОЖ</div><div class="mv ${ctC}">${ct}°C</div></div><div class="mc"><div class="ml">Давл.масла</div><div class="mv ${opC}">${op} кПа</div></div><div class="mc"><div class="ml">Темп.масла</div><div class="mv vn">${oilT}°C</div></div><div class="mc"><div class="ml">Топливо</div><div class="mv ${fuelC}">${fuel}%</div></div><div class="mc"><div class="ml">Расход</div><div class="mv vn">${typeof fc==='number'?fc.toFixed(1):fc} л/ч</div></div><div class="mc"><div class="ml">Турбо</div><div class="mv vn">${turbo} кПа</div></div><div class="mc"><div class="ml">Батарея</div><div class="mv vn">${typeof batt==='number'?batt.toFixed(1):batt}В</div></div></div>`}
 else if(mT&&!on)mT.innerHTML=`<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">${connOk?'—':'Нет связи'}</div>`;
-const aT=$(sl+'a-act');if(aT){if(status==='warning'){aT.innerHTML=`<div class="ai aw">⚠ <b style="color:var(--y)">W008</b> ${ALARM_CODES['W008']}: ${ct}°C<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;if(Math.random()<0.3)addAlarmToArchive(sl,'W008',ALARM_CODES['W008']+': '+ct+'°C','warning')}else if(status==='alarm'){aT.innerHTML=`<div class="ai aa">🔴 <b style="color:var(--r)">W012</b> ${ALARM_CODES['W012']}: ${op} кПа<span style="margin-left:auto;color:var(--t4)">${now()}</span></div><div class="ai aa" style="margin-top:2px">🔴 <b style="color:var(--r)">E014</b> ${ALARM_CODES['E014']}<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;if(Math.random()<0.3){addAlarmToArchive(sl,'W012',ALARM_CODES['W012']+': '+op+' кПа','alarm');addAlarmToArchive(sl,'E014',ALARM_CODES['E014'],'alarm')}}else aT.innerHTML='<div style="color:var(--g);font-size:12px;text-align:center;padding:15px">✓ Нет активных аварий</div>'}}
+const aT=$(sl+'a-act');if(aT){let ah='';
+if(!connOk) ah+=`<div class="ai aa">🔴 <b style="color:var(--r)">CONN_LOST</b> Нет связи с HGM9520N<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
+if(mx?.alarm_common) ah+=`<div class="ai aa"${ah?' style="margin-top:2px"':''}>🔴 <b style="color:var(--r)">COMMON</b> Общая авария<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
+if(mx?.alarm_shutdown) ah+=`<div class="ai aa" style="margin-top:2px">🔴 <b style="color:var(--r)">SHUTDOWN</b> Аварийный останов<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
+if(mx?.alarm_warning) ah+=`<div class="ai aw" style="margin-top:2px">⚠ <b style="color:var(--y)">WARNING</b> Предупреждение<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
+if(mx?.alarm_block) ah+=`<div class="ai aa" style="margin-top:2px">🔴 <b style="color:var(--r)">BLOCK</b> Блокировка<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
+aT.innerHTML=ah||'<div style="color:var(--g);font-size:12px;text-align:center;padding:15px">✓ Нет активных аварий</div>'}}
 function applySpr(gOn,mN,bC,mC,isOnline){const card=$('cspr');if(!card)return;const isO=card.classList.contains('op'),active=gOn||mN;
 // Status: alarm (mains abnormal), running (active), standby (online but idle), offline
 let cls='s-stb',dot='cd-x',bcls='bdg-off',btxt='СТОП';
-if(!isOnline){cls='s-stb';dot='cd-x';bcls='bdg-off';btxt='OFFLINE'}
+if(!isOnline){cls='s-alm';dot='cd-r';bcls='bdg-a';btxt='АВАРИЯ'}
 else if(!mN&&!active){cls='s-alm';dot='cd-r';bcls='bdg-a';btxt='АВАРИЯ'}
 else if(active){cls='s-run';dot='cd-g';bcls='bdg-run';btxt='РАБОТА'}
 else{cls='s-run';dot='cd-g';bcls='bdg-ok';btxt='НОРМА'}
@@ -1370,7 +1378,14 @@ kvs[4].className='kv '+(gOn&&mC?'vp':gOn?'vg':mN?'vb':'vm');kvs[4].textContent=m
 card.querySelector('.lo').className='lo '+(isOnline?'lo-g':'lo-r');card.querySelector('.li span:last-child').textContent=isOnline?'live':'offline';
 // Tabs (Обзор/Шина/Сеть/Коммутация) are rendered by applySprDetailed() via WS updates
 if(isOnline){const m3=latestMetrics[getDeviceIdForSlot('spr')];if(m3)applySprDetailed(m3)}
-const sprAct=$('spra-act');if(sprAct){if(!mN){sprAct.innerHTML=`<div class="ai aa">🔴 <b style="color:var(--r)">M001</b> ${ALARM_CODES['M001']}<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;if(Math.random()<0.2)addAlarmToArchive('spr','M001',ALARM_CODES['M001'],'alarm')}else if(isOnline){sprAct.innerHTML='<div style="color:var(--g);font-size:12px;text-align:center;padding:15px">✓ Нет активных аварий</div>'}else{sprAct.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:15px">Нет связи с контроллером</div>'}}}
+const sprAct=$('spra-act');if(sprAct){const sprMx=latestMetrics[getDeviceIdForSlot('spr')];let sah='';
+if(!isOnline) sah+=`<div class="ai aa">🔴 <b style="color:var(--r)">CONN_LOST</b> Нет связи с HGM9560<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
+if(isOnline&&!mN) sah+=`<div class="ai aa"${sah?' style="margin-top:2px"':''}>🔴 <b style="color:var(--r)">M001</b> Авария сети<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
+if(sprMx?.alarm_common) sah+=`<div class="ai aa" style="margin-top:2px">🔴 <b style="color:var(--r)">COMMON</b> Общая авария<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
+if(sprMx?.alarm_shutdown) sah+=`<div class="ai aa" style="margin-top:2px">🔴 <b style="color:var(--r)">SHUTDOWN</b> Аварийный останов<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
+if(sprMx?.alarm_warning) sah+=`<div class="ai aw" style="margin-top:2px">⚠ <b style="color:var(--y)">WARNING</b> Предупреждение<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
+if(sprMx?.alarm_trip_stop) sah+=`<div class="ai aa" style="margin-top:2px">🔴 <b style="color:var(--r)">TRIP_STOP</b> Аварийный стоп<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
+sprAct.innerHTML=sah||'<div style="color:var(--g);font-size:12px;text-align:center;padding:15px">✓ Нет активных аварий</div>'}}
 // === BITRIX24 INTEGRATION ===
 function getBxConfig(){try{return JSON.parse(localStorage.getItem('s5bx'))||{}}catch(e){return{}}}
 function saveBxCfg(c){localStorage.setItem('s5bx',JSON.stringify(c))}
@@ -1999,6 +2014,121 @@ el.innerHTML=`<div style="max-width:500px">
 <div style="font-size:10px;color:var(--t3)">записей</div></div></div></div>`;
 }
 // ===================== END ARCHIVE PAGE =====================
+
+// ===================== ALARMS PAGE =====================
+let alarmsPageState={sevFilter:'',activeOnly:false,hours:24,page:0,limit:30};
+let alarmsMode=false;
+
+function resolveDeviceName(deviceId){
+const info=deviceSlotIndex[deviceId];
+if(!info)return'Устр. #'+deviceId;
+const slotNames={g1:'Г1',g2:'Г2',spr:'ШПР'};
+const name=slotNames[info.slot]||info.slot;
+const siteName=S[info.siteKey]?.name||info.siteKey;
+return name+' · '+siteName;
+}
+
+function showAlarms(){
+alarmsMode=true;archiveMode=false;
+const mn=$('mainArea');
+mn.innerHTML=`
+<div class="dh"><div class="dt"><h1>🚨 Аварии</h1></div>
+<div class="da"><button onclick="alarmsMode=false;if(cur&&S[cur])renderDash()">← Мониторинг</button>
+<button onclick="almRefresh()">🔄 Обновить</button></div></div>
+<div style="margin-bottom:12px">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+<h2 style="font-size:14px;font-weight:600;color:var(--r)">● Активные аварии</h2>
+<span id="almActiveCount" style="font-size:11px;color:var(--t3);font-family:var(--m)"></span></div>
+<div id="almActiveList"></div></div>
+<div>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+<h2 style="font-size:14px;font-weight:600;color:var(--t2)">📋 Журнал аварий</h2></div>
+<div class="arc-flt" style="margin-bottom:8px">
+<select class="fi" id="almSev" style="width:140px;padding:6px 8px;font-size:11px" onchange="alarmsPageState.page=0;almLoadHistory()">
+<option value="">Все уровни</option><option value="error">🔴 Ошибка</option><option value="warning">🟡 Предупр.</option></select>
+<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--t2)"><input type="checkbox" id="almActiveOnly" style="accent-color:var(--g)" onchange="alarmsPageState.page=0;almLoadHistory()"> Только активные</label>
+<div style="display:flex;gap:2px">
+<button class="arc-tb" onclick="almPeriod(this,1)">1ч</button>
+<button class="arc-tb" onclick="almPeriod(this,6)">6ч</button>
+<button class="arc-tb on" onclick="almPeriod(this,24)">24ч</button>
+<button class="arc-tb" onclick="almPeriod(this,168)">7д</button>
+<button class="arc-tb" onclick="almPeriod(this,720)">30д</button>
+<button class="arc-tb" onclick="almPeriod(this,0)">Всё</button></div></div>
+<div id="almHistoryTable"></div>
+<div id="almHistoryPag"></div></div>`;
+almRefresh();
+}
+
+function almPeriod(btn,hours){
+btn.parentElement.querySelectorAll('.arc-tb').forEach(b=>b.classList.remove('on'));
+btn.classList.add('on');alarmsPageState.hours=hours;alarmsPageState.page=0;almLoadHistory();
+}
+
+async function almLoadActive(){
+const el=$('almActiveList'),cnt=$('almActiveCount');
+if(!el)return;
+el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">⏳ Загрузка...</div>';
+try{
+const alarms=await api.get('/api/history/alarms/active');
+if(cnt)cnt.textContent=alarms.length+' шт.';
+if(!alarms.length){el.innerHTML='<div style="padding:16px 20px;background:var(--gd);border:1px solid rgba(0,224,154,.2);border-radius:var(--rad);color:var(--g);font-size:13px;text-align:center">✓ Нет активных аварий</div>';return}
+const sevI={error:'🔴',warning:'⚠'},sevC={error:'var(--r)',warning:'var(--y)'};
+const cards=alarms.map(a=>{
+const occ=new Date(a.occurred_at);
+const durMin=Math.round((Date.now()-occ.getTime())/60000);
+const durStr=durMin<60?durMin+' мин':(durMin/60|0)+' ч '+(durMin%60)+' мин';
+const ic=sevI[a.severity]||'🔴';
+const col=sevC[a.severity]||'var(--r)';
+const bg=a.severity==='warning'?'var(--yd)':'var(--rd)';
+const border=a.severity==='warning'?'rgba(255,176,32,.2)':'rgba(255,64,96,.2)';
+const dev=resolveDeviceName(a.device_id);
+return`<div style="padding:10px 14px;background:${bg};border:1px solid ${border};border-radius:var(--rs);margin-bottom:4px;display:flex;align-items:center;gap:10px">
+<span style="font-size:16px">${ic}</span>
+<div style="flex:1;min-width:0">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
+<b style="color:${col};font-family:var(--m);font-size:12px">${esc(a.alarm_code)}</b>
+<span style="font-size:12px;color:var(--t)">${esc(a.message)}</span></div>
+<div style="font-size:10px;color:var(--t3);font-family:var(--m)">${dev} · ${occ.toLocaleString('ru-RU')} · ${durStr}</div></div></div>`}).join('');
+el.innerHTML=cards;
+}catch(e){el.innerHTML=`<div style="color:var(--r);font-size:12px;padding:20px;text-align:center">Ошибка: ${esc(e.message)}</div>`}}
+
+async function almLoadHistory(){
+const el=$('almHistoryTable'),pag=$('almHistoryPag');
+if(!el)return;
+el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">⏳ Загрузка...</div>';
+const st=alarmsPageState;
+st.sevFilter=$('almSev')?.value||'';
+st.activeOnly=$('almActiveOnly')?.checked||false;
+let url=`/api/history/alarms?limit=${st.limit}&offset=${st.page*st.limit}`;
+if(st.sevFilter)url+=`&severity=${st.sevFilter}`;
+if(st.activeOnly)url+='&is_active=true';
+if(st.hours)url+=`&last_hours=${st.hours}`;
+try{
+const alarms=await api.get(url);
+if(!alarms||!alarms.length){el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:30px">Нет аварий за выбранный период ✓</div>';if(pag)pag.innerHTML='';return}
+const sevI={error:'🔴',warning:'🟡'},sevL={error:'Ошибка',warning:'Предупр.'};
+const rows=alarms.map(a=>{
+const occ=new Date(a.occurred_at),clr=a.cleared_at?new Date(a.cleared_at):null;
+const dur=clr?Math.round((clr-occ)/60000):'—';
+const dev=resolveDeviceName(a.device_id);
+return`<tr>
+<td style="white-space:nowrap">${occ.toLocaleString('ru-RU')}</td>
+<td>${esc(dev)}</td>
+<td style="font-family:var(--m)">${esc(a.alarm_code)}</td>
+<td>${sevI[a.severity]||'⚪'} ${sevL[a.severity]||a.severity}</td>
+<td>${esc(a.message)}</td>
+<td>${typeof dur==='number'?dur+' мин':dur}</td>
+<td>${a.is_active?'<span style="color:var(--r);font-weight:600">● Активна</span>':'<span style="color:var(--t3)">✓ Снята</span>'}</td></tr>`}).join('');
+el.innerHTML=`<table class="pt"><thead><tr><th>Время</th><th>Устройство</th><th>Код</th><th>Уровень</th><th>Сообщение</th><th>Длит.</th><th>Статус</th></tr></thead><tbody>${rows}</tbody></table>`;
+const hasMore=alarms.length===st.limit;
+if(pag)pag.innerHTML=`<div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+<button class="sb-btn" style="padding:5px 12px;font-size:11px;width:auto" onclick="alarmsPageState.page=Math.max(0,alarmsPageState.page-1);almLoadHistory()" ${st.page===0?'disabled style="opacity:.4;pointer-events:none;padding:5px 12px;font-size:11px;width:auto"':''}>← Назад</button>
+<span style="font-size:11px;color:var(--t3);font-family:var(--m)">Стр. ${st.page+1}</span>
+<button class="sb-btn" style="padding:5px 12px;font-size:11px;width:auto" onclick="alarmsPageState.page++;almLoadHistory()" ${!hasMore?'disabled style="opacity:.4;pointer-events:none;padding:5px 12px;font-size:11px;width:auto"':''}>Вперёд →</button></div>`;
+}catch(e){el.innerHTML=`<div style="color:var(--r);font-size:12px;padding:20px;text-align:center">Ошибка: ${esc(e.message)}</div>`}}
+
+function almRefresh(){almLoadActive();almLoadHistory()}
+// ===================== END ALARMS PAGE =====================
 
 // === INIT ===
 (async function init() {

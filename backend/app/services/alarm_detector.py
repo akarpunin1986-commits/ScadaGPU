@@ -4,6 +4,9 @@ Subscribes to Redis PubSub 'metrics:updates'. Compares alarm boolean flags
 (alarm_common, alarm_shutdown, alarm_warning, alarm_block) with previous state.
 On transition False→True: INSERT new alarm_event.
 On transition True→False: UPDATE existing (cleared_at, is_active=False).
+
+Also tracks CONN_LOST: when a device goes offline (online: false in payload),
+an alarm_event with code CONN_LOST is created; when it comes back online, cleared.
 """
 import asyncio
 import json
@@ -27,6 +30,14 @@ ALARM_FLAG_MAP = {
     "alarm_trip_stop":("TRIP_STOP", "error",   "Аварийный стоп"),
 }
 
+# Connection-loss alarm (system-level, not from Modbus registers)
+CONN_LOST_CODE = "CONN_LOST"
+CONN_LOST_SEVERITY = "error"
+CONN_LOST_MESSAGES = {
+    "generator": "Нет связи с HGM9520N",
+    "ats":       "Нет связи с HGM9560",
+}
+
 
 class AlarmDetector:
 
@@ -39,6 +50,7 @@ class AlarmDetector:
         self.session_factory = session_factory
         self._running = False
         self._prev: dict[int, dict[str, bool]] = {}
+        self._prev_online: dict[int, bool] = {}  # device_id → last known online
 
     async def start(self) -> None:
         self._running = True
@@ -60,6 +72,10 @@ class AlarmDetector:
                 for alarm in result.scalars().all():
                     if alarm.device_id not in self._prev:
                         self._prev[alarm.device_id] = {}
+                    # Restore CONN_LOST state
+                    if alarm.alarm_code == CONN_LOST_CODE:
+                        self._prev_online[alarm.device_id] = False
+                        continue
                     for flag, (code, _, _) in ALARM_FLAG_MAP.items():
                         if code == alarm.alarm_code:
                             self._prev[alarm.device_id][flag] = True
@@ -101,6 +117,53 @@ class AlarmDetector:
         if device_id is None:
             return
 
+        # --- CONN_LOST: track online/offline transitions ---
+        online_now = payload.get("online", True)
+        was_online = self._prev_online.get(device_id, True)
+
+        if was_online and not online_now:
+            # Transition: online → offline → create CONN_LOST alarm
+            device_type = payload.get("device_type", "generator")
+            message = CONN_LOST_MESSAGES.get(device_type, f"Нет связи с устройством #{device_id}")
+            try:
+                async with self.session_factory() as session:
+                    alarm = AlarmEvent(
+                        device_id=device_id,
+                        alarm_code=CONN_LOST_CODE,
+                        severity=CONN_LOST_SEVERITY,
+                        message=message,
+                        is_active=True,
+                    )
+                    session.add(alarm)
+                    await session.commit()
+                    logger.info("CONN_LOST ON: device=%d type=%s", device_id, device_type)
+            except Exception as exc:
+                logger.error("AlarmDetector CONN_LOST insert error: %s", exc)
+
+        elif not was_online and online_now:
+            # Transition: offline → online → clear CONN_LOST alarm
+            try:
+                async with self.session_factory() as session:
+                    stmt = select(AlarmEvent).where(
+                        and_(
+                            AlarmEvent.device_id == device_id,
+                            AlarmEvent.alarm_code == CONN_LOST_CODE,
+                            AlarmEvent.is_active == True,
+                        )
+                    )
+                    result = await session.execute(stmt)
+                    active_alarm = result.scalar_one_or_none()
+                    if active_alarm:
+                        active_alarm.cleared_at = datetime.utcnow()
+                        active_alarm.is_active = False
+                        await session.commit()
+                        logger.info("CONN_LOST OFF: device=%d", device_id)
+            except Exception as exc:
+                logger.error("AlarmDetector CONN_LOST clear error: %s", exc)
+
+        self._prev_online[device_id] = bool(online_now)
+
+        # --- Hardware alarm flags ---
         prev = self._prev.get(device_id, {})
         current: dict[str, bool] = {}
         for flag in ALARM_FLAG_MAP:
