@@ -396,43 +396,68 @@
                 // Found event — fetch full details
                 await fetchAndShowEvent(events[0].id);
             } else {
-                // No event in DB — show basic info from definitions
-                await showDefinitionOnly(alarmCode);
+                // No event in DB — show definition + active alarms for the device
+                await showDefinitionWithContext(alarmCode, deviceId);
             }
         } catch (err) {
-            showError('Не удалось загрузить данные аварии: ' + err.message);
+            showError('\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C \u0434\u0430\u043D\u043D\u044B\u0435 \u0430\u0432\u0430\u0440\u0438\u0438: ' + err.message);
         }
     }
 
-    async function showDefinitionOnly(alarmCode) {
+    async function showDefinitionWithContext(alarmCode, deviceId) {
+        // Show definition for THIS specific alarm only — no list of all active alarms
         try {
-            const resp = await fetch('/api/alarm-analytics/definitions');
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const defs = await resp.json();
+            const defResp = await fetch('/api/alarm-analytics/definitions');
+            const defs = defResp.ok ? await defResp.json() : [];
             const defn = defs.find(d => d.code === alarmCode);
-            if (defn) {
-                showModal(`
-                    <div class="alm-header">
-                        <button class="alm-close" onclick="document.querySelector('.alm-overlay').click()">&times;</button>
-                        <div class="alm-title">${severityEmoji(defn.severity)} ${defn.code} ${defn.name_ru}</div>
-                        <div class="alm-meta">
-                            <span>${defn.name}</span>
-                            <span class="alm-badge alm-badge-${defn.severity}">${severityLabel(defn.severity)}</span>
-                        </div>
-                    </div>
-                    <div class="alm-section">
-                        <div class="alm-section-title">\u{1F4D6} Описание</div>
-                        <div class="alm-desc">${defn.name_ru}</div>
-                        <div class="alm-desc" style="margin-top:8px;color:var(--t3);font-size:12px">
-                            Детальный снимок метрик и анализ причины будут доступны после следующего возникновения этой аварии.
-                        </div>
-                    </div>
-                `);
-            } else {
-                showError('Определение аварии не найдено: ' + alarmCode);
-            }
+
+            // Header
+            const title = defn ? defn.name_ru : alarmCode;
+            const severity = defn ? defn.severity : 'warning';
+            const engName = defn ? defn.name : '';
+            const deviceName = deviceId ? resolveDeviceName(deviceId, defn ? (defn.register_field.startsWith('alarm_reg') ? 'ats' : 'generator') : null) : '';
+
+            let html = '<div class="alm-header">' +
+                '<button class="alm-close" onclick="document.querySelector(\'.alm-overlay\').click()">&times;</button>' +
+                '<div class="alm-title">' + severityEmoji(severity) + ' ' + alarmCode + ' ' + title + '</div>' +
+                '<div class="alm-meta">' +
+                    (engName ? '<span>' + engName + '</span>' : '') +
+                    (deviceName ? '<span>' + deviceName + '</span>' : '') +
+                    '<span class="alm-badge alm-badge-' + severity + '">' + severityLabel(severity) + '</span>' +
+                '</div>' +
+            '</div>';
+
+            // Description section
+            html += '<div class="alm-section">' +
+                '<div class="alm-section-title">\uD83D\uDCD6 \u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435</div>' +
+                '<div class="alm-desc">' + title + '</div>' +
+                (engName && engName !== title ? '<div class="alm-desc" style="margin-top:4px;color:var(--t3,#6c7a8d);font-size:12px">' + engName + '</div>' : '') +
+            '</div>';
+
+            // Severity explanation
+            const sevExplanations = {
+                'shutdown': '\u0410\u0432\u0430\u0440\u0438\u044F \u043A\u0430\u0442\u0435\u0433\u043E\u0440\u0438\u0438 SHUTDOWN \u2014 \u043A\u0440\u0438\u0442\u0438\u0447\u0435\u0441\u043A\u0430\u044F. \u041F\u0440\u0438\u0432\u043E\u0434\u0438\u0442 \u043A \u043D\u0435\u043C\u0435\u0434\u043B\u0435\u043D\u043D\u043E\u0439 \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0435 \u043E\u0431\u043E\u0440\u0443\u0434\u043E\u0432\u0430\u043D\u0438\u044F.',
+                'trip': '\u0410\u0432\u0430\u0440\u0438\u044F \u043A\u0430\u0442\u0435\u0433\u043E\u0440\u0438\u0438 TRIP \u2014 \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0430/\u043A\u043E\u043D\u0442\u0430\u043A\u0442\u043E\u0440\u0430.',
+                'trip_stop': '\u0410\u0432\u0430\u0440\u0438\u044F \u043A\u0430\u0442\u0435\u0433\u043E\u0440\u0438\u0438 TRIP & STOP \u2014 \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0441 \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u043E\u0439.',
+                'mains_trip': '\u0410\u0432\u0430\u0440\u0438\u044F \u043A\u0430\u0442\u0435\u0433\u043E\u0440\u0438\u0438 MAINS TRIP \u2014 \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0430 \u0441\u0435\u0442\u0438.',
+                'warning': '\u041F\u0440\u0435\u0434\u0443\u043F\u0440\u0435\u0436\u0434\u0435\u043D\u0438\u0435 \u2014 \u043D\u0435 \u043F\u0440\u0438\u0432\u043E\u0434\u0438\u0442 \u043A \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044E, \u043D\u043E \u0442\u0440\u0435\u0431\u0443\u0435\u0442 \u0432\u043D\u0438\u043C\u0430\u043D\u0438\u044F.',
+                'indication': '\u0418\u043D\u0434\u0438\u043A\u0430\u0446\u0438\u044F \u2014 \u0438\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u043E\u043D\u043D\u043E\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435.',
+                'block': '\u0411\u043B\u043E\u043A\u0438\u0440\u043E\u0432\u043A\u0430 \u2014 \u0437\u0430\u043F\u0440\u0435\u0442 \u043E\u043F\u0435\u0440\u0430\u0446\u0438\u0438 \u0434\u043E \u0443\u0441\u0442\u0440\u0430\u043D\u0435\u043D\u0438\u044F \u043F\u0440\u0438\u0447\u0438\u043D\u044B.'
+            };
+
+            html += '<div class="alm-section">' +
+                '<div class="alm-section-title">\u2139\uFE0F \u0418\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u044F</div>' +
+                '<div class="alm-desc" style="font-size:12px">' +
+                    (sevExplanations[severity] || '\u0410\u0432\u0430\u0440\u0438\u044F \u043A\u043E\u043D\u0442\u0440\u043E\u043B\u043B\u0435\u0440\u0430.') +
+                '</div>' +
+                '<div class="alm-desc" style="margin-top:10px;font-size:12px;color:var(--t3,#6c7a8d)">' +
+                    '\u0414\u0435\u0442\u0430\u043B\u044C\u043D\u044B\u0439 \u0441\u043D\u0438\u043C\u043E\u043A \u043C\u0435\u0442\u0440\u0438\u043A \u0431\u0443\u0434\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D \u043F\u0440\u0438 \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0435\u043C \u0441\u0440\u0430\u0431\u0430\u0442\u044B\u0432\u0430\u043D\u0438\u0438 \u043C\u043E\u0434\u0443\u043B\u044F \u0430\u043D\u0430\u043B\u0438\u0442\u0438\u043A\u0438.' +
+                '</div>' +
+            '</div>';
+
+            showModal(html);
         } catch(err) {
-            showError('Ошибка загрузки определений: ' + err.message);
+            showError('\u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u0434\u0430\u043D\u043D\u044B\u0445: ' + err.message);
         }
     }
 
@@ -481,29 +506,121 @@
         // Skip CONN_LOST — handled by base AlarmDetector, not alarm_analytics
         if (code === 'CONN_LOST') return;
 
-        // Summary flags (COMMON, SHUTDOWN, WARNING, BLOCK, TRIP_STOP) don't have
-        // detailed analytics — they're summary bits. Show info message.
+        // Summary flags (COMMON, SHUTDOWN, WARNING, BLOCK, TRIP_STOP) —
+        // show list of active alarms for the device
         const summaryFlags = ['COMMON', 'SHUTDOWN', 'WARNING', 'BLOCK', 'TRIP_STOP'];
         if (summaryFlags.includes(code)) {
-            showModal(`
-                <div class="alm-header">
-                    <button class="alm-close" onclick="document.querySelector('.alm-overlay').click()">&times;</button>
-                    <div class="alm-title">${severityEmoji('warning')} ${code}</div>
-                </div>
-                <div class="alm-section">
-                    <div class="alm-desc">
-                        Это суммарный флаг аварии. Детальная информация доступна по отдельным аварийным кодам (M001-M008, G_SD_* и т.д.).
-                    </div>
-                    <div class="alm-desc" style="margin-top:8px;color:var(--t3);font-size:12px">
-                        Когда модуль аналитики обнаружит конкретный бит аварии, по клику будет доступен полный анализ.
-                    </div>
-                </div>
-            `);
+            const deviceId = extractDeviceId(el);
+            showSummaryFlagModal(code, deviceId);
             return;
         }
 
         const deviceId = extractDeviceId(el);
         fetchAndShowByCode(code, deviceId);
+    }
+
+    async function showSummaryFlagModal(code, deviceId) {
+        // Summary flags (COMMON, SHUTDOWN, etc.) — show compact info with limited alarm preview
+        showLoading();
+        try {
+            const MAX_PREVIEW = 5; // Show max 5 alarms in preview
+            let url = '/api/alarm-analytics/active';
+            if (deviceId) url += '?device_id=' + deviceId;
+            const resp = await fetch(url);
+            let events = [];
+            if (resp.ok) events = await resp.json();
+
+            const codeLabels = {
+                'COMMON': '\u041E\u0431\u0449\u0430\u044F \u0430\u0432\u0430\u0440\u0438\u044F (COMMON)',
+                'SHUTDOWN': '\u0410\u0432\u0430\u0440\u0438\u0439\u043D\u044B\u0439 \u043E\u0441\u0442\u0430\u043D\u043E\u0432 (SHUTDOWN)',
+                'WARNING': '\u041F\u0440\u0435\u0434\u0443\u043F\u0440\u0435\u0436\u0434\u0435\u043D\u0438\u0435 (WARNING)',
+                'BLOCK': '\u0411\u043B\u043E\u043A\u0438\u0440\u043E\u0432\u043A\u0430 (BLOCK)',
+                'TRIP_STOP': '\u0410\u0432\u0430\u0440\u0438\u0439\u043D\u044B\u0439 \u0441\u0442\u043E\u043F (TRIP_STOP)'
+            };
+            const codeDescriptions = {
+                'COMMON': '\u0421\u0443\u043C\u043C\u0430\u0440\u043D\u044B\u0439 \u0431\u0438\u0442 \u0430\u0432\u0430\u0440\u0438\u0438 \u043A\u043E\u043D\u0442\u0440\u043E\u043B\u043B\u0435\u0440\u0430. \u0410\u043A\u0442\u0438\u0432\u0438\u0440\u0443\u0435\u0442\u0441\u044F \u043A\u043E\u0433\u0434\u0430 \u0435\u0441\u0442\u044C \u0445\u043E\u0442\u044F \u0431\u044B \u043E\u0434\u043D\u0430 \u0430\u043A\u0442\u0438\u0432\u043D\u0430\u044F \u0430\u0432\u0430\u0440\u0438\u044F \u043B\u044E\u0431\u043E\u0433\u043E \u0442\u0438\u043F\u0430.',
+                'SHUTDOWN': '\u0421\u0443\u043C\u043C\u0430\u0440\u043D\u044B\u0439 \u0431\u0438\u0442 \u043A\u0440\u0438\u0442\u0438\u0447\u0435\u0441\u043A\u0438\u0445 \u0430\u0432\u0430\u0440\u0438\u0439. \u0410\u043A\u0442\u0438\u0432\u0438\u0440\u0443\u0435\u0442\u0441\u044F \u043F\u0440\u0438 \u043D\u0430\u043B\u0438\u0447\u0438\u0438 \u0430\u0432\u0430\u0440\u0438\u0439 \u043A\u0430\u0442\u0435\u0433\u043E\u0440\u0438\u0438 Shutdown.',
+                'WARNING': '\u0421\u0443\u043C\u043C\u0430\u0440\u043D\u044B\u0439 \u0431\u0438\u0442 \u043F\u0440\u0435\u0434\u0443\u043F\u0440\u0435\u0436\u0434\u0435\u043D\u0438\u0439. \u0410\u043A\u0442\u0438\u0432\u0438\u0440\u0443\u0435\u0442\u0441\u044F \u043F\u0440\u0438 \u043D\u0430\u043B\u0438\u0447\u0438\u0438 \u043F\u0440\u0435\u0434\u0443\u043F\u0440\u0435\u0436\u0434\u0435\u043D\u0438\u0439.',
+                'BLOCK': '\u0421\u0443\u043C\u043C\u0430\u0440\u043D\u044B\u0439 \u0431\u0438\u0442 \u0431\u043B\u043E\u043A\u0438\u0440\u043E\u0432\u043E\u043A. \u0410\u043A\u0442\u0438\u0432\u0438\u0440\u0443\u0435\u0442\u0441\u044F \u043F\u0440\u0438 \u043D\u0430\u043B\u0438\u0447\u0438\u0438 \u0430\u043A\u0442\u0438\u0432\u043D\u044B\u0445 \u0431\u043B\u043E\u043A\u0438\u0440\u043E\u0432\u043E\u043A.',
+                'TRIP_STOP': '\u0421\u0443\u043C\u043C\u0430\u0440\u043D\u044B\u0439 \u0431\u0438\u0442 \u0430\u0432\u0430\u0440\u0438\u0439\u043D\u043E\u0433\u043E \u0441\u0442\u043E\u043F\u0430. \u0410\u043A\u0442\u0438\u0432\u0438\u0440\u0443\u0435\u0442\u0441\u044F \u043F\u0440\u0438 \u043D\u0430\u043B\u0438\u0447\u0438\u0438 \u0430\u0432\u0430\u0440\u0438\u0439 \u043A\u0430\u0442\u0435\u0433\u043E\u0440\u0438\u0438 Trip & Stop.'
+            };
+            const codeSeverity = {
+                'COMMON': 'warning', 'SHUTDOWN': 'shutdown', 'WARNING': 'warning',
+                'BLOCK': 'block', 'TRIP_STOP': 'trip_stop'
+            };
+
+            const severity = codeSeverity[code] || 'warning';
+            let html = '<div class="alm-header">' +
+                '<button class="alm-close" onclick="document.querySelector(\'.alm-overlay\').click()">&times;</button>' +
+                '<div class="alm-title">' + severityEmoji(severity) + ' ' +
+                (codeLabels[code] || code) + '</div>' +
+                '<div class="alm-meta">' +
+                    '<span>\u0421\u0443\u043C\u043C\u0430\u0440\u043D\u044B\u0439 \u0444\u043B\u0430\u0433 \u0430\u0432\u0430\u0440\u0438\u0438</span>' +
+                    '<span class="alm-badge alm-badge-' + severity + '">' + severityLabel(severity) + '</span>' +
+                '</div>' +
+            '</div>';
+
+            // Description
+            html += '<div class="alm-section">' +
+                '<div class="alm-section-title">\uD83D\uDCD6 \u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435</div>' +
+                '<div class="alm-desc">' + (codeDescriptions[code] || '\u0421\u0443\u043C\u043C\u0430\u0440\u043D\u044B\u0439 \u0431\u0438\u0442 \u0430\u0432\u0430\u0440\u0438\u0438 \u043A\u043E\u043D\u0442\u0440\u043E\u043B\u043B\u0435\u0440\u0430.') + '</div>' +
+            '</div>';
+
+            // Compact summary: count + limited preview
+            if (events.length > 0) {
+                const preview = events.slice(0, MAX_PREVIEW);
+                const remaining = events.length - preview.length;
+
+                html += '<div class="alm-section">' +
+                    '<div class="alm-section-title">\uD83D\uDD0D \u0410\u043A\u0442\u0438\u0432\u043D\u044B\u0435 \u0430\u0432\u0430\u0440\u0438\u0438: ' + events.length + '</div>';
+                for (const ev of preview) {
+                    const sev = ev.alarm_severity || 'warning';
+                    html += '<div style="display:flex;align-items:center;gap:8px;' +
+                        'padding:6px 12px;margin-bottom:3px;background:rgba(255,255,255,0.03);' +
+                        'border-radius:6px;cursor:pointer;border:1px solid rgba(255,255,255,0.06);transition:background 0.15s" ' +
+                        'onmouseover="this.style.background=\'rgba(255,255,255,0.07)\'" ' +
+                        'onmouseout="this.style.background=\'rgba(255,255,255,0.03)\'" ' +
+                        'onclick="window.almShowByCode(\'' + ev.alarm_code + '\',' + (ev.device_id || 'null') + ')">' +
+                        '<span style="font-size:14px">' + severityEmoji(sev) + '</span>' +
+                        '<b style="font-family:monospace;font-size:12px;color:var(--t1,#e0e6ed)">' + ev.alarm_code + '</b> ' +
+                        '<span style="flex:1;font-size:12px;color:var(--t2,#a0aec0)">' + ev.alarm_name_ru + '</span>' +
+                    '</div>';
+                }
+                if (remaining > 0) {
+                    html += '<div style="font-size:12px;color:var(--t3,#6c7a8d);margin-top:6px;text-align:center">' +
+                        '\u0438 \u0435\u0449\u0451 ' + remaining + ' \u0430\u0432\u0430\u0440\u0438' +
+                        (remaining === 1 ? '\u044F' : (remaining < 5 ? '\u0438' : '\u0439')) +
+                    '</div>';
+                }
+                // Button to open full alarms page
+                html += '<div style="margin-top:12px;text-align:center">' +
+                    '<button onclick="document.querySelector(\'.alm-overlay\').click();if(typeof showAlarms===\'function\')showAlarms();" ' +
+                    'style="background:var(--p,#60a5fa);color:#fff;border:none;border-radius:6px;' +
+                    'padding:8px 20px;font-size:13px;cursor:pointer;transition:opacity 0.15s" ' +
+                    'onmouseover="this.style.opacity=\'0.85\'" onmouseout="this.style.opacity=\'1\'">' +
+                    '\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0443 \u0430\u0432\u0430\u0440\u0438\u0439</button>' +
+                '</div></div>';
+            } else {
+                html += '<div class="alm-section">' +
+                    '<div class="alm-desc" style="color:var(--t3,#6c7a8d);font-size:12px">' +
+                    '\u041D\u0435\u0442 \u0430\u043A\u0442\u0438\u0432\u043D\u044B\u0445 \u0430\u0432\u0430\u0440\u0438\u0439 \u0432 \u043C\u043E\u0434\u0443\u043B\u0435 \u0430\u043D\u0430\u043B\u0438\u0442\u0438\u043A\u0438.' +
+                    '</div></div>';
+            }
+
+            showModal(html);
+        } catch (err) {
+            showModal(
+                '<div class="alm-header">' +
+                    '<button class="alm-close" onclick="document.querySelector(\'.alm-overlay\').click()">&times;</button>' +
+                    '<div class="alm-title">' + severityEmoji('warning') + ' ' + code + '</div>' +
+                '</div>' +
+                '<div class="alm-section">' +
+                    '<div class="alm-desc">' +
+                    '\u042D\u0442\u043E \u0441\u0443\u043C\u043C\u0430\u0440\u043D\u044B\u0439 \u0444\u043B\u0430\u0433 \u0430\u0432\u0430\u0440\u0438\u0438. \u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C \u0434\u0435\u0442\u0430\u043B\u0438: ' + err.message +
+                    '</div>' +
+                '</div>'
+            );
+        }
     }
 
     function attachHandlers() {

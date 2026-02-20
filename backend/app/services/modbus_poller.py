@@ -363,7 +363,7 @@ REGISTER_MAP_9560: dict[str, dict] = {
         },
     },
     "mains_power": {
-        "address": 103, "count": 28,
+        "address": 103, "count": 16,
         "fields": {
             "mains_p_a":    lambda regs: _signed32(regs[0], regs[1]) * 0.1,
             "mains_p_b":    lambda regs: _signed32(regs[2], regs[3]) * 0.1,
@@ -373,10 +373,15 @@ REGISTER_MAP_9560: dict[str, dict] = {
             "mains_q_b":    lambda regs: _signed32(regs[10], regs[11]) * 0.1,
             "mains_q_c":    lambda regs: _signed32(regs[12], regs[13]) * 0.1,
             "mains_total_q": lambda regs: _signed32(regs[14], regs[15]) * 0.1,
-            "mains_pf_a":   lambda regs: _signed16(regs[24]) * 0.01,
-            "mains_pf_b":   lambda regs: _signed16(regs[25]) * 0.01,
-            "mains_pf_c":   lambda regs: _signed16(regs[26]) * 0.01,
-            "mains_pf_avg": lambda regs: _signed16(regs[27]) * 0.01,
+        },
+    },
+    "mains_pf": {
+        "address": 127, "count": 4,
+        "fields": {
+            "mains_pf_a":   lambda regs: _signed16(regs[0]) * 0.01,
+            "mains_pf_b":   lambda regs: _signed16(regs[1]) * 0.01,
+            "mains_pf_c":   lambda regs: _signed16(regs[2]) * 0.01,
+            "mains_pf_avg": lambda regs: _signed16(regs[3]) * 0.01,
         },
     },
     "busbar_misc": {
@@ -413,9 +418,9 @@ REGISTER_MAP_9560: dict[str, dict] = {
             "start_times_a":     lambda regs: regs[3],
         },
     },
-    # Detailed alarm registers 0000-0044
-    "alarm_detail": {
-        "address": 0, "count": 45,
+    # Detailed alarm registers — split into smaller reads for RS485 reliability
+    "alarm_detail_a": {
+        "address": 0, "count": 25,
         "fields": {
             "alarm_reg_00": lambda regs: regs[0],   # Common flags + modes
             "alarm_reg_01": lambda regs: regs[1],   # Shutdown alarms
@@ -427,11 +432,17 @@ REGISTER_MAP_9560: dict[str, dict] = {
             "alarm_reg_20": lambda regs: regs[20],  # Warning
             "alarm_reg_21": lambda regs: regs[21],  # Warning cont.
             "alarm_reg_24": lambda regs: regs[24],  # Indication
-            "alarm_reg_30": lambda regs: regs[30],  # Mains Trip
-            "alarm_reg_44": lambda regs: regs[44],  # Mains fault detail
-            # Power Limit status bits
-            "power_limit_active": lambda regs: bool(regs[21] & (1 << 15)),  # reg 0021 bit15
-            "power_limit_trip":   lambda regs: bool(regs[30] & (1 << 10)),  # reg 0030 bit10
+            # Power Limit status bit from reg 21
+            "power_limit_active": lambda regs: bool(regs[21] & (1 << 15)),
+        },
+    },
+    "alarm_detail_b": {
+        "address": 30, "count": 15,
+        "fields": {
+            "alarm_reg_30": lambda regs: regs[0],   # Mains Trip
+            "alarm_reg_44": lambda regs: regs[14],  # Mains fault detail
+            # Power Limit trip bit from reg 30
+            "power_limit_trip": lambda regs: bool(regs[0] & (1 << 10)),
         },
     },
 }
@@ -754,13 +765,18 @@ class HGM9520NReader(BaseReader):
 class HGM9560Reader(BaseReader):
     """Modbus RTU over TCP via raw asyncio socket."""
 
-    INTER_FRAME_DELAY = 0.15
-    INTER_BLOCK_DELAY = 0.05
+    INTER_FRAME_DELAY = 0.40   # wait after sending before reading response
+    INTER_BLOCK_DELAY = 0.35   # pause between block reads
+    PRE_FLUSH_TIMEOUT = 0.25   # how long to wait for silence before sending
+    MAX_RETRIES = 2            # retry each block up to 2 times on failure
 
     def __init__(self, device: Device, *, site_code: str = ""):
         super().__init__(device, site_code=site_code)
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
+        # RS485 converter needs longer timeout than Modbus TCP
+        if self.timeout < 3.0:
+            self.timeout = 3.0
 
     async def connect(self) -> None:
         self._reader, self._writer = await asyncio.wait_for(
@@ -779,73 +795,126 @@ class HGM9560Reader(BaseReader):
             self._writer = None
             self._reader = None
 
-    async def _flush_stale(self) -> None:
-        """Drain any stale bytes sitting in the buffer."""
+    async def _flush_stale(self, timeout: float = 0.15) -> int:
+        """Drain ALL stale bytes from the buffer in a loop.
+
+        The RS485-to-TCP converter may deliver late responses as multiple
+        TCP segments.  We keep reading until the buffer is silent for
+        *timeout* seconds.  Returns total bytes flushed.
+        """
         if self._reader is None:
-            return
-        try:
-            stale = await asyncio.wait_for(self._reader.read(1024), timeout=0.05)
-            if stale:
-                logger.debug("HGM9560: flushed %d stale bytes", len(stale))
-            elif stale is not None and len(stale) == 0:
-                # EOF — peer closed connection, reconnect
-                logger.warning("HGM9560: EOF on flush, reconnecting")
-                await self.disconnect()
-                await self.connect()
-        except asyncio.TimeoutError:
-            pass  # No stale data — normal case
+            return 0
+        total = 0
+        while True:
+            try:
+                chunk = await asyncio.wait_for(self._reader.read(4096), timeout=timeout)
+                if chunk:
+                    total += len(chunk)
+                    continue  # more data may follow
+                else:
+                    # EOF — peer closed
+                    logger.warning("HGM9560: EOF on flush, reconnecting")
+                    await self.disconnect()
+                    await self.connect()
+                    return total
+            except asyncio.TimeoutError:
+                break
+        if total:
+            logger.debug("HGM9560: flushed %d stale bytes total", total)
+        return total
 
     async def _send_and_receive(self, start: int, count: int) -> list[int] | None:
         if self._writer is None or self._reader is None:
             raise ConnectionError("HGM9560: not connected")
 
-        await self._flush_stale()
+        # Aggressively flush until silence — ensures no stale data from previous request
+        await self._flush_stale(timeout=self.PRE_FLUSH_TIMEOUT)
 
         frame = build_read_registers(self.slave_id, start, count)
+        expected_bytes = 3 + count * 2 + 2  # slave + fc + bytecount + data + crc
+
         self._writer.write(frame)
         await self._writer.drain()
 
+        # Wait for device to process request + RS485 turnaround + converter delay
         await asyncio.sleep(self.INTER_FRAME_DELAY)
 
-        expected_bytes = 3 + count * 2 + 2  # slave + fc + bytecount + data + crc
         response = b""
-        deadline = asyncio.get_event_loop().time() + self.timeout
+        loop = asyncio.get_event_loop()
+        deadline = loop.time() + self.timeout
 
-        while asyncio.get_event_loop().time() < deadline:
-            remaining_time = deadline - asyncio.get_event_loop().time()
+        while loop.time() < deadline:
+            remaining_time = deadline - loop.time()
             if remaining_time <= 0:
                 break
             try:
                 chunk = await asyncio.wait_for(
-                    self._reader.read(256),
-                    timeout=min(remaining_time, 0.5),
+                    self._reader.read(512),
+                    timeout=min(remaining_time, 0.8),
                 )
                 if not chunk:
                     raise ConnectionError("HGM9560: connection closed by peer")
                 response += chunk
 
-                if len(response) >= 5:
-                    if response[1] == 0x03:
-                        frame_len = 3 + response[2] + 2
-                        if len(response) >= frame_len:
-                            response = response[:frame_len]
-                            break
-                    elif response[1] & 0x80:
-                        if len(response) >= 5:
-                            break
+                # Try to find a valid frame starting with our slave_id
+                frame_data = self._extract_frame(response, count)
+                if frame_data is not None:
+                    return parse_read_registers_response(frame_data)
+
             except asyncio.TimeoutError:
                 if response:
                     break
                 return None
 
-        if len(response) < 5:
-            logger.warning(
-                "HGM9560 incomplete response for block @%d: got %d bytes: %s",
-                start, len(response), response.hex() if response else "empty",
-            )
-            return None
+        # Last attempt: maybe we have enough data but need to search for frame
+        if response:
+            frame_data = self._extract_frame(response, count)
+            if frame_data is not None:
+                return parse_read_registers_response(frame_data)
 
-        return parse_read_registers_response(response)
+            logger.warning(
+                "HGM9560 bad response for block @%d: got %d bytes: %s",
+                start, len(response), response[:32].hex(),
+            )
+        else:
+            logger.warning(
+                "HGM9560 no response for block @%d", start,
+            )
+        return None
+
+    def _extract_frame(self, data: bytes, expected_count: int) -> bytes | None:
+        """Search for a valid Modbus RTU response frame in the byte buffer.
+
+        The converter may prepend stale bytes from a previous response.
+        We scan for our slave_id + FC03 + correct byte-count, then verify CRC.
+        """
+        expected_data_bytes = expected_count * 2
+        frame_len = 3 + expected_data_bytes + 2  # slave + fc + bytecount + data + crc
+
+        for offset in range(len(data) - 4):  # need at least 5 bytes
+            if data[offset] != self.slave_id:
+                continue
+            if data[offset + 1] != 0x03:
+                # Check for exception response (FC | 0x80)
+                if data[offset + 1] == 0x83 and offset + 5 <= len(data):
+                    return data[offset:offset + 5]
+                continue
+            if data[offset + 2] != expected_data_bytes:
+                continue
+            # Found candidate: slave=ours, fc=0x03, bytecount matches
+            if offset + frame_len > len(data):
+                return None  # not enough data yet — keep reading
+            candidate = data[offset:offset + frame_len]
+            # Verify CRC
+            crc_calc = crc16_modbus(candidate[:-2])
+            crc_recv = candidate[-2] | (candidate[-1] << 8)
+            if crc_calc == crc_recv:
+                if offset > 0:
+                    logger.debug(
+                        "HGM9560: skipped %d garbage bytes before valid frame", offset,
+                    )
+                return candidate
+        return None
 
     async def read_all(self) -> dict:
         async with self._lock:
@@ -862,18 +931,34 @@ class HGM9560Reader(BaseReader):
                     await asyncio.sleep(self.INTER_BLOCK_DELAY)
                 first_block = False
 
-                try:
-                    regs = await self._send_and_receive(block["address"], block["count"])
-                except ConnectionError:
-                    errors += 1
-                    continue
+                regs = None
+                for attempt in range(1, self.MAX_RETRIES + 1):
+                    try:
+                        regs = await self._send_and_receive(block["address"], block["count"])
+                    except ConnectionError:
+                        break  # connection lost — skip retries
+
+                    if regs is not None:
+                        break  # success
+
+                    # Failed — wait for late response to arrive, flush everything, retry
+                    if attempt < self.MAX_RETRIES:
+                        logger.debug(
+                            "HGM9560 block=%s attempt %d/%d failed, retrying",
+                            block_name, attempt, self.MAX_RETRIES,
+                        )
+                        await asyncio.sleep(1.0)
+                        await self._flush_stale(timeout=0.3)
 
                 if regs is None:
                     logger.warning(
-                        "HGM9560 read error block=%s device=%s",
-                        block_name, self.device_id,
+                        "HGM9560 read error block=%s device=%s (after %d attempts)",
+                        block_name, self.device_id, self.MAX_RETRIES,
                     )
                     errors += 1
+                    # Aggressive flush before next block — wait for all late data
+                    await asyncio.sleep(1.0)
+                    await self._flush_stale(timeout=0.3)
                     continue
 
                 for field_name, parser in block["fields"].items():

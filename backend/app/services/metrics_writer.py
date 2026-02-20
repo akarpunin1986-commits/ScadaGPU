@@ -109,9 +109,53 @@ class MetricsWriter:
             logger.error("MetricsWriter flush error (%d rows): %s", len(rows), exc)
 
     # ------------------------------------------------------------------
-    @staticmethod
-    def _to_row(p: dict) -> dict:
-        """Convert Redis payload to MetricsData column dict."""
+    # Sanity bounds: values outside these ranges are treated as corrupt
+    # (e.g., from RS485 frame mixing in the Ethernet-RS485 converter)
+    _BOUNDS = {
+        # Voltages: phase 0-300V, line 0-500V
+        "gen_uab": (0, 500), "gen_ubc": (0, 500), "gen_uca": (0, 500),
+        "mains_uab": (0, 500), "mains_ubc": (0, 500), "mains_uca": (0, 500),
+        "busbar_uab": (0, 500), "busbar_ubc": (0, 500), "busbar_uca": (0, 500),
+        # Frequencies: 0-70 Hz
+        "gen_freq": (0, 70), "mains_freq": (0, 70), "busbar_freq": (0, 70),
+        # Currents: 0-5000 A
+        "current_a": (0, 5000), "current_b": (0, 5000), "current_c": (0, 5000),
+        "mains_ia": (0, 5000), "mains_ib": (0, 5000), "mains_ic": (0, 5000),
+        "busbar_current": (0, 5000),
+        # Power: -2000..+2000 kW / kVAr
+        "power_total": (-2000, 2000),
+        "power_a": (-2000, 2000), "power_b": (-2000, 2000), "power_c": (-2000, 2000),
+        "reactive_total": (-2000, 2000),
+        "mains_total_p": (-2000, 2000),
+        "mains_p_a": (-2000, 2000), "mains_p_b": (-2000, 2000), "mains_p_c": (-2000, 2000),
+        "mains_total_q": (-2000, 2000),
+        "busbar_p": (-2000, 2000), "busbar_q": (-2000, 2000),
+        # Engine
+        "engine_speed": (0, 5000),
+        "coolant_temp": (-50, 200), "oil_temp": (-50, 200),
+        "oil_pressure": (0, 1000),
+        "battery_volt": (0, 60),
+        "fuel_level": (0, 100), "load_pct": (-50, 150),
+    }
+
+    @classmethod
+    def _sanitize(cls, key: str, val) -> float | None:
+        """Return val if within sane bounds, else None."""
+        if val is None:
+            return None
+        try:
+            v = float(val)
+        except (TypeError, ValueError):
+            return None
+        bounds = cls._BOUNDS.get(key)
+        if bounds and not (bounds[0] <= v <= bounds[1]):
+            logger.debug("Sanitize: %s=%.1f out of bounds %s → None", key, v, bounds)
+            return None
+        return v
+
+    @classmethod
+    def _to_row(cls, p: dict) -> dict:
+        """Convert Redis payload to MetricsData column dict with sanity checks."""
         ts = p.get("timestamp")
         if isinstance(ts, str):
             try:
@@ -121,54 +165,56 @@ class MetricsWriter:
         # Strip timezone info — DB column is TIMESTAMP WITHOUT TIME ZONE
         if ts and hasattr(ts, 'tzinfo') and ts.tzinfo is not None:
             ts = ts.replace(tzinfo=None)
+
+        san = cls._sanitize  # shorthand
         return {
             "device_id": p.get("device_id"),
             "device_type": p.get("device_type", "unknown"),
             "timestamp": ts,
             "online": p.get("online", False),
-            "gen_uab": p.get("gen_uab"),
-            "gen_ubc": p.get("gen_ubc"),
-            "gen_uca": p.get("gen_uca"),
-            "gen_freq": p.get("gen_freq"),
-            "mains_uab": p.get("mains_uab"),
-            "mains_ubc": p.get("mains_ubc"),
-            "mains_uca": p.get("mains_uca"),
-            "mains_freq": p.get("mains_freq"),
-            "current_a": p.get("current_a"),
-            "current_b": p.get("current_b"),
-            "current_c": p.get("current_c"),
-            "power_total": p.get("power_total"),
-            "power_a": p.get("power_a"),
-            "power_b": p.get("power_b"),
-            "power_c": p.get("power_c"),
-            "reactive_total": p.get("reactive_total"),
-            "engine_speed": p.get("engine_speed"),
-            "coolant_temp": p.get("coolant_temp"),
-            "oil_pressure": p.get("oil_pressure"),
-            "oil_temp": p.get("oil_temp"),
-            "battery_volt": p.get("battery_volt"),
-            "fuel_level": p.get("fuel_level"),
-            "load_pct": p.get("load_pct"),
+            "gen_uab": san("gen_uab", p.get("gen_uab")),
+            "gen_ubc": san("gen_ubc", p.get("gen_ubc")),
+            "gen_uca": san("gen_uca", p.get("gen_uca")),
+            "gen_freq": san("gen_freq", p.get("gen_freq")),
+            "mains_uab": san("mains_uab", p.get("mains_uab")),
+            "mains_ubc": san("mains_ubc", p.get("mains_ubc")),
+            "mains_uca": san("mains_uca", p.get("mains_uca")),
+            "mains_freq": san("mains_freq", p.get("mains_freq")),
+            "current_a": san("current_a", p.get("current_a")),
+            "current_b": san("current_b", p.get("current_b")),
+            "current_c": san("current_c", p.get("current_c")),
+            "power_total": san("power_total", p.get("power_total")),
+            "power_a": san("power_a", p.get("power_a")),
+            "power_b": san("power_b", p.get("power_b")),
+            "power_c": san("power_c", p.get("power_c")),
+            "reactive_total": san("reactive_total", p.get("reactive_total")),
+            "engine_speed": san("engine_speed", p.get("engine_speed")),
+            "coolant_temp": san("coolant_temp", p.get("coolant_temp")),
+            "oil_pressure": san("oil_pressure", p.get("oil_pressure")),
+            "oil_temp": san("oil_temp", p.get("oil_temp")),
+            "battery_volt": san("battery_volt", p.get("battery_volt")),
+            "fuel_level": san("fuel_level", p.get("fuel_level")),
+            "load_pct": san("load_pct", p.get("load_pct")),
             "fuel_pressure": p.get("fuel_pressure"),
             "turbo_pressure": p.get("turbo_pressure"),
             "fuel_consumption": p.get("fuel_consumption"),
             # --- Mains power (HGM9560 SPR) ---
-            "mains_total_p": p.get("mains_total_p"),
-            "mains_p_a": p.get("mains_p_a"),
-            "mains_p_b": p.get("mains_p_b"),
-            "mains_p_c": p.get("mains_p_c"),
-            "mains_total_q": p.get("mains_total_q"),
-            "mains_ia": p.get("mains_ia"),
-            "mains_ib": p.get("mains_ib"),
-            "mains_ic": p.get("mains_ic"),
+            "mains_total_p": san("mains_total_p", p.get("mains_total_p")),
+            "mains_p_a": san("mains_p_a", p.get("mains_p_a")),
+            "mains_p_b": san("mains_p_b", p.get("mains_p_b")),
+            "mains_p_c": san("mains_p_c", p.get("mains_p_c")),
+            "mains_total_q": san("mains_total_q", p.get("mains_total_q")),
+            "mains_ia": san("mains_ia", p.get("mains_ia")),
+            "mains_ib": san("mains_ib", p.get("mains_ib")),
+            "mains_ic": san("mains_ic", p.get("mains_ic")),
             # --- Busbar (HGM9560 SPR) ---
-            "busbar_uab": p.get("busbar_uab"),
-            "busbar_ubc": p.get("busbar_ubc"),
-            "busbar_uca": p.get("busbar_uca"),
-            "busbar_freq": p.get("busbar_freq"),
-            "busbar_current": p.get("busbar_current"),
-            "busbar_p": p.get("busbar_p"),
-            "busbar_q": p.get("busbar_q"),
+            "busbar_uab": san("busbar_uab", p.get("busbar_uab")),
+            "busbar_ubc": san("busbar_ubc", p.get("busbar_ubc")),
+            "busbar_uca": san("busbar_uca", p.get("busbar_uca")),
+            "busbar_freq": san("busbar_freq", p.get("busbar_freq")),
+            "busbar_current": san("busbar_current", p.get("busbar_current")),
+            "busbar_p": san("busbar_p", p.get("busbar_p")),
+            "busbar_q": san("busbar_q", p.get("busbar_q")),
             # --- Accumulated ---
             "run_hours": p.get("run_hours") or p.get("running_hours_a"),
             "energy_kwh": p.get("energy_kwh") or p.get("accum_kwh"),
