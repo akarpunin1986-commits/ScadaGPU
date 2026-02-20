@@ -24,16 +24,16 @@
         }
         .alm-overlay.alm-show { opacity: 1; }
         .alm-modal {
-            background: var(--bg-card, #1e2430); color: var(--t1, #e0e6ed);
+            background: var(--bg2, #1e2430); color: var(--t, #e0e6ed);
             border-radius: 12px; max-width: 720px; width: 95%;
             max-height: 85vh; overflow-y: auto;
             box-shadow: 0 20px 60px rgba(0,0,0,0.5);
             transform: translateY(20px); transition: transform 0.2s ease;
-            border: 1px solid rgba(255,255,255,0.08);
+            border: 1px solid var(--bd, rgba(255,255,255,0.08));
         }
         .alm-overlay.alm-show .alm-modal { transform: translateY(0); }
         .alm-header {
-            padding: 20px 24px 16px; border-bottom: 1px solid rgba(255,255,255,0.06);
+            padding: 20px 24px 16px; border-bottom: 1px solid var(--bd, rgba(255,255,255,0.06));
             position: relative;
         }
         .alm-close {
@@ -42,7 +42,7 @@
             width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
             border-radius: 6px; transition: all 0.15s;
         }
-        .alm-close:hover { background: rgba(255,255,255,0.08); color: var(--t1, #e0e6ed); }
+        .alm-close:hover { background: var(--bg4, rgba(255,255,255,0.08)); color: var(--t, #e0e6ed); }
         .alm-title {
             font-size: 16px; font-weight: 600; margin: 0 0 8px;
             display: flex; align-items: center; gap: 8px;
@@ -64,7 +64,7 @@
         .alm-badge-active { background: rgba(239,68,68,0.2); color: #f87171; }
         .alm-badge-cleared { background: rgba(34,197,94,0.15); color: #4ade80; }
         .alm-section {
-            padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.04);
+            padding: 16px 24px; border-bottom: 1px solid var(--bd, rgba(255,255,255,0.04));
         }
         .alm-section:last-child { border-bottom: none; }
         .alm-section-title {
@@ -82,8 +82,8 @@
         }
         @media (max-width: 600px) { .alm-metrics-grid { grid-template-columns: 1fr; } }
         .alm-mg {
-            background: rgba(255,255,255,0.03); border-radius: 8px; padding: 12px;
-            border: 1px solid rgba(255,255,255,0.05);
+            background: var(--bg3, rgba(255,255,255,0.03)); border-radius: 8px; padding: 12px;
+            border: 1px solid var(--bd, rgba(255,255,255,0.05));
         }
         .alm-mg-title {
             font-size: 10px; text-transform: uppercase; font-weight: 600;
@@ -93,7 +93,7 @@
             font-size: 12px; color: var(--t2, #a0aec0); padding: 2px 0;
             display: flex; justify-content: space-between;
         }
-        .alm-mg-val { font-family: 'JetBrains Mono', monospace; color: var(--t1, #e0e6ed); }
+        .alm-mg-val { font-family: 'JetBrains Mono', monospace; color: var(--t, #e0e6ed); }
         .alm-mg-warn { color: #fbbf24; }
         .alm-mg-err { color: #f87171; }
         .alm-evidence {
@@ -108,7 +108,7 @@
             width: 6px; height: 6px; border-radius: 50%; background: var(--p, #60a5fa);
         }
         .alm-cause {
-            font-size: 13px; line-height: 1.6; color: var(--t1, #e0e6ed);
+            font-size: 13px; line-height: 1.6; color: var(--t, #e0e6ed);
             padding: 12px 16px; background: rgba(96,165,250,0.06);
             border-radius: 8px; border-left: 3px solid var(--p, #60a5fa);
         }
@@ -576,13 +576,13 @@
                 for (const ev of preview) {
                     const sev = ev.alarm_severity || 'warning';
                     html += '<div style="display:flex;align-items:center;gap:8px;' +
-                        'padding:6px 12px;margin-bottom:3px;background:rgba(255,255,255,0.03);' +
-                        'border-radius:6px;cursor:pointer;border:1px solid rgba(255,255,255,0.06);transition:background 0.15s" ' +
-                        'onmouseover="this.style.background=\'rgba(255,255,255,0.07)\'" ' +
-                        'onmouseout="this.style.background=\'rgba(255,255,255,0.03)\'" ' +
+                        'padding:6px 12px;margin-bottom:3px;background:var(--bg3);' +
+                        'border-radius:6px;cursor:pointer;border:1px solid var(--bd);transition:background 0.15s" ' +
+                        'onmouseover="this.style.background=\'var(--bg4)\'" ' +
+                        'onmouseout="this.style.background=\'var(--bg3)\'" ' +
                         'onclick="window.almShowByCode(\'' + ev.alarm_code + '\',' + (ev.device_id || 'null') + ')">' +
                         '<span style="font-size:14px">' + severityEmoji(sev) + '</span>' +
-                        '<b style="font-family:monospace;font-size:12px;color:var(--t1,#e0e6ed)">' + ev.alarm_code + '</b> ' +
+                        '<b style="font-family:monospace;font-size:12px;color:var(--t,#e0e6ed)">' + ev.alarm_code + '</b> ' +
                         '<span style="flex:1;font-size:12px;color:var(--t2,#a0aec0)">' + ev.alarm_name_ru + '</span>' +
                     '</div>';
                 }
