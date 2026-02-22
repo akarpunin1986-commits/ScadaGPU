@@ -137,6 +137,19 @@ class AlarmDetector:
                     session.add(alarm)
                     await session.commit()
                     logger.info("CONN_LOST ON: device=%d type=%s", device_id, device_type)
+                    # Publish for isolated consumers (Bitrix24 module)
+                    try:
+                        await self.redis.publish("alarms:new", json.dumps({
+                            "type": "alarm_event", "action": "created",
+                            "alarm": {
+                                "id": alarm.id, "device_id": device_id,
+                                "alarm_code": CONN_LOST_CODE, "severity": CONN_LOST_SEVERITY,
+                                "message": message, "device_type": device_type,
+                                "occurred_at": alarm.occurred_at.isoformat() if alarm.occurred_at else None,
+                            },
+                        }, default=str))
+                    except Exception:
+                        pass
             except Exception as exc:
                 logger.error("AlarmDetector CONN_LOST insert error: %s", exc)
 
@@ -212,6 +225,21 @@ class AlarmDetector:
                                 active_alarm.is_active = False
                                 logger.info("ALARM OFF: device=%d code=%s", device_id, code)
                     await session.commit()
+                    # Publish new alarms for isolated consumers (Bitrix24 module)
+                    for flag, appeared in transitions:
+                        if appeared:
+                            code, severity, message = ALARM_FLAG_MAP[flag]
+                            try:
+                                await self.redis.publish("alarms:new", json.dumps({
+                                    "type": "alarm_event", "action": "created",
+                                    "alarm": {
+                                        "id": None, "device_id": device_id,
+                                        "alarm_code": code, "severity": severity,
+                                        "message": message,
+                                    },
+                                }, default=str))
+                            except Exception:
+                                pass
             except Exception as exc:
                 logger.error("AlarmDetector DB error: %s", exc)
 

@@ -251,6 +251,18 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .arc-pag{padding:4px 0}
 .arc-stat-card{padding:12px;background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad)}
 .sb-ft{padding:8px;border-top:1px solid var(--bd)}
+.sb-global{padding:8px;border-top:1px solid var(--bd)}
+.sb-global .sb-btn{margin-bottom:2px}
+.sb-tree{margin-bottom:2px}
+.sb-tree .si{display:flex;align-items:center;gap:6px}
+.si-arrow{font-size:9px;width:14px;text-align:center;color:var(--t3);flex-shrink:0}
+.sb-sub{padding-left:28px;padding-bottom:4px}
+.sb-sub-btn{display:block;width:100%;text-align:left;padding:5px 10px;font-size:11px;color:var(--t3);background:none;border:none;cursor:pointer;border-radius:4px;transition:background .15s}
+.sb-sub-btn:hover{background:var(--ov);color:var(--t)}
+.sb-sub-btn.on{color:var(--g);font-weight:600}
+.b24-task:hover{border-color:var(--b)!important;box-shadow:0 0 0 1px rgba(64,144,255,.2)}
+.b24-eq:hover{border-color:var(--g)!important;box-shadow:0 0 0 1px rgba(0,224,154,.2)}
+#b24StatOpen:hover,#b24StatClosed:hover,#b24StatMaint:hover,#b24StatAlarm:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,.15);transition:all .15s}
 [data-theme="light"] ::-webkit-scrollbar-thumb{background:#a0aabb}
 [data-theme="light"] .mbg{background:rgba(0,0,0,.35)}
 [data-theme="light"] .ov-sw-line.on::after{background:linear-gradient(90deg,transparent,rgba(0,0,0,.15),transparent)}
@@ -322,13 +334,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 <div class="sb"><div class="sb-hd">
 <div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg><b>SCADA</b><span>v5</span></div>
 <button class="sb-btn primary" onclick="openAddSite()">+ Объект</button>
-<button class="sb-btn" onclick="archiveMode=false;if(cur&&S[cur])renderDash()">⚡ Мониторинг</button>
-<button class="sb-btn" onclick="showAlarms()">🚨 Аварии</button>
-<button class="sb-btn" onclick="showArchive()">📊 Архив</button>
-<button class="sb-btn" onclick="openTOTemplates()">📋 Регламенты ТО</button>
-<button class="sb-btn" onclick="initBxModal();showM('bitrix')">🔗 Битрикс24</button>
+</div><div class="sb-sites" id="sbSites"></div><div class="sb-global">
+<button class="sb-btn" onclick="showB24Dashboard()">🔗 Битрикс24</button>
 <button class="sb-btn" onclick="initAIModal();showM('aiconf')">🤖 AI Провайдер</button>
-</div><div class="sb-sites" id="sbSites"></div><div class="sb-ft"><button class="sb-btn" onclick="toggleTheme()" id="themeBtn">☀️ Светлая тема</button></div></div>
+</div><div class="sb-ft"><button class="sb-btn" onclick="toggleTheme()" id="themeBtn">☀️ Светлая тема</button></div></div>
 <div class="mn" id="mainArea"></div></div>
 <!-- MODALS -->
 <!-- AI Provider Config -->
@@ -458,8 +467,8 @@ tick:isLight?'#4a5568':'#7a8ca0'
 };
 }
 function updateChartTheme(){
-if(typeof arcChart==='undefined'||!arcChart)return;
 const c=getChartColors();
+if(typeof arcChart!=='undefined'&&arcChart){
 arcChart.options.scales.x.grid.color=c.grid;
 arcChart.options.scales.x.border.color=c.border;
 arcChart.options.scales.x.ticks.color=c.tick;
@@ -467,6 +476,16 @@ arcChart.options.scales.y.grid.color=c.grid;
 arcChart.options.scales.y.border.color=c.border;
 arcChart.options.scales.y.ticks.color=c.tick;
 arcChart.update('none');
+}
+if(typeof pwChart!=='undefined'&&pwChart){
+pwChart.options.scales.x.grid.color=c.grid;
+pwChart.options.scales.x.border.color=c.border;
+pwChart.options.scales.x.ticks.color=c.tick;
+pwChart.options.scales.y.grid.color=c.grid;
+pwChart.options.scales.y.border.color=c.border;
+pwChart.options.scales.y.ticks.color=c.tick;
+pwChart.update('none');
+}
 }
 setTimeout(updateThemeBtn,0);
 
@@ -498,6 +517,14 @@ const api = {
             body: JSON.stringify(body),
         });
         if (!r.ok) throw new Error(`PATCH ${path}: ${r.status}`);
+        return r.json();
+    },
+    async put(path, body) {
+        const r = await fetch(API_BASE + path, {
+            method: 'PUT', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error(`PUT ${path}: ${r.status}`);
         return r.json();
     },
     async del(path) {
@@ -1063,8 +1090,9 @@ function showM(n){$('m-'+n).classList.add('sh')}function hideM(n){$('m-'+n).clas
 document.querySelectorAll('.mbg').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('sh')}));
 function R(a,b){return+(a+Math.random()*(b-a)).toFixed(1)}function RI(a,b){return Math.floor(a+Math.random()*(b-a))}
 function now(){return new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
-function renderSB(){const k=Object.keys(S);$('sbSites').innerHTML=k.length?k.map(id=>`<div class="si ${id===cur?'on':''}" onclick="sel('${id}')"><div class="si-dot" style="background:${id===cur?'var(--g)':'var(--t4)'}"></div><span class="si-name">${esc(S[id].name)}</span><div class="si-acts"><button class="si-btn" onclick="event.stopPropagation();openEdit('${id}')">✏</button><button class="si-btn del" onclick="event.stopPropagation();openDel('${id}')">✕</button></div></div>`).join(''):'<div style="padding:20px;text-align:center;color:var(--t3);font-size:12px">Нет объектов</div>'}
-function sel(id){archiveMode=false;cur=id;sv();renderSB();renderDash()}
+let curView='monitoring';
+function renderSB(){const k=Object.keys(S);$('sbSites').innerHTML=k.length?k.map(id=>{const s=S[id],active=id===cur;return`<div class="sb-tree${active?' open':''}"><div class="si${active?' on':''}" onclick="sel('${id}')"><span class="si-arrow">${active?'▼':'▶'}</span><span class="si-name">${esc(s.name)}</span><div class="si-acts"><button class="si-btn" onclick="event.stopPropagation();openEdit('${id}')">✏</button><button class="si-btn del" onclick="event.stopPropagation();openDel('${id}')">✕</button></div></div>${active?`<div class="sb-sub"><button class="sb-sub-btn${curView==='monitoring'?' on':''}" onclick="event.stopPropagation();curView='monitoring';renderDash();renderSB()">⚡ Мониторинг</button><button class="sb-sub-btn${curView==='alarms'?' on':''}" onclick="event.stopPropagation();curView='alarms';showAlarms();renderSB()">🚨 Аварии</button><button class="sb-sub-btn${curView==='archive'?' on':''}" onclick="event.stopPropagation();curView='archive';showArchive('${id}');renderSB()">📊 Архив</button><button class="sb-sub-btn${curView==='to'?' on':''}" onclick="event.stopPropagation();curView='to';openTOTemplates();renderSB()">📋 ТО</button></div>`:''}</div>`}).join(''):'<div style="padding:20px;text-align:center;font-size:11px;color:var(--t4)">Нет объектов. Нажмите «+ Объект»</div>'}
+function sel(id){archiveMode=false;curView='monitoring';cur=id;sv();renderSB();renderDash()}
 function openAddSite(){editId=null;$('smT').textContent='Новый объект';$('fN').value='';$('fC').value='';$('fC').disabled=false;$('fD').value='';populateRespSelect('');$('smA').innerHTML='<button class="bp" onclick="saveSite()">Создать</button>';showM('site')}
 function openEdit(id){editId=id;const s=S[id];$('smT').textContent='Редактировать: '+s.name;$('fN').value=s.name;$('fC').value=id;$('fC').disabled=true;$('fD').value=s.desc||'';populateRespSelect(s.responsible||'');$('smA').innerHTML=`<div style="display:flex;gap:8px"><button class="bp" style="flex:1" onclick="saveSite()">Сохранить</button><button class="bdn" style="flex:0;padding:10px 16px" onclick="hideM('site');openDel('${id}')">🗑</button></div>`;showM('site')}
 async function saveSite(){const n=$('fN').value.trim(),c=$('fC').value.trim().toLowerCase().replace(/[^a-z0-9_-]/g,''),d=$('fD').value.trim(),resp=$('fResp').value;if(!n||!c){ae('⚠ Укажите название и код');return}if(!editId&&S[c]){ae('⚠ Объект с кодом «'+c+'» уже существует');return}if(editId){S[editId].name=n;S[editId].desc=d;S[editId].responsible=resp;ae('✏ '+n);
@@ -1214,7 +1242,7 @@ $('toBody').innerHTML=`<div style="display:flex;justify-content:space-between;pa
 <div style="padding:8px;background:var(--yd);border-radius:6px;font-size:10px;color:var(--y);margin-top:8px">⚠ Счётчик будет сброшен</div>
 <div style="display:flex;gap:8px;margin-top:12px"><button class="bp" style="flex:1" onclick="completeTO('${dev}',${idx})">✓ Подтвердить</button><button class="bs2" style="flex:1;padding:10px" onclick="openTO('${dev}')">Назад</button></div>`}
 function completeTO(dev,idx){const tpl=getTpl(),iv=tpl.intervals[idx],rh=S[cur]?.[dev]?.runHours||0;const cbs=document.querySelectorAll('.chk-cb');let done=0;cbs.forEach(c=>{if(c.checked)done++});const td=getTOData(cur,dev);td.hoursAtLastTO=rh;td.lastTOId=iv.id;td.history=td.history||[];td.history.unshift({type:iv.name,hours:rh,done,total:cbs.length,date:new Date().toLocaleDateString('ru-RU')});saveTOData(cur,dev,td);ae(`✅ ${iv.name} ${dev==='g1'?'G1':'G2'}: ${done}/${cbs.length}`);hideM('to');renderDash()}
-async function openTOTemplates(){const tpl=getTpl();const bxCfg=getBxConfig();const bxOk=!!bxCfg.url;
+async function openTOTemplates(){curView='to';stopB24Poll();const tpl=getTpl();const bxCfg=getBxConfig();const bxOk=!!bxCfg.url;
 let aiOk=false;let aiProv='';let aiModel='';if(apiAvailable){try{const ah=await api.get('/api/ai/health');aiOk=ah&&ah.available;aiProv=ah?.provider||'';aiModel=ah?.model||''}catch(e){}}
 var localAi=getAIConfig();var localProv=localAi.provider||'';var localHasKey=!!(localAi.keys&&localAi.keys[localProv]);
 var provName=localProv?((AI_PROVIDERS[localProv]||{}).name||localProv):'';var provIcon=localProv?((AI_PROVIDERS[localProv]||{}).icon||'🤖'):'🤖';
@@ -1288,8 +1316,7 @@ return`<svg viewBox="0 0 740 96" style="width:100%">
 <!-- Y-join → Busbar Switch -->
 <line x1="100" y1="38" x2="150" y2="38" class="pline ${gAct?'on':''}"/>
 <!-- GEN POWER LABEL: P шины (ТТ генераторного ввода) — над линией авт.шины→шина -->
-${bC&&busP>0?`<text x="270" y="30" fill="var(--g)" font-size="7.5" text-anchor="middle" font-family="var(--m)" font-weight="700">${_pw(busP)}</text>
-<text x="270" y="38" fill="var(--t4)" font-size="5" text-anchor="middle" font-family="var(--m)">P шины</text>`:''}
+${bC&&busP>0?`<text x="270" y="34" fill="var(--g)" font-size="7.5" text-anchor="middle" font-family="var(--m)" font-weight="700" style="cursor:pointer" onclick="showPwChart('bus')">${_pw(busP)}</text>`:''}
 <!-- Busbar Switch -->
 <rect x="150" y="28" width="48" height="20" rx="4" fill="${bC?'rgba(0,224,154,.08)':'var(--ov)'}" stroke="${bC?'var(--g)':'var(--t4)'}" stroke-width="1.5"/>
 <text x="174" y="41" fill="${bC?'var(--g)':'var(--t3)'}" font-size="6.5" text-anchor="middle" font-family="var(--m)" font-weight="600">${bC?'ЗАМКН':'РАЗОМК'}</text>
@@ -1303,8 +1330,7 @@ ${bC&&busP>0?`<text x="270" y="30" fill="var(--g)" font-size="7.5" text-anchor="
 <!-- BUS RIGHT → Mains Switch -->
 <line x1="404" y1="38" x2="520" y2="38" class="pline bus ${mAct?'monR':(busAct?'on':'')}" stroke-width="4"/>
 <!-- MAINS POWER LABEL: P сети (ТТ сетевого ввода) — над линией шина→авт.сети -->
-${mC&&mP>0?`<text x="462" y="30" fill="#4090ff" font-size="7.5" text-anchor="middle" font-family="var(--m)" font-weight="700">${_pw(mP)}</text>
-<text x="462" y="38" fill="var(--t4)" font-size="5" text-anchor="middle" font-family="var(--m)">P сети</text>`:''}
+${mC&&mP>0?`<text x="462" y="34" fill="#4090ff" font-size="7.5" text-anchor="middle" font-family="var(--m)" font-weight="700" style="cursor:pointer" onclick="showPwChart('mains')">${_pw(mP)}</text>`:''}
 <!-- Mains Switch -->
 <rect x="520" y="28" width="48" height="20" rx="4" fill="${mC?'rgba(64,144,255,.1)':'var(--ov)'}" stroke="${mC?'#4090ff':'var(--t4)'}" stroke-width="1.5"/>
 <text x="544" y="41" fill="${mC?'#4090ff':'var(--t3)'}" font-size="6.5" text-anchor="middle" font-family="var(--m)" font-weight="600">${mC?'ЗАМКН':'РАЗОМК'}</text>
@@ -1318,13 +1344,12 @@ ${mC&&mP>0?`<text x="462" y="30" fill="#4090ff" font-size="7.5" text-anchor="mid
 <!-- BUS → LOAD -->
 <line x1="372" y1="47" x2="372" y2="68" class="pline ${busAct?'on':''}"/>
 <!-- LOAD POWER LABEL: P нагрузки = P шины + P сети -->
-${busAct&&loadP>0?`<text x="398" y="57" fill="var(--y)" font-size="7.5" text-anchor="start" font-family="var(--m)" font-weight="700">${_pw(loadP)}</text>
-<text x="398" y="66" fill="var(--t4)" font-size="5" text-anchor="start" font-family="var(--m)">P нагр.</text>`:''}
+${busAct&&loadP>0?`<text x="398" y="60" fill="var(--y)" font-size="7.5" text-anchor="start" font-family="var(--m)" font-weight="700" style="cursor:pointer" onclick="showPwChart('load')">${_pw(loadP)}</text>`:''}
 <rect x="342" y="68" width="60" height="22" rx="5" fill="${busAct?'rgba(255,176,32,.06)':'var(--ov)'}" stroke="${busAct?'var(--y)':'var(--t4)'}" stroke-width="1.5"/>
 <text x="372" y="82" fill="${busAct?'var(--y)':'var(--t3)'}" font-size="7.5" text-anchor="middle" font-family="var(--m)" font-weight="600">НАГРУЗКА</text>
 </svg>`}
 // === RENDER ===
-function renderDash(){const mn=$('mainArea');
+function renderDash(){stopB24Poll();curView='monitoring';const mn=$('mainArea');
 if(!cur||!S[cur]){mn.innerHTML='<div class="empty-dash" style="height:100%"><div style="font-size:48px;margin-bottom:16px;opacity:.4">🏭</div><p style="font-size:14px">Выберите объект или <span style="color:var(--g);cursor:pointer" onclick="openAddSite()">создайте новый</span></p></div>';return}
 const s=S[cur],hg1=!!s.g1?.ip,hg2=!!s.g2?.ip,hs=!!s.spr?.ip,cfg=[hg1,hg2,hs].filter(Boolean).length;
 mn.innerHTML=`<div class="dh"><div class="dt"><div class="ld"></div><h1>${esc(s.name)}${s.desc?' — '+esc(s.desc):''}</h1></div><div style="display:flex;align-items:center;gap:16px"><div class="da"><button onclick="openSet()">⚙ Настройки</button><button id="demoBtn" class="${demo?'demo-on':''}" onclick="togDemo()">${demo?'⏹ Стоп':'▶ Демо'}</button></div><span class="ck" id="ck"></span></div></div>
@@ -1634,8 +1659,35 @@ function getBxConfig(){try{return JSON.parse(localStorage.getItem('s5bx'))||{}}c
 function saveBxCfg(c){localStorage.setItem('s5bx',JSON.stringify(c))}
 function getBxUsers(){try{return JSON.parse(localStorage.getItem('s5bx_users'))||[]}catch(e){return[]}}
 function saveBxUsers(u){localStorage.setItem('s5bx_users',JSON.stringify(u))}
-function bxTab(btn,idx){btn.closest('.mbd').querySelectorAll('.set-tab').forEach(b=>b.classList.remove('on'));btn.closest('.mbd').querySelectorAll('.set-panel').forEach(p=>p.classList.remove('on'));btn.classList.add('on');$('bxp'+idx)?.classList.add('on')}
-function saveBxConfig(){const cfg=getBxConfig();cfg.url=($('bxUrl')?.value||'').trim();cfg.folderId=$('bxFolderId')?.value||'';cfg.groupId=$('bxGroupId')?.value||'';cfg.taskTitle=$('bxTaskTitle')?.value||'{TO_NAME} — {SITE_NAME} — {GEN_NAME}';cfg.deadlineDays=+($('bxDeadlineDays')?.value)||3;cfg.priority=$('bxPriority')?.value||'1';cfg.auditor=$('bxAuditor')?.value||'';cfg.autoCreate=$('bxAutoCreate')?.checked||false;cfg.addChecklist=$('bxAddChecklist')?.checked!==false;cfg.descBBCode=$('bxDescBBCode')?.checked!==false;saveBxCfg(cfg);ae('✅ Битрикс24 настройки сохранены')}
+async function getBxWebhookUrl(){
+  const cfg=getBxConfig();
+  if(cfg.url)return cfg.url;
+  if(apiAvailable){try{const s=await api.get('/api/bitrix24/status');if(s.webhook_url){cfg.url=s.webhook_url;saveBxCfg(cfg);return s.webhook_url}}catch(e){}}
+  return '';
+}
+async function initBxModal(){
+  let cfg=getBxConfig();
+  if(apiAvailable){
+    try{const r=await api.get('/api/bitrix24/config');if(r.group_id)cfg.groupId=String(r.group_id);if(r.task_title_template)cfg.taskTitle=r.task_title_template;if(r.deadline_days)cfg.deadlineDays=r.deadline_days;if(r.priority)cfg.priority=String(r.priority);if(r.auto_create!==undefined)cfg.autoCreate=r.auto_create;if(r.add_checklist!==undefined)cfg.addChecklist=r.add_checklist;if(r.auditor_id)cfg.auditor=String(r.auditor_id)}catch(e){}
+    try{const s=await api.get('/api/bitrix24/status');if(s.webhook_url)cfg.url=s.webhook_url}catch(e){}
+    saveBxCfg(cfg);
+  }
+  if($('bxUrl'))$('bxUrl').value=cfg.url||'';
+  if($('bxFolderId'))$('bxFolderId').value=cfg.folderId||'';
+  if($('bxGroupId'))$('bxGroupId').value=cfg.groupId||'46';
+  if($('bxTaskTitle'))$('bxTaskTitle').value=cfg.taskTitle||'{TO_NAME} — {SITE_NAME} — {GEN_NAME}';
+  if($('bxDeadlineDays'))$('bxDeadlineDays').value=cfg.deadlineDays||3;
+  if($('bxPriority'))$('bxPriority').value=cfg.priority||'1';
+  if($('bxAutoCreate'))$('bxAutoCreate').checked=cfg.autoCreate||false;
+  if($('bxAddChecklist'))$('bxAddChecklist').checked=cfg.addChecklist!==false;
+  if($('bxDescBBCode'))$('bxDescBBCode').checked=cfg.descBBCode!==false;
+  const aud=$('bxAuditor');
+  if(aud){const users=getBxUsers();aud.innerHTML='<option value="">— нет —</option>'+users.map(u=>`<option value="${u.id||u.ID}"${String(u.id||u.ID)===String(cfg.auditor)?' selected':''}>${u.name||(u.LAST_NAME||'')+' '+(u.NAME||'')}</option>`).join('')}
+}
+function bxTab(btn,idx){btn.closest('.mbd').querySelectorAll('.set-tab').forEach(b=>b.classList.remove('on'));btn.closest('.mbd').querySelectorAll('.set-panel').forEach(p=>p.classList.remove('on'));btn.classList.add('on');$('bxp'+idx)?.classList.add('on');if(idx===1){const ul=$('bxUserList');if(ul&&(!ul.innerHTML||ul.innerHTML.includes('Загрузите')||ul.innerHTML.includes('демо')))loadBxUsers()}}
+async function saveBxConfig(){const cfg=getBxConfig();cfg.url=($('bxUrl')?.value||'').trim();cfg.folderId=$('bxFolderId')?.value||'';cfg.groupId=$('bxGroupId')?.value||'';cfg.taskTitle=$('bxTaskTitle')?.value||'{TO_NAME} — {SITE_NAME} — {GEN_NAME}';cfg.deadlineDays=+($('bxDeadlineDays')?.value)||3;cfg.priority=$('bxPriority')?.value||'1';cfg.auditor=$('bxAuditor')?.value||'';cfg.autoCreate=$('bxAutoCreate')?.checked||false;cfg.addChecklist=$('bxAddChecklist')?.checked!==false;cfg.descBBCode=$('bxDescBBCode')?.checked!==false;saveBxCfg(cfg);
+if(apiAvailable){try{await api.put('/api/bitrix24/config',{group_id:+cfg.groupId||46,deadline_days:cfg.deadlineDays,priority:+cfg.priority,auto_create:cfg.autoCreate,add_checklist:cfg.addChecklist,auditor_id:+cfg.auditor||null,task_title_template:cfg.taskTitle})}catch(e){}}
+ae('✅ Битрикс24 настройки сохранены')}
 async function testBxConnection(){const el=$('bxConnResult');const url=($('bxUrl')?.value||'').trim();if(!url){el.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r)">Укажите Webhook URL</div>';return}
 el.innerHTML='<div style="padding:6px 10px;background:var(--yd);border:1px solid rgba(255,176,32,.2);border-radius:6px;font-size:11px;color:var(--y);font-family:var(--m)">⏳ Проверка подключения...</div>';
 if(apiAvailable){try{const r=await api.post('/api/bitrix/test',{webhook_url:url});
@@ -1644,20 +1696,17 @@ else{el.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px 
 }catch(e){el.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r)">❌ '+e.message+'</div>'}}
 else{setTimeout(function(){el.innerHTML='<div style="padding:6px 10px;background:var(--bb);border:1px solid rgba(64,144,255,.2);border-radius:6px;font-size:11px;color:var(--b);font-family:var(--m)">ℹ Backend недоступен. URL: '+esc(url.substring(0,40))+'...</div>'},800)}}
 async function loadBxUsers(){const el=$('bxUserList');el.innerHTML='<div style="color:var(--y);font-size:12px;text-align:center;padding:15px">⏳ Загрузка user.get...</div>';
-const cfg=getBxConfig();
-if(apiAvailable&&cfg.url){try{const r=await api.post('/api/bitrix/users/sync',{webhook_url:cfg.url});
-if(r.success){saveBxUsers(r.users);var h='';for(var i=0;i<r.users.length;i++){var u=r.users[i];h+='<div class="bk-item"><div><b style="color:var(--t)">'+esc(u.name)+'</b><br><span style="color:var(--t3);font-size:10px">'+esc(u.pos)+' · '+esc(u.dept)+'</span></div><span style="font-size:10px;color:var(--t4);font-family:var(--m)">ID: '+u.id+'</span></div>'}
+const url=await getBxWebhookUrl();
+if(apiAvailable&&url){try{const r=await api.post('/api/bitrix/users/sync',{webhook_url:url});
+if(r.success&&r.users&&r.users.length>0){saveBxUsers(r.users);var h='';for(var i=0;i<r.users.length;i++){var u=r.users[i];h+='<div class="bk-item"><div><b style="color:var(--t)">'+esc(u.name)+'</b><br><span style="color:var(--t3);font-size:10px">'+esc(u.pos||'—')+' · '+esc(u.dept||'—')+'</span></div><span style="font-size:10px;color:var(--t4);font-family:var(--m)">ID: '+u.id+'</span></div>'}
 el.innerHTML=h+'<div style="padding:6px;text-align:center;font-size:10px;color:var(--t4)">'+r.users.length+' сотрудников из Б24</div>';ae('👥 Загружено '+r.users.length+' сотрудников');return}
 }catch(e){console.warn('Bitrix users error:',e)}}
-// Fallback: demo data
-setTimeout(function(){var users=[{id:'1',name:'Иванов Алексей',dept:'Энергослужба',pos:'Старший инженер'},{id:'2',name:'Петров Сергей',dept:'Энергослужба',pos:'Инженер'},{id:'3',name:'Сидоров Дмитрий',dept:'Механический цех',pos:'Механик'},{id:'5',name:'Козлова Анна',dept:'Диспетчерская',pos:'Диспетчер'},{id:'8',name:'Волков Николай',dept:'Энергослужба',pos:'Начальник'}];saveBxUsers(users);
-var h='';for(var i=0;i<users.length;i++){var u=users[i];h+='<div class="bk-item"><div><b style="color:var(--t)">'+esc(u.name)+'</b><br><span style="color:var(--t3);font-size:10px">'+esc(u.pos)+' · '+esc(u.dept)+'</span></div><span style="font-size:10px;color:var(--t4);font-family:var(--m)">ID: '+u.id+'</span></div>'}
-el.innerHTML=h+'<div style="padding:6px;text-align:center;font-size:10px;color:var(--t4)">'+users.length+' сотрудников · демо-данные</div>';ae('👥 Загружено '+users.length+' сотрудников (демо)')},1000)}
+el.innerHTML='<div style="padding:10px;text-align:center;font-size:11px;color:var(--r)">❌ Не удалось загрузить сотрудников. Проверьте Webhook URL на вкладке «Подключение».</div>'}
 function formatSize(b){if(b<1024)return b+' Б';if(b<1048576)return(b/1024).toFixed(0)+' КБ';return(b/1048576).toFixed(1)+' МБ'}
 async function scanBxFolder(){var el=$('bxFileList');var fid=$('bxFolderId')?.value;if(!fid){el.innerHTML='<div style="padding:6px;background:var(--rd);border-radius:6px;font-size:11px;color:var(--r)">Укажите ID папки</div>';return}
 el.innerHTML='<div style="padding:10px;color:var(--y);font-size:12px;text-align:center">⏳ Сканирование disk.folder.getchildren...</div>';
-var cfg=getBxConfig();
-if(apiAvailable&&cfg.url){try{var r=await api.post('/api/bitrix/folder/scan',{webhook_url:cfg.url,folder_id:parseInt(fid)});
+var url=await getBxWebhookUrl();
+if(apiAvailable&&url){try{var r=await api.post('/api/bitrix/folder/scan',{webhook_url:url,folder_id:parseInt(fid)});
 if(r.success&&r.files&&r.files.length>0){var h='<div style="font-size:11px;color:var(--t3);margin-bottom:6px">Найдено файлов: '+r.files.length+'</div>';
 for(var i=0;i<r.files.length;i++){var f=r.files[i];var ext=(f.name||'').split('.').pop().toLowerCase();var canParse=(ext==='pdf'||ext==='docx');
 h+='<div class="bk-item"><div><b style="color:var(--t)">'+esc(f.name)+'</b><br><span style="color:var(--t3);font-size:10px">'+ext.toUpperCase()+' · '+formatSize(f.size||0)+' · '+(f.updated||'')+'</span></div>';
@@ -1667,15 +1716,15 @@ el.innerHTML=h;ae('📂 Найдено '+r.files.length+' файлов в пап
 else if(r.success){el.innerHTML='<div style="padding:10px;font-size:11px;color:var(--t3);text-align:center">Папка пуста</div>'}
 else{el.innerHTML='<div style="padding:6px;background:var(--rd);border-radius:6px;font-size:11px;color:var(--r)">❌ '+(r.message||'Ошибка')+'</div>'}}
 catch(e){el.innerHTML='<div style="padding:6px;background:var(--rd);border-radius:6px;font-size:11px;color:var(--r)">❌ '+e.message+'</div>'}}
-else{setTimeout(function(){el.innerHTML='<div style="font-size:11px;color:var(--t3);margin-bottom:6px">Найдено файлов:</div><div class="bk-item"><div><b style="color:var(--t)">Регламент_ТО_ДГУ_2024.pdf</b><br><span style="color:var(--t3);font-size:10px">PDF · 2.4 МБ · 15.01.2025</span></div><button class="bk-btn" onclick="importBxFile(1,\'Регламент_ТО_ДГУ_2024.pdf\')" style="color:var(--p)">🤖 AI Import</button></div><div class="bk-item"><div><b style="color:var(--t)">ТО_Cummins_QSK60.docx</b><br><span style="color:var(--t3);font-size:10px">DOCX · 890 КБ · 22.12.2024</span></div><button class="bk-btn" onclick="importBxFile(2,\'ТО_Cummins_QSK60.docx\')" style="color:var(--p)">🤖 AI Import</button></div><div style="padding:6px;font-size:9px;color:var(--t4);text-align:center">Демо-данные · backend недоступен</div>'},1200)}}
-async function importBxFile(fileId,filename){var el=$('bxFileList');var cfg=getBxConfig();
+else{el.innerHTML='<div style="padding:10px;text-align:center;font-size:11px;color:var(--r)">❌ Webhook URL не настроен. Укажите URL на вкладке «Подключение».</div>'}}
+async function importBxFile(fileId,filename){var el=$('bxFileList');var bxUrl=await getBxWebhookUrl();
 el.innerHTML+='<div id="aiProgress" style="padding:10px;background:var(--pd);border:1px solid rgba(160,112,255,.2);border-radius:8px;margin-top:8px"><div style="font-size:12px;color:var(--p);font-weight:600;margin-bottom:6px">🤖 AI-агент обработки</div><div id="aiStep" style="font-size:11px;color:var(--t2)">⏳ Скачивание файла из Битрикс24...</div><div style="margin-top:6px;height:3px;background:rgba(160,112,255,.1);border-radius:2px;overflow:hidden"><div id="aiBar" style="width:10%;height:100%;background:var(--p);transition:width .5s"></div></div></div>';
 ae('🤖 AI-импорт: '+(filename||'file#'+fileId));
 var t1=setTimeout(function(){var b=$('aiBar'),s=$('aiStep');if(b)b.style.width='30%';if(s)s.textContent='⏳ Извлечение текста из документа...'},2000);
 var aiCfgName=((AI_PROVIDERS[(getAIConfig().provider||'openai')])||{}).name||'AI';
 var t2=setTimeout(function(){var b=$('aiBar'),s=$('aiStep');if(b)b.style.width='50%';if(s)s.textContent='⏳ Отправка в '+aiCfgName+' для анализа...'},5000);
 var t3=setTimeout(function(){var b=$('aiBar'),s=$('aiStep');if(b)b.style.width='80%';if(s)s.textContent='⏳ Парсинг интервалов ТО и работ...'},15000);
-if(apiAvailable&&cfg.url){try{var r=await api.post('/api/ai/parse',{webhook_url:cfg.url,file_id:fileId,filename:filename||''});
+if(apiAvailable&&bxUrl){try{var r=await api.post('/api/ai/parse',{webhook_url:bxUrl,file_id:fileId,filename:filename||''});
 clearTimeout(t1);clearTimeout(t2);clearTimeout(t3);
 var bar=$('aiBar');if(bar)bar.style.width='100%';
 if(r.success&&r.intervals&&r.intervals.length>0){window._aiParsedResult=r;
@@ -1707,7 +1756,7 @@ var auditors=cfg.auditor?'['+cfg.auditor+']':'[]';
 var payload=JSON.stringify({fields:{TITLE:title,DESCRIPTION:desc,DESCRIPTION_IN_BBCODE:"Y",RESPONSIBLE_ID:+respId||null,GROUP_ID:cfg.groupId?+cfg.groupId:null,DEADLINE:dlStr,PRIORITY:+(cfg.priority||1),AUDITORS:cfg.auditor?[+cfg.auditor]:[],ALLOW_CHANGE_DEADLINE:"N"}},null,2);
 var chkPayload='// Для каждой работы:\ntask.checklistitem.add\n[TASK_ID, {"TITLE": "текст работы"}]';
 $('toBody').innerHTML+='<div style="padding:10px;background:var(--gd);border:1px solid rgba(0,224,154,.2);border-radius:8px;margin-top:10px"><div style="font-size:12px;color:var(--g);font-weight:600;margin-bottom:8px">📋 Задача для Битрикс24</div><div style="font-size:11px;color:var(--t2);line-height:1.5"><b>TITLE:</b> '+esc(title)+'<br><b>RESPONSIBLE_ID:</b> '+respId+' ('+esc(respName)+')<br><b>GROUP_ID:</b> '+(cfg.groupId||'—')+'<br><b>DEADLINE:</b> '+dlStr+'<br><b>PRIORITY:</b> '+(cfg.priority||1)+'<br><b>AUDITORS:</b> '+auditors+'<br><b>Чеклист:</b> '+tasks.length+' пунктов'+(cfg.addChecklist!==false?' (task.checklistitem.add)':' (отключён)')+'</div><details style="margin-top:8px"><summary style="cursor:pointer;font-size:10px;color:var(--t3)">Показать JSON payload</summary><pre style="font-size:9px;color:var(--t3);background:var(--bg);padding:8px;border-radius:4px;margin-top:4px;overflow-x:auto;white-space:pre-wrap">POST {webhook}/tasks.task.add\n'+esc(payload)+'</pre></details><div style="margin-top:8px;font-size:9px;color:var(--t4)">Требуется backend для отправки. URL: '+esc((cfg.url||'https://...').substring(0,35))+'...</div></div>';ae('📋 Б24 задача: '+title)}
-function initBxModal(){var cfg=getBxConfig();if($('bxUrl'))$('bxUrl').value=cfg.url||'';if($('bxFolderId'))$('bxFolderId').value=cfg.folderId||'';if($('bxGroupId'))$('bxGroupId').value=cfg.groupId||'';if($('bxTaskTitle'))$('bxTaskTitle').value=cfg.taskTitle||'{TO_NAME} — {SITE_NAME} — {GEN_NAME}';if($('bxDeadlineDays'))$('bxDeadlineDays').value=cfg.deadlineDays||3;if($('bxPriority'))$('bxPriority').value=cfg.priority||'1';if($('bxAutoCreate'))$('bxAutoCreate').checked=cfg.autoCreate||false;if($('bxAddChecklist'))$('bxAddChecklist').checked=cfg.addChecklist!==false;if($('bxDescBBCode'))$('bxDescBBCode').checked=cfg.descBBCode!==false;var aud=$('bxAuditor');if(aud){var users=getBxUsers();aud.innerHTML='<option value="">— нет —</option>';for(var i=0;i<users.length;i++){var u=users[i];aud.innerHTML+='<option value="'+u.id+'"'+(u.id===(cfg.auditor||'')?'selected':'')+'>'+u.name+'</option>'}}}
+// initBxModal() defined above in BITRIX24 INTEGRATION section (async, loads from backend API)
 // === AI PROVIDER CONFIG ===
 const AI_PROVIDERS={
 openai:{id:'openai',name:'OpenAI',color:'#10a37f',icon:'🟢',models:['gpt-4o','gpt-4o-mini','gpt-4-turbo','o3-mini'],keyPrefix:'sk-',keyPlaceholder:'sk-proj-...'},
@@ -1960,8 +2009,11 @@ current:{fields:'current_a,current_b,current_c,load_pct',labels:{current_a:'То
 desc:'Токи на выходе генератора по трём фазам и процент нагрузки от номинала. Равномерное распределение токов по фазам — признак сбалансированной нагрузки. Нагрузка выше 80% длительно — повышенный износ.'}
 };
 const ARC_GROUPS_SPR={
-power:{fields:'mains_total_p,mains_p_a,mains_p_b,mains_p_c,busbar_p',labels:{mains_total_p:'Σ P сети (кВт)',mains_p_a:'P сети ф.A (кВт)',mains_p_b:'P сети ф.B (кВт)',mains_p_c:'P сети ф.C (кВт)',busbar_p:'P шины (кВт)'},unit:'кВт',colors:['#00e09a','#4090ff','#ffb020','#a070ff','#ff4060'],
-desc:'Активная мощность на вводе от внешней сети и на общей шине. <b>Σ P сети</b> = сумма трёх фаз ввода. <b>P шины</b> — реальная мощность на потребителей. Разница P сети − P шины = потери в коммутации.'},
+balance:{fields:'busbar_p,mains_total_p',labels:{busbar_p:'P генераторов (кВт)',mains_total_p:'P сети (кВт)'},unit:'кВт',colors:['#00e09a','#4090ff'],
+desc:'Баланс мощности на объекте. <b>P генераторов</b> — мощность от генераторов на шине. <b>P сети</b> — мощность от внешней сети. P нагрузки = P генераторов + P сети.',
+_computed:[{label:'P нагрузки (кВт)',color:'#ffb020',calc:row=>{const b=row.busbar_p!=null?Number(row.busbar_p):0;const m=row.mains_total_p!=null?Number(row.mains_total_p):0;return b+m}}]},
+power:{fields:'mains_total_p,mains_p_a,mains_p_b,mains_p_c,busbar_p',labels:{mains_total_p:'Σ P сети (кВт)',mains_p_a:'P сети ф.A (кВт)',mains_p_b:'P сети ф.B (кВт)',mains_p_c:'P сети ф.C (кВт)',busbar_p:'P генераторов (кВт)'},unit:'кВт',colors:['#00e09a','#4090ff','#ffb020','#a070ff','#ff4060'],
+desc:'Активная мощность на вводе от внешней сети и на общей шине. <b>Σ P сети</b> = сумма трёх фаз ввода. <b>P генераторов</b> — реальная мощность на потребителей. Разница P сети − P генераторов = потери в коммутации.'},
 voltage:{fields:'mains_uab,mains_ubc,mains_uca,busbar_uab,busbar_ubc,busbar_uca',labels:{mains_uab:'Напряжение сети UAB (В)',mains_ubc:'Напряжение сети UBC (В)',mains_uca:'Напряжение сети UCA (В)',busbar_uab:'Напряжение шины UAB (В)',busbar_ubc:'Напряжение шины UBC (В)',busbar_uca:'Напряжение шины UCA (В)'},unit:'В',colors:['#4090ff','#00e09a','#ffb020','#ff4060','#a070ff','#f472b6'],
 desc:'Линейные напряжения на вводе от внешней сети и на общей шине (после коммутации). Сеть — входящее напряжение от энергосбыта. Шина — напряжение, подаваемое потребителям. Норма 380-400В. Просадка шины при нагрузке — нормально до 5%.'},
 current:{fields:'mains_ia,mains_ib,mains_ic,busbar_current',labels:{mains_ia:'Ток ввода сети ф.A (А)',mains_ib:'Ток ввода сети ф.B (А)',mains_ic:'Ток ввода сети ф.C (А)',busbar_current:'Σ ток шины (А)'},unit:'А',colors:['#4090ff','#00e09a','#ffb020','#ff4060'],
@@ -1971,7 +2023,7 @@ desc:'Частота электрической сети на вводе и на
 };
 // Tabs definition per device type: [{key, label}]
 const ARC_TABS_GEN=[{key:'power',label:'⚡ Мощность'},{key:'voltage',label:'🔌 Напряжение'},{key:'engine',label:'🛢 Двигатель'},{key:'current',label:'〰 Токи'}];
-const ARC_TABS_SPR=[{key:'power',label:'⚡ Мощность'},{key:'voltage',label:'🔌 Напряжение'},{key:'current',label:'〰 Токи'},{key:'frequency',label:'📶 Частота'}];
+const ARC_TABS_SPR=[{key:'balance',label:'⚖ Баланс'},{key:'power',label:'⚡ Мощность'},{key:'voltage',label:'🔌 Напряжение'},{key:'current',label:'〰 Токи'},{key:'frequency',label:'📶 Частота'}];
 function arcGetGroups(){return arcState.slot==='spr'?ARC_GROUPS_SPR:ARC_GROUPS_GEN}
 function arcGetTabs(){return arcState.slot==='spr'?ARC_TABS_SPR:ARC_TABS_GEN}
 const CHART_DEFAULTS={responsive:true,maintainAspectRatio:false,animation:{duration:400},
@@ -2035,7 +2087,7 @@ scales:(function(){const c=getChartColors();return{
 }})()
 };
 
-function showArchive(siteKey){
+function showArchive(siteKey){stopB24Poll();curView='archive';
 const keys=Object.keys(S);if(!keys.length){ae('⚠ Нет объектов');return}
 const sk=siteKey||(cur&&S[cur]?cur:keys[0]);
 arcState.siteKey=sk;archiveMode=true;
@@ -2311,6 +2363,20 @@ const datasets=fieldNames.map((f,i)=>{
   };
 }).filter(Boolean);
 
+// Append computed datasets (e.g. P load = busbar_p + mains_total_p)
+if(grp._computed){
+grp._computed.forEach(c=>{
+  const pts=data.map(row=>({x:new Date(row[timeKey]),y:c.calc(row)}));
+  const hasData=pts.some(p=>p.y!=null&&p.y!==0);
+  if(hasData)datasets.push({
+    label:c.label,data:pts,borderColor:c.color,backgroundColor:c.color+'18',
+    borderWidth:2.2,pointRadius:showPts?ptRadius:0,pointHoverRadius:hoverRadius,
+    pointBackgroundColor:c.color,pointBorderColor:c.color,pointHitRadius:8,
+    tension:0.25,fill:false,spanGaps:true
+  });
+});
+}
+
 // Compute Y-axis bounds with padding
 let yMin=Infinity,yMax=-Infinity;
 for(const ds of datasets){
@@ -2359,6 +2425,126 @@ function arcResetZoom(){
 if(arcChart){arcChart.resetZoom();const b=$('arcResetZoom');if(b)b.style.display='none'}
 }
 
+// === POWER CHART (clickable flow diagram labels) ===
+let pwChart=null,pwHours=1;
+let pwMetrics={bus:true,mains:false,load:false};
+const PW_COLORS={bus:'#00e09a',mains:'#4090ff',load:'#ffb020'};
+const PW_TITLES={bus:'P генераторов',mains:'P сети',load:'P нагрузки'};
+
+function showPwChart(initial){
+pwMetrics={bus:initial==='bus',mains:initial==='mains',load:initial==='load'};
+pwHours=1;
+$('pwChkBus').checked=pwMetrics.bus;
+$('pwChkMains').checked=pwMetrics.mains;
+$('pwChkLoad').checked=pwMetrics.load;
+document.querySelectorAll('#m-pwchart .arc-tb').forEach((b,i)=>b.classList.toggle('on',i===0));
+const t=$('pwChartTitle');if(t)t.textContent='📊 '+PW_TITLES[initial]+' — График';
+showM('pwchart');
+pwLoadChart();
+}
+
+function pwToggleMetric(){
+pwMetrics.bus=$('pwChkBus').checked;
+pwMetrics.mains=$('pwChkMains').checked;
+pwMetrics.load=$('pwChkLoad').checked;
+if(!pwMetrics.bus&&!pwMetrics.mains&&!pwMetrics.load){
+pwMetrics={bus:true,mains:true,load:true};
+$('pwChkBus').checked=true;$('pwChkMains').checked=true;$('pwChkLoad').checked=true;
+}
+pwLoadChart();
+}
+
+function pwRange(btn,hours){
+btn.parentElement.querySelectorAll('.arc-tb').forEach(b=>b.classList.remove('on'));
+btn.classList.add('on');pwHours=hours;pwLoadChart();
+}
+
+function pwResetZoom(){
+if(pwChart){pwChart.resetZoom();const b=$('pwResetZoom');if(b)b.style.display='none'}
+}
+
+async function pwLoadChart(){
+if(!cur||!S[cur])return;
+const sprId=S[cur].spr?._deviceId;
+if(!sprId){pwRenderNoData('ШПР не настроен');return}
+const fields=[];
+if(pwMetrics.bus)fields.push('busbar_p');
+if(pwMetrics.mains)fields.push('mains_total_p');
+if(pwMetrics.load){
+if(!fields.includes('busbar_p'))fields.push('busbar_p');
+if(!fields.includes('mains_total_p'))fields.push('mains_total_p');
+}
+const bucket=arcBucket(pwHours);
+let url;
+if(bucket>0)url=`/api/history/metrics/${sprId}/downsampled?last_hours=${pwHours}&bucket_seconds=${bucket}&fields=${fields.join(',')}`;
+else url=`/api/history/metrics/${sprId}?last_hours=${pwHours}&fields=${fields.join(',')}&limit=5000`;
+try{
+const data=await api.get(url);
+if(!data||!data.length){pwRenderNoData('Нет данных за выбранный период');return}
+pwRenderChart(data);
+}catch(e){pwRenderNoData('Ошибка: '+e.message)}
+}
+
+function pwRenderNoData(msg){
+const canvas=$('pwCanvas');
+if(pwChart){pwChart.destroy();pwChart=null}
+if(canvas){const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);
+ctx.fillStyle='#5a6a80';ctx.font='13px Outfit';ctx.textAlign='center';
+ctx.fillText(msg,canvas.width/2,canvas.height/2)}
+}
+
+function pwRenderChart(data){
+const canvas=$('pwCanvas');if(!canvas)return;
+if(pwChart){pwChart.destroy();pwChart=null}
+if(typeof Chart==='undefined'){pwRenderNoData('Chart.js не загружен');return}
+const timeKey=data[0].bucket!==undefined?'bucket':'timestamp';
+const totalPts=data.length;
+const showPts=totalPts<80;
+const ptRadius=totalPts<30?3:totalPts<80?2:0;
+const hoverRadius=totalPts<200?4:3;
+const datasets=[];
+if(pwMetrics.bus){
+datasets.push({label:'P генераторов',data:data.map(r=>({x:new Date(r[timeKey]),y:r.busbar_p!=null?Number(r.busbar_p):null})),
+borderColor:PW_COLORS.bus,backgroundColor:PW_COLORS.bus+'18',borderWidth:2.2,
+pointRadius:showPts?ptRadius:0,pointHoverRadius:hoverRadius,pointBackgroundColor:PW_COLORS.bus,
+pointBorderColor:PW_COLORS.bus,pointHitRadius:8,tension:0.25,fill:false,spanGaps:true});
+}
+if(pwMetrics.mains){
+datasets.push({label:'P сети',data:data.map(r=>({x:new Date(r[timeKey]),y:r.mains_total_p!=null?Number(r.mains_total_p):null})),
+borderColor:PW_COLORS.mains,backgroundColor:PW_COLORS.mains+'18',borderWidth:2.2,
+pointRadius:showPts?ptRadius:0,pointHoverRadius:hoverRadius,pointBackgroundColor:PW_COLORS.mains,
+pointBorderColor:PW_COLORS.mains,pointHitRadius:8,tension:0.25,fill:false,spanGaps:true});
+}
+if(pwMetrics.load){
+datasets.push({label:'P нагрузки',data:data.map(r=>{
+const b=r.busbar_p!=null?Number(r.busbar_p):0;
+const m=r.mains_total_p!=null?Number(r.mains_total_p):0;
+return{x:new Date(r[timeKey]),y:b+m};
+}),borderColor:PW_COLORS.load,backgroundColor:PW_COLORS.load+'18',borderWidth:2.2,
+pointRadius:showPts?ptRadius:0,pointHoverRadius:hoverRadius,pointBackgroundColor:PW_COLORS.load,
+pointBorderColor:PW_COLORS.load,pointHitRadius:8,tension:0.25,fill:false,spanGaps:true});
+}
+if(!datasets.length){pwRenderNoData('Выберите хотя бы одну метрику');return}
+const zoomOpts={...CHART_DEFAULTS.plugins.zoom,
+zoom:{...CHART_DEFAULTS.plugins.zoom?.zoom,onZoom(){const b=$('pwResetZoom');if(b)b.style.display=''}},
+pan:{...CHART_DEFAULTS.plugins.zoom?.pan,onPan(){const b=$('pwResetZoom');if(b)b.style.display=''}}
+};
+const c=getChartColors();
+pwChart=new Chart(canvas,{type:'line',data:{datasets},
+plugins:[crosshairPlugin],
+options:{...CHART_DEFAULTS,
+plugins:{...CHART_DEFAULTS.plugins,zoom:zoomOpts,
+legend:{...CHART_DEFAULTS.plugins.legend,labels:{...CHART_DEFAULTS.plugins.legend.labels,generateLabels:null}}},
+scales:{
+x:{...CHART_DEFAULTS.scales.x,grid:{...CHART_DEFAULTS.scales.x.grid,color:c.grid},border:{color:c.border},ticks:{...CHART_DEFAULTS.scales.x.ticks,color:c.tick}},
+y:{...CHART_DEFAULTS.scales.y,grid:{...CHART_DEFAULTS.scales.y.grid,color:c.grid},border:{color:c.border},ticks:{...CHART_DEFAULTS.scales.y.ticks,color:c.tick},
+title:{display:true,text:'кВт',color:c.tick,font:{family:'Outfit',size:11,weight:'500'},padding:{bottom:6}}}
+}}});
+const rb=$('pwResetZoom');if(rb)rb.style.display='none';
+pwChart.update();
+}
+// === END POWER CHART ===
+
 function arcRenderFieldStats(data,grp){
 const wrap=$('arcFieldStats');if(!wrap)return;
 if(!data||!data.length){wrap.innerHTML='';return}
@@ -2380,6 +2566,23 @@ for(let i=0;i<fieldNames.length;i++){
 <div class="arc-fs-row"><span class="arc-fs-lbl">Макс</span><span class="arc-fs-val">${mx.toFixed(1)}${u}</span></div>
 <div class="arc-fs-row"><span class="arc-fs-lbl">Текущ</span><span class="arc-fs-val" style="color:${grp.colors[i]}">${last.toFixed(1)}${u}</span></div>
 </div>`;
+}
+if(grp._computed){
+grp._computed.forEach(c=>{
+  const vals=data.map(r=>c.calc(r)).filter(v=>v!=null&&isFinite(v));
+  if(!vals.length)return;
+  const mn=Math.min(...vals),mx=Math.max(...vals),avg=vals.reduce((a,b)=>a+b,0)/vals.length;
+  const last=vals[vals.length-1];
+  const shortLbl=c.label.split(' (')[0];
+  const u=grp.unit?' '+grp.unit:'';
+  html+=`<div class="arc-fs" style="border-left-color:${c.color}">
+<div class="arc-fs-name" style="color:${c.color}">${shortLbl}</div>
+<div class="arc-fs-row"><span class="arc-fs-lbl">Мин</span><span class="arc-fs-val">${mn.toFixed(1)}${u}</span></div>
+<div class="arc-fs-row"><span class="arc-fs-lbl">Средн</span><span class="arc-fs-val">${avg.toFixed(1)}${u}</span></div>
+<div class="arc-fs-row"><span class="arc-fs-lbl">Макс</span><span class="arc-fs-val">${mx.toFixed(1)}${u}</span></div>
+<div class="arc-fs-row"><span class="arc-fs-lbl">Текущ</span><span class="arc-fs-val" style="color:${c.color}">${last.toFixed(1)}${u}</span></div>
+</div>`;
+});
 }
 wrap.innerHTML=html;
 }
@@ -2458,7 +2661,7 @@ const siteName=S[info.siteKey]?.name||info.siteKey;
 return name+' · '+siteName;
 }
 
-function showAlarms(){
+function showAlarms(){stopB24Poll();curView='alarms';
 alarmsMode=true;archiveMode=false;
 const mn=$('mainArea');
 mn.innerHTML=`
@@ -2640,6 +2843,140 @@ else{st.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px 
     // Connect WebSocket for live data
     connectWebSocket();
 })();
+
+// ═══════════════════════════════════════════════════════════════
+// Б24 Dashboard — unified Bitrix24 page (tasks + equipment + mapping + settings)
+// ═══════════════════════════════════════════════════════════════
+let b24PollTimer=null;
+function stopB24Poll(){if(b24PollTimer){clearInterval(b24PollTimer);b24PollTimer=null}}
+function showB24Dashboard(){
+alarmsMode=false;archiveMode=false;stopB24Poll();
+const mn=$('mainArea');
+mn.innerHTML=`<div class="dh"><div class="dt"><h1 style="font-size:16px;font-weight:700;color:var(--t)">🔗 Битрикс24</h1></div>
+<div class="da"><button class="bs2" style="padding:6px 14px" onclick="stopB24Poll();if(cur&&S[cur])renderDash()">← Мониторинг</button>
+<button class="bs2" style="padding:6px 14px" onclick="b24ForceSync()">⚡ Синхронизация</button>
+<button class="bs2" style="padding:6px 14px" onclick="b24TestTask()">🧪 Тест</button>
+<button class="bs2" style="padding:6px 14px" onclick="initBxModal();showM('bitrix')">⚙ Настройки</button></div></div>
+<div id="b24Status" style="margin-bottom:10px"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+<div id="b24StatOpen" class="cc" style="padding:14px;text-align:center"></div>
+<div id="b24StatClosed" class="cc" style="padding:14px;text-align:center"></div>
+<div id="b24StatMaint" class="cc" style="padding:14px;text-align:center"></div>
+<div id="b24StatAlarm" class="cc" style="padding:14px;text-align:center"></div></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+<div><h3 style="font-size:13px;color:var(--t2);margin-bottom:8px">📋 Активные задачи</h3><div id="b24Tasks"></div></div>
+<div><h3 style="font-size:13px;color:var(--t2);margin-bottom:8px">👥 Оборудование и роли</h3><div id="b24Equip"></div></div></div>
+<div><h3 style="font-size:13px;color:var(--t2);margin-bottom:8px">🔧 Привязка устройств к оборудованию Б24</h3><div id="b24Mapping"></div></div>`;
+b24Refresh();
+b24LoadMapping();
+b24PollTimer=setInterval(b24Refresh,15000);
+}
+async function b24Refresh(){await Promise.all([b24LoadStatus(),b24LoadStats(),b24LoadTasks(),b24LoadEquip()])}
+async function b24LoadStatus(){
+const el=$('b24Status');if(!el)return;
+try{const s=await api.get('/api/bitrix24/status');
+const c=s.connected;const domain=s.webhook_url?new URL(s.webhook_url).origin:'';
+el.innerHTML=`<div style="padding:10px 14px;background:${c?'var(--gd)':'var(--rd)'};border:1px solid var(--bd);border-radius:var(--rad);display:flex;align-items:center;gap:10px;cursor:pointer" onclick="b24ForceSync()" title="Нажмите для синхронизации">
+<span style="font-size:14px">${c?'🟢':'🔴'}</span>
+<b style="font-size:12px;color:${c?'var(--g)':'var(--r)'}">${c?'Подключено':'Нет связи'}</b>
+<span style="font-size:10px;color:var(--t3);font-family:var(--m)">Оборудование: ${s.equipment_count||0} ед.</span>
+${domain?`<a href="${domain}" target="_blank" onclick="event.stopPropagation()" style="font-size:10px;color:var(--b);text-decoration:underline;margin-left:4px">${domain.replace('https://','')}</a>`:''}
+<span style="font-size:10px;color:var(--t4);margin-left:auto">${s.last_sync?'Синхр: '+new Date(s.last_sync).toLocaleTimeString():''} 🔄</span></div>`;
+}catch(e){el.innerHTML=`<div style="padding:10px;background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);font-size:11px;color:var(--t3)">Модуль Б24 не активен (BITRIX24_ENABLED=false)</div>`}}
+async function b24LoadStats(){
+try{const s=await api.get('/api/bitrix24/stats');
+const mk=(id,val,lbl,clr,flt)=>{const el=$(id);if(el){const act=JSON.stringify(b24Filter)===JSON.stringify(flt);el.innerHTML=`<div style="font-size:22px;font-weight:700;color:var(--${clr})">${val}</div><div style="font-size:10px;color:var(--t3);margin-top:2px">${lbl}</div>`;el.style.cursor='pointer';el.style.border=act?'2px solid var(--'+clr+')':'';el.onclick=()=>{b24Filter=act?{status:null,source_type:null}:flt;b24LoadTasks();b24LoadStats()}}};
+mk('b24StatOpen',s.open,'Открытых','y',{status:'open',source_type:null});
+mk('b24StatClosed',s.closed,'Закрытых','g',{status:'closed',source_type:null});
+mk('b24StatMaint',s.by_type?.maintenance||0,'ТО','b',{status:null,source_type:'maintenance'});
+mk('b24StatAlarm',s.by_type?.alarm||0,'Аварий','r',{status:null,source_type:'alarm'});
+}catch(e){}}
+let b24Filter={status:null,source_type:null};
+function b24TaskUrl(taskId){const cfg=getBxConfig();if(!cfg.url)return'';try{const u=new URL(cfg.url);return u.origin+'/company/personal/user/102/tasks/task/view/'+taskId+'/'}catch(e){return''}}
+async function b24LoadTasks(){
+const el=$('b24Tasks');if(!el)return;
+try{let q='/api/bitrix24/tasks?limit=20';if(b24Filter.status)q+='&status='+b24Filter.status;if(b24Filter.source_type)q+='&source_type='+b24Filter.source_type;
+const r=await api.get(q);
+if(!r.tasks||!r.tasks.length){el.innerHTML='<div style="padding:16px;background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);font-size:11px;color:var(--t3);text-align:center">Нет задач'+(b24Filter.status||b24Filter.source_type?' по фильтру · <a href="#" onclick="b24Filter={status:null,source_type:null};b24LoadTasks();b24LoadStats();return false" style="color:var(--g)">сбросить</a>':'')+'</div>';return}
+const fBadge=(b24Filter.status||b24Filter.source_type)?`<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:10px;color:var(--t3)"><span>Фильтр: ${b24Filter.status||''} ${b24Filter.source_type||''}</span><a href="#" onclick="b24Filter={status:null,source_type:null};b24LoadTasks();b24LoadStats();return false" style="color:var(--g);text-decoration:none">✕ сбросить</a></div>`:'';
+el.innerHTML=fBadge+r.tasks.map(t=>{
+const isAlarm=t.source_type==='alarm';
+const ico=isAlarm?'🔴':'🟡';
+const cls=t.status==='closed'?'opacity:.5':'';
+const pr=t.priority>=2?'<span style="color:var(--r);font-size:9px;font-weight:700"> HIGH</span>':'';
+const href=b24TaskUrl(t.bitrix_task_id);
+return`<div class="cc b24-task" style="padding:10px 12px;margin-bottom:6px;${cls};cursor:pointer" onclick="${href?`window.open('${href}','_blank')`:''}" title="${href?'Открыть в Битрикс24':''}">
+<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+<span style="font-size:12px">${ico}</span>
+<span style="font-size:11px;font-weight:600;color:var(--t)">${esc(t.task_title)}</span>${pr}
+<span style="margin-left:auto;font-size:9px;padding:2px 6px;border-radius:10px;background:${t.status==='open'?'var(--yd)':'var(--gd)'};color:${t.status==='open'?'var(--y)':'var(--g)'}">${t.status}</span></div>
+<div style="font-size:10px;color:var(--t3)">
+→ ${esc(t.responsible_name||'—')} · <span style="color:var(--b);text-decoration:underline">#${t.bitrix_task_id}</span> · ${t.created_at?new Date(t.created_at).toLocaleDateString():''}</div></div>`}).join('')}
+catch(e){el.innerHTML=`<div style="padding:10px;font-size:11px;color:var(--r)">Ошибка: ${esc(e.message)}</div>`}}
+async function b24LoadEquip(){
+const el=$('b24Equip');if(!el)return;
+try{const r=await api.get('/api/bitrix24/equipment');
+if(!r.items||!r.items.length){el.innerHTML='<div style="padding:16px;background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);font-size:11px;color:var(--t3);text-align:center">Нет оборудования</div>';return}
+el.innerHTML=r.items.map((eq,i)=>`<div class="cc b24-eq" style="padding:10px 12px;margin-bottom:6px;cursor:pointer" onclick="b24ToggleEq(this,'${esc(eq.system_code)}')">
+<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+<span class="b24-eq-arrow" style="font-size:9px;color:var(--t3);width:12px">▶</span>
+<span style="font-size:12px;font-weight:600;color:var(--t)">${esc(eq.name)}</span>
+<span style="font-size:9px;color:var(--t4);font-family:var(--m)">(${esc(eq.system_code)})</span>
+<span style="margin-left:auto;font-size:9px;padding:2px 6px;border-radius:10px;background:var(--gd);color:var(--g)">ID: ${eq.responsible_id||'—'}</span></div>
+<div style="font-size:10px;color:var(--t3);line-height:1.6">
+<div>👤 Ответственный: <b style="color:var(--t2)">${esc(eq.responsible_name||'—')}</b></div>
+${eq.accomplice_names?.length?`<div>👥 Соисполнители: ${eq.accomplice_names.map(n=>esc(n)).join(', ')}</div>`:''}
+${eq.auditor_names?.length?`<div>👁 Наблюдатели: ${eq.auditor_names.map(n=>esc(n)).join(', ')}</div>`:''}
+</div>
+<div class="b24-eq-detail" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--bd)">
+<div style="font-size:10px;color:var(--t4)">⏳ Загрузка задач...</div></div>
+</div>`).join('')}
+catch(e){el.innerHTML=`<div style="padding:10px;font-size:11px;color:var(--r)">Ошибка: ${esc(e.message)}</div>`}}
+async function b24ToggleEq(card,sysCode){
+const det=card.querySelector('.b24-eq-detail');const arr=card.querySelector('.b24-eq-arrow');
+if(det.style.display!=='none'){det.style.display='none';arr.textContent='▶';return}
+det.style.display='block';arr.textContent='▼';
+try{const r=await api.get('/api/bitrix24/tasks?limit=10');
+const tasks=(r.tasks||[]).filter(t=>t.system_code===sysCode);
+if(!tasks.length){det.innerHTML='<div style="font-size:10px;color:var(--t4)">Нет задач для этого оборудования</div>';return}
+det.innerHTML='<div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">Задачи ('+tasks.length+'):</div>'+tasks.map(t=>{
+const href=b24TaskUrl(t.bitrix_task_id);
+return`<div style="padding:4px 8px;background:var(--ov);border-radius:4px;margin-bottom:3px;font-size:10px;cursor:pointer" onclick="event.stopPropagation();${href?`window.open('${href}','_blank')`:''}">
+<span style="color:${t.status==='open'?'var(--y)':'var(--g)'}">${t.status==='open'?'🟡':'🟢'}</span>
+${esc(t.task_title)} <span style="color:var(--b)">#${t.bitrix_task_id}</span></div>`}).join('')}
+catch(e){det.innerHTML='<div style="font-size:10px;color:var(--r)">'+e.message+'</div>'}}
+async function b24LoadMapping(){
+const el=$('b24Mapping');if(!el)return;
+try{const r=await api.get('/api/bitrix24/device-mapping');
+const devs=r.devices||[];const eqs=r.equipment||[];
+if(!devs.length){el.innerHTML='<div style="padding:10px;font-size:11px;color:var(--t3)">Нет устройств</div>';return}
+el.innerHTML=`<div class="cc" style="padding:12px"><table style="width:100%;border-collapse:collapse;font-size:11px">
+<tr style="border-bottom:1px solid var(--bd)"><th style="text-align:left;padding:6px;color:var(--t2)">Устройство</th><th style="text-align:left;padding:6px;color:var(--t2)">Тип</th><th style="text-align:left;padding:6px;color:var(--t2)">Оборудование Б24</th><th style="padding:6px"></th></tr>
+${devs.map(d=>{
+const opts=eqs.map(eq=>`<option value="${esc(eq.system_code)}"${d.system_code===eq.system_code?' selected':''}>${esc(eq.name)} (${esc(eq.system_code)})</option>`).join('');
+const linked=d.system_code?true:false;
+return`<tr style="border-bottom:1px solid var(--bd)">
+<td style="padding:6px;color:var(--t)">${esc(d.name)}</td>
+<td style="padding:6px;color:var(--t3)">${esc(d.device_type)}</td>
+<td style="padding:6px"><select id="b24map_${d.id}" style="padding:4px 8px;font-size:11px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);color:var(--t)">
+<option value="">— не привязан —</option>${opts}</select></td>
+<td style="padding:6px"><button class="bs2" style="padding:4px 10px;font-size:10px" onclick="b24SaveMapping(${d.id})">${linked?'✅':'💾'}</button></td></tr>`}).join('')}
+</table></div>`;
+}catch(e){el.innerHTML=`<div style="padding:10px;font-size:11px;color:var(--r)">Ошибка: ${esc(e.message)}</div>`}}
+async function b24SaveMapping(deviceId){
+const sel=$('b24map_'+deviceId);if(!sel)return;
+const sc=sel.value||null;
+try{await api.put('/api/bitrix24/device-mapping',{device_id:deviceId,system_code:sc});
+ae(sc?'✅ Привязано: '+sc:'✅ Привязка снята');b24LoadMapping()}
+catch(e){ae('❌ '+e.message)}}
+async function b24ForceSync(){
+try{const r=await api.post('/api/bitrix24/equipment/sync');ae('✅ Синхронизация: '+r.cached+' ед.');b24Refresh();b24LoadMapping()}
+catch(e){ae('❌ Ошибка синхронизации: '+e.message)}}
+async function b24TestTask(){
+try{const r=await api.post('/api/bitrix24/tasks/test');
+if(r.success){ae('✅ Тестовая задача создана: #'+r.task_id);b24Refresh()}
+else ae('❌ Ошибка: '+(r.error||'unknown'))}
+catch(e){ae('❌ '+e.message)}}
 </script>
 <script src="/alarm_modal.js"></script>
 <!-- Power Limit Modal -->
@@ -2676,6 +3013,26 @@ else{st.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px 
 <button class="bs2" style="flex:1;padding:10px" onclick="closePowerLimitModal()">Отмена</button>
 <button class="bp" style="flex:2" onclick="savePowerLimit()">⚡ Применить</button>
 </div>
+</div>
+</div>
+</div>
+<!-- Power Chart Modal -->
+<div class="mbg" id="m-pwchart" onclick="if(event.target===this)hideM('pwchart')">
+<div class="mod" style="max-width:800px;width:90vw">
+<div class="mhd"><h3 id="pwChartTitle">📊 Мощность — График</h3><button class="mx" onclick="hideM('pwchart')">✕</button></div>
+<div class="mbd">
+<div style="display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap;align-items:center" id="pwChkWrap">
+<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="pwChkBus" onchange="pwToggleMetric()" style="accent-color:#00e09a"><span style="color:#00e09a;font-size:12px;font-weight:600">P генераторов (кВт)</span></label>
+<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="pwChkMains" onchange="pwToggleMetric()" style="accent-color:#4090ff"><span style="color:#4090ff;font-size:12px;font-weight:600">P сети (кВт)</span></label>
+<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="pwChkLoad" onchange="pwToggleMetric()" style="accent-color:#ffb020"><span style="color:#ffb020;font-size:12px;font-weight:600">P нагрузки (кВт)</span></label>
+</div>
+<div style="display:flex;gap:6px;margin-bottom:12px">
+<button class="arc-tb on" onclick="pwRange(this,1)">1ч</button>
+<button class="arc-tb" onclick="pwRange(this,6)">6ч</button>
+<button class="arc-tb" onclick="pwRange(this,24)">24ч</button>
+<button class="arc-tb" onclick="pwRange(this,168)">7д</button>
+</div>
+<div style="position:relative;height:350px"><canvas id="pwCanvas"></canvas><button id="pwResetZoom" class="arc-zoom-btn" onclick="pwResetZoom()" style="display:none">↩ Сбросить зум</button></div>
 </div>
 </div>
 </div>

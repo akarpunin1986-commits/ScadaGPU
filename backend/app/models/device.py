@@ -35,6 +35,9 @@ class Device(TimestampMixin, Base):
     modbus_timeout: Mapped[float | None] = mapped_column(Float, default=None)
     retry_delay: Mapped[float | None] = mapped_column(Float, default=None)
 
+    # Bitrix24 equipment mapping code (e.g., "mkz_dgu1")
+    system_code: Mapped[str | None] = mapped_column(String(50), default=None)
+
     site = relationship("Site", back_populates="devices")
     maintenance_logs = relationship(
         "MaintenanceLog",

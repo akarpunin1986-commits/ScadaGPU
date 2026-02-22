@@ -11,6 +11,7 @@ from models.maintenance import (
 from models.maintenance_alert import MaintenanceAlert, AlertSeverity, AlertStatus
 from models.metrics_data import MetricsData
 from models.alarm_event import AlarmEvent, AlarmSeverityEvent
+from models.bitrix24_task import Bitrix24Task
 
 __all__ = [
     "Base",
@@ -32,4 +33,5 @@ __all__ = [
     "MetricsData",
     "AlarmEvent",
     "AlarmSeverityEvent",
+    "Bitrix24Task",
 ]

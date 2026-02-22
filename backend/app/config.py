@@ -46,6 +46,17 @@ class Settings(BaseSettings):
     DISK_CLEANUP_THRESHOLD_PCT: float = 80  # start FIFO at 80%
     DISK_CLEANUP_BATCH_SIZE: int = 10000
 
+    # Bitrix24 integration module (Phase 7)
+    BITRIX24_ENABLED: bool = False
+    BITRIX24_WEBHOOK_URL: str = ""
+    BITRIX24_GROUP_ID: int = 46
+    BITRIX24_IBLOCK_ID: int = 68
+    BITRIX24_IBLOCK_TYPE_ID: str = "lists"
+    BITRIX24_RATE_LIMIT: float = 2.0            # requests per second
+    BITRIX24_SYNC_INTERVAL: int = 3600          # equipment sync every 1 hour
+    BITRIX24_TASK_CHECK_INTERVAL: int = 300     # check task status every 5 min
+    BITRIX24_FALLBACK_RESPONSIBLE_ID: int = 102 # webhook user (Карпунин А.)
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

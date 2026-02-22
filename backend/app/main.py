@@ -94,6 +94,18 @@ async def lifespan(app: FastAPI):
     app.state.alarm_analytics_detector = aa_detector
     aa_task = asyncio.create_task(aa_detector.start())
 
+    # Bitrix24 integration — fully isolated module
+    b24_module = None
+    b24_task = None
+    if settings.BITRIX24_ENABLED:
+        from services.bitrix24 import Bitrix24Module
+        b24_module = Bitrix24Module(redis, async_session)
+        app.state.bitrix24_module = b24_module
+        b24_task = asyncio.create_task(b24_module.start())
+        logger.info("Bitrix24 module enabled")
+    else:
+        logger.info("Bitrix24 module DISABLED (BITRIX24_ENABLED=false)")
+
     yield
 
     # Shutdown
@@ -104,11 +116,15 @@ async def lifespan(app: FastAPI):
     await ad.stop()
     await dm.stop()
     await aa_detector.stop()
+    if b24_module:
+        await b24_module.stop()
 
     all_tasks = [
         poller_task, ws_bridge_task, scheduler_task, alerts_bridge_task,
         mw_task, ad_task, dm_task, aa_task,
     ]
+    if b24_task:
+        all_tasks.append(b24_task)
     for t in all_tasks:
         t.cancel()
     for t in all_tasks:
@@ -147,6 +163,11 @@ app.include_router(history_router)
 app.include_router(ws_router)
 app.include_router(power_limit_router)
 app.include_router(alarm_analytics_router)
+
+# Bitrix24 module router (conditional)
+if settings.BITRIX24_ENABLED:
+    from api.bitrix24 import router as bitrix24_module_router
+    app.include_router(bitrix24_module_router)
 
 
 @app.get("/health")
