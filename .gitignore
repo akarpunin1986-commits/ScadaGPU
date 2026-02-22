@@ -21,3 +21,9 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Deploy (contains credentials)
+deploy-prod.sh
+
+# SQL dumps
+*.sql
