@@ -214,6 +214,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .arc-time{display:flex;align-items:center;gap:4px}
 .arc-tb{padding:5px 10px;border-radius:var(--rs);border:1px solid var(--bd);background:var(--bg3);color:var(--t3);cursor:pointer;font-size:11px;font-family:var(--m);transition:all .15s}
 .arc-tb:hover{background:var(--bg4);color:var(--t)}.arc-tb.on{background:var(--gd);border-color:rgba(0,224,154,.25);color:var(--g)}
+.zoom-lbl{font-size:11px;font-family:var(--m);color:var(--g);padding:3px 8px;border-radius:4px;background:var(--gd);border:1px solid rgba(0,224,154,.2);white-space:nowrap;opacity:0;transition:opacity .3s;margin-left:6px;display:inline-block;vertical-align:middle;pointer-events:none}.zoom-lbl.vis{opacity:1}
 .arc-dt{width:155px;padding:5px 8px!important;font-size:10px!important;font-family:var(--m)!important}
 .dp-wrap{position:relative;display:inline-block}
 .dp-btn{padding:5px 10px;border-radius:var(--rs);border:1px solid var(--bd);background:var(--bg3);color:var(--t3);cursor:pointer;font-size:11px;font-family:var(--m);transition:all .15s;white-space:nowrap;min-width:130px;text-align:center}
@@ -237,8 +238,6 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .dp-apply{width:100%;margin-top:8px;padding:6px;border-radius:var(--rs);border:none;background:var(--g);color:var(--btn-text);font-size:11px;font-weight:600;font-family:var(--u);cursor:pointer;transition:background .15s}
 .dp-apply:hover{background:#00c888}
 .arc-chart-wrap{position:relative;height:480px;background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);padding:14px 14px 10px;margin-bottom:8px}
-.arc-zoom-btn{position:absolute;top:8px;right:8px;z-index:10;padding:4px 10px;border-radius:6px;border:1px solid rgba(64,144,255,.3);background:rgba(10,15,26,.85);color:#4090ff;font-size:11px;font-family:var(--u);cursor:pointer;transition:all .15s;backdrop-filter:blur(4px)}
-.arc-zoom-btn:hover{background:rgba(64,144,255,.15);border-color:rgba(64,144,255,.5);color:#60b0ff}
 .arc-desc{padding:10px 12px;margin-bottom:6px;font-size:12px;line-height:1.6;color:var(--t2);background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);border-left:3px solid #4090ff}
 .arc-desc b{color:var(--t);font-weight:600}
 .arc-stats{padding:8px 10px;font-size:11px;color:var(--t2);font-family:var(--m)}
@@ -2186,23 +2185,30 @@ plugins:{
     }
   },
   crosshair:false,
-  zoom:{
-    pan:{enabled:true,mode:'x',modifierKey:null,onPanComplete:function(ctx){console.log('[ZOOM] pan complete, x range:',ctx.chart.scales.x.min,'→',ctx.chart.scales.x.max)}},
-    zoom:{
-      wheel:{enabled:true,speed:0.08},
-      pinch:{enabled:true},
-      drag:{enabled:false},
-      mode:'x',
-      onZoomComplete:function(ctx){console.log('[ZOOM] zoom complete, x range:',ctx.chart.scales.x.min,'→',ctx.chart.scales.x.max,'zoom level:',ctx.chart.getZoomLevel())}
-    },
-    limits:{x:{minRange:30000}} // min 30 sec range
-  }
+  zoom:false
 },
 scales:(function(){const c=getChartColors();return{
   x:{type:'time',
     grid:{color:c.grid,lineWidth:1,drawTicks:true,tickLength:4},
     border:{color:c.border},
-    ticks:{color:c.tick,font:{family:'JetBrains Mono',size:10},maxRotation:0,autoSkipPadding:20},
+    ticks:{color:c.tick,font:{family:'JetBrains Mono',size:10},maxRotation:0,autoSkipPadding:20,
+      callback:function(val,idx,ticks){
+        var xScale=this.chart.scales.x;
+        var rangeMs=(xScale.max||0)-(xScale.min||0);
+        var d=new Date(val);
+        var hh=String(d.getHours()).padStart(2,'0');
+        var mm=String(d.getMinutes()).padStart(2,'0');
+        var ss=String(d.getSeconds()).padStart(2,'0');
+        if(rangeMs>86400000){
+          // >1 day: show date + time
+          var dd=String(d.getDate()).padStart(2,'0');
+          var mo=String(d.getMonth()+1).padStart(2,'0');
+          return dd+'.'+mo+' '+hh+':'+mm;
+        }
+        if(rangeMs<3600000) return hh+':'+mm+':'+ss;
+        return hh+':'+mm;
+      }
+    },
     time:{tooltipFormat:'dd.MM.yyyy HH:mm:ss',displayFormats:{second:'HH:mm:ss',minute:'HH:mm',hour:'HH:mm',day:'dd.MM',week:'dd.MM',month:'MMM yyyy'}}
   },
   y:{
@@ -2241,6 +2247,7 @@ mn.innerHTML=`
 <button class="arc-tb" onclick="arcRange(this,24)">24ч</button>
 <button class="arc-tb" onclick="arcRange(this,168)">7д</button>
 <button class="arc-tb" onclick="arcRange(this,720)">30д</button>
+<span id="arcZoomLabel" class="zoom-lbl"></span>
 <div class="dp-wrap"><button class="dp-btn" id="arcFromBtn" onclick="dpToggle('arcFrom')">📅 От</button><div class="dp-drop" id="arcFromDrop"></div></div>
 <span style="color:var(--t3);font-size:11px">—</span>
 <div class="dp-wrap"><button class="dp-btn" id="arcToBtn" onclick="dpToggle('arcTo')">📅 До</button><div class="dp-drop" id="arcToDrop"></div></div>
@@ -2251,7 +2258,7 @@ mn.innerHTML=`
 <button class="tb" onclick="arcTab(this,'arcDisk')">💾 Хранилище</button></div>
 <div id="arcCharts" style="display:block">
 <div class="tbs" style="margin-bottom:8px" id="arcChartTabs"></div>
-<div class="arc-chart-wrap"><canvas id="arcCanvas"></canvas><button id="arcResetZoom" class="arc-zoom-btn" onclick="arcResetZoom()" style="display:none">↩ Сбросить зум</button></div>
+<div class="arc-chart-wrap"><canvas id="arcCanvas"></canvas></div>
 <div id="arcFieldStats" class="arc-fstats"></div>
 <div id="arcDesc" class="arc-desc"></div>
 <div id="arcStats" class="arc-stats"></div></div>
@@ -2294,6 +2301,7 @@ dpState.arcFrom=null;dpState.arcTo=null;
 const fb=$('arcFromBtn'),tb=$('arcToBtn');
 if(fb){fb.textContent='📅 От';fb.classList.remove('has-val')}
 if(tb){tb.textContent='📅 До';tb.classList.remove('has-val')}
+_updateZoomLabel('arcZoomLabel',hours);
 arcLoadChart();arcLoadAlarms();
 }
 function arcCustomRange(){
@@ -2516,21 +2524,11 @@ const yPad=yRange*0.08;
 const sugMin=Math.max(0,yMin-yPad);
 const sugMax=yMax+yPad;
 
-// Merge zoom callbacks into plugin options
-const zoomPluginOpts={...CHART_DEFAULTS.plugins.zoom,
-  zoom:{...CHART_DEFAULTS.plugins.zoom?.zoom,
-    onZoom:function(){const b=$('arcResetZoom');if(b)b.style.display=''},
-  },
-  pan:{...CHART_DEFAULTS.plugins.zoom?.pan,
-    onPan:function(){const b=$('arcResetZoom');if(b)b.style.display=''},
-  }
-};
-
 arcChart=new Chart(canvas,{type:'line',data:{datasets},
 plugins:[crosshairPlugin],
 options:{
   ...CHART_DEFAULTS,
-  plugins:{...CHART_DEFAULTS.plugins, zoom:zoomPluginOpts},
+  plugins:{...CHART_DEFAULTS.plugins},
   scales:(function(){const c=getChartColors();return{
     x:{...CHART_DEFAULTS.scales.x, grid:{...CHART_DEFAULTS.scales.x.grid,color:c.grid},border:{color:c.border},ticks:{...CHART_DEFAULTS.scales.x.ticks,color:c.tick}},
     y:{...CHART_DEFAULTS.scales.y, grid:{...CHART_DEFAULTS.scales.y.grid,color:c.grid},border:{color:c.border},ticks:{...CHART_DEFAULTS.scales.y.ticks,color:c.tick},
@@ -2540,19 +2538,13 @@ options:{
   }})()
 
 }});
-// Hide reset button initially
-const rb=$('arcResetZoom');if(rb)rb.style.display='none';
 // Update legend with latest values after render
 arcChart.update();
-console.log('[ARC] Chart created, datasets:',arcChart.data.datasets.length,', points per ds:',arcChart.data.datasets.map(d=>d.data.length));
 // Show chart description
 const descEl=$('arcDesc');
 if(descEl)descEl.innerHTML=grp.desc?`<b>ℹ️ Пояснение:</b> ${grp.desc}`:'';
 }
 
-function arcResetZoom(){
-if(arcChart){arcChart.resetZoom();const b=$('arcResetZoom');if(b)b.style.display='none'}
-}
 
 // === POWER CHART (clickable flow diagram labels) ===
 let pwChart=null,pwHours=1;
@@ -2585,12 +2577,11 @@ pwLoadChart();
 
 function pwRange(btn,hours){
 btn.parentElement.querySelectorAll('.arc-tb').forEach(b=>b.classList.remove('on'));
-btn.classList.add('on');pwHours=hours;pwLoadChart();
+btn.classList.add('on');pwHours=hours;
+_updateZoomLabel('pwZoomLabel',hours);
+pwLoadChart();
 }
 
-function pwResetZoom(){
-if(pwChart){pwChart.resetZoom();const b=$('pwResetZoom');if(b)b.style.display='none'}
-}
 
 async function pwLoadChart(){
 if(!cur||!S[cur])return;
@@ -2654,26 +2645,109 @@ pointRadius:showPts?ptRadius:0,pointHoverRadius:hoverRadius,pointBackgroundColor
 pointBorderColor:PW_COLORS.load,pointHitRadius:8,tension:0.25,fill:false,spanGaps:true});
 }
 if(!datasets.length){pwRenderNoData('Выберите хотя бы одну метрику');return}
-const zoomOpts={...CHART_DEFAULTS.plugins.zoom,
-zoom:{...CHART_DEFAULTS.plugins.zoom?.zoom,onZoom(){const b=$('pwResetZoom');if(b)b.style.display=''}},
-pan:{...CHART_DEFAULTS.plugins.zoom?.pan,onPan(){const b=$('pwResetZoom');if(b)b.style.display=''}}
-};
 const c=getChartColors();
 pwChart=new Chart(canvas,{type:'line',data:{datasets},
 plugins:[crosshairPlugin],
 options:{...CHART_DEFAULTS,
-plugins:{...CHART_DEFAULTS.plugins,zoom:zoomOpts,
+plugins:{...CHART_DEFAULTS.plugins,
 legend:{...CHART_DEFAULTS.plugins.legend,labels:{...CHART_DEFAULTS.plugins.legend.labels,generateLabels:null}}},
 scales:{
 x:{...CHART_DEFAULTS.scales.x,grid:{...CHART_DEFAULTS.scales.x.grid,color:c.grid},border:{color:c.border},ticks:{...CHART_DEFAULTS.scales.x.ticks,color:c.tick}},
 y:{...CHART_DEFAULTS.scales.y,grid:{...CHART_DEFAULTS.scales.y.grid,color:c.grid},border:{color:c.border},ticks:{...CHART_DEFAULTS.scales.y.ticks,color:c.tick},
 title:{display:true,text:'кВт',color:c.tick,font:{family:'Outfit',size:11,weight:'500'},padding:{bottom:6}}}
 }}});
-const rb=$('pwResetZoom');if(rb)rb.style.display='none';
 pwChart.update();
-console.log('[PW] Chart created, datasets:',pwChart.data.datasets.length,', points per ds:',pwChart.data.datasets.map(d=>d.data.length));
 }
 // === END POWER CHART ===
+
+// === SMOOTH WHEEL ZOOM — continuous multiplicative zoom with DB reload ===
+var _zoomPresets=[1,6,24,168,720];
+var _zoomLabels={1:'1ч',6:'6ч',24:'24ч',168:'7д',720:'30д'};
+var _zoomMin=0.1,_zoomMax=720,_zoomFactor=0.85;
+var _wheelDebounceArc=null,_wheelDebouncePw=null;
+
+function _formatZoomLabel(h){
+  if(h<1){return Math.round(h*60)+'м'}
+  if(h<24){return (h%1<0.05||h%1>0.95)?Math.round(h)+'ч':h.toFixed(1)+'ч'}
+  var d=h/24;
+  return (d%1<0.05||d%1>0.95)?Math.round(d)+'д':d.toFixed(1)+'д';
+}
+
+function _updateZoomLabel(id,h){
+  var el=document.getElementById(id);if(!el)return;
+  var isPreset=_zoomPresets.some(function(p){return Math.abs(h-p)/p<0.01});
+  if(isPreset){el.classList.remove('vis')}
+  else{el.textContent='~'+_formatZoomLabel(h);el.classList.add('vis')}
+}
+
+function _highlightRangeBtn(container,hours){
+  var btns=document.querySelectorAll(container+' .arc-tb');
+  var matchLabel='';
+  for(var i=0;i<_zoomPresets.length;i++){
+    if(Math.abs(hours-_zoomPresets[i])/_zoomPresets[i]<0.01){matchLabel=_zoomLabels[_zoomPresets[i]];break}
+  }
+  btns.forEach(function(b){b.classList.toggle('on',b.textContent.trim()===matchLabel)});
+}
+
+function _smoothZoom(curH,deltaY){
+  var dir=deltaY<0?_zoomFactor:(1/_zoomFactor);
+  var newH=curH*dir;
+  newH=Math.max(_zoomMin,Math.min(_zoomMax,newH));
+  // Snap to preset if within 3%
+  for(var i=0;i<_zoomPresets.length;i++){
+    if(Math.abs(newH-_zoomPresets[i])/_zoomPresets[i]<0.03){newH=_zoomPresets[i];break}
+  }
+  return newH;
+}
+
+document.addEventListener('wheel',function(e){
+  var t=e.target;
+  if(!t||!t.closest)return;
+  // --- Power chart ---
+  if(t.id==='pwCanvas'||t.closest('#pwChartWrap')){
+    e.preventDefault();e.stopPropagation();
+    var newH=_smoothZoom(pwHours,e.deltaY);
+    if(newH===pwHours)return;
+    pwHours=newH;
+    _highlightRangeBtn('#m-pwchart',pwHours);
+    _updateZoomLabel('pwZoomLabel',pwHours);
+    // Instant visual feedback — adjust X-axis
+    if(pwChart&&pwChart.options&&pwChart.options.scales&&pwChart.options.scales.x){
+      var now=Date.now();
+      pwChart.options.scales.x.min=now-pwHours*3600000;
+      pwChart.options.scales.x.max=now;
+      pwChart.update('none');
+    }
+    clearTimeout(_wheelDebouncePw);
+    _wheelDebouncePw=setTimeout(function(){pwLoadChart()},400);
+    return;
+  }
+  // --- Archive chart ---
+  if(t.id==='arcCanvas'||t.closest('.arc-chart-wrap')){
+    e.preventDefault();e.stopPropagation();
+    if(!arcState.hours)arcState.hours=1; // fallback from custom range
+    var newH=_smoothZoom(arcState.hours,e.deltaY);
+    if(newH===arcState.hours)return;
+    arcState.hours=newH;
+    arcState.almPage=0;
+    dpState.arcFrom=null;dpState.arcTo=null;
+    var fb=$('arcFromBtn'),tb=$('arcToBtn');
+    if(fb){fb.textContent='📅 От';fb.classList.remove('has-val')}
+    if(tb){tb.textContent='📅 До';tb.classList.remove('has-val')}
+    _highlightRangeBtn('.arc-time',arcState.hours);
+    _updateZoomLabel('arcZoomLabel',arcState.hours);
+    // Instant visual feedback — adjust X-axis
+    if(arcChart&&arcChart.options&&arcChart.options.scales&&arcChart.options.scales.x){
+      var now=Date.now();
+      arcChart.options.scales.x.min=now-arcState.hours*3600000;
+      arcChart.options.scales.x.max=now;
+      arcChart.update('none');
+    }
+    clearTimeout(_wheelDebounceArc);
+    _wheelDebounceArc=setTimeout(function(){arcLoadChart();arcLoadAlarms()},400);
+    return;
+  }
+},{passive:false,capture:true});
 
 function arcRenderFieldStats(data,grp){
 const wrap=$('arcFieldStats');if(!wrap)return;
@@ -3539,8 +3613,10 @@ setInterval(_snHealthCheck,30000);
 <button class="arc-tb" onclick="pwRange(this,6)">6ч</button>
 <button class="arc-tb" onclick="pwRange(this,24)">24ч</button>
 <button class="arc-tb" onclick="pwRange(this,168)">7д</button>
+<button class="arc-tb" onclick="pwRange(this,720)">30д</button>
+<span id="pwZoomLabel" class="zoom-lbl"></span>
 </div>
-<div style="position:relative;height:350px"><canvas id="pwCanvas"></canvas><button id="pwResetZoom" class="arc-zoom-btn" onclick="pwResetZoom()" style="display:none">↩ Сбросить зум</button></div>
+<div style="position:relative;height:350px" id="pwChartWrap"><canvas id="pwCanvas"></canvas></div>
 </div>
 </div>
 </div>
