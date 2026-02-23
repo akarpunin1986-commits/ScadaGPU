@@ -646,12 +646,13 @@ async def parse_maintenance_file(req: ParseRequest):
 class ChatRequest(BaseModel):
     session_id: str = ""
     message: str
+    context: dict | None = None
 
 
 class ChatAction(BaseModel):
     tool: str = ""
     args: dict = {}
-    result: dict | None = None
+    result: dict | list | str | None = None
 
 
 class PendingAction(BaseModel):
@@ -747,6 +748,18 @@ async def sanek_chat(req: ChatRequest):
         logger.warning("Could not load chat history: %s", e)
         messages = [{"role": "user", "content": req.message}]
 
+    # Inject page context as system hint if provided
+    if req.context:
+        ctx_parts = []
+        if req.context.get("site_name"):
+            ctx_parts.append(f"объект: {req.context['site_name']}")
+        if req.context.get("view"):
+            view_labels = {"monitoring": "Мониторинг", "alarms": "Аварии", "archive": "Архив", "to": "ТО"}
+            ctx_parts.append(f"раздел: {view_labels.get(req.context['view'], req.context['view'])}")
+        if ctx_parts:
+            ctx_hint = {"role": "system", "content": f"[Контекст оператора] Пользователь сейчас смотрит: {', '.join(ctx_parts)}."}
+            messages.append(ctx_hint)
+
     # Check for pending action
     pending = _pending_actions.pop(session_id, None)
 
@@ -827,7 +840,7 @@ async def get_chat_history(
 
 @router.get("/chat/sessions")
 async def list_chat_sessions(limit: int = Query(20, ge=1, le=100)):
-    """List recent chat sessions."""
+    """List recent chat sessions with first user message preview."""
     from sqlalchemy import distinct, desc
     try:
         async with async_session() as session:
@@ -837,12 +850,31 @@ async def list_chat_sessions(limit: int = Query(20, ge=1, le=100)):
                     AiChatMessage.session_id,
                     sa.func.max(AiChatMessage.created_at).label("last_at"),
                     sa.func.count(AiChatMessage.id).label("msg_count"),
+                    sa.func.min(AiChatMessage.created_at).label("first_at"),
                 )
                 .group_by(AiChatMessage.session_id)
                 .order_by(desc("last_at"))
                 .limit(limit)
             )
             rows = result.all()
+
+            # Fetch first user message for each session (preview)
+            session_ids = [row.session_id for row in rows]
+            first_msgs: dict[str, str] = {}
+            if session_ids:
+                for sid in session_ids:
+                    fm = await session.execute(
+                        select(AiChatMessage.content)
+                        .where(
+                            AiChatMessage.session_id == sid,
+                            AiChatMessage.role == "user",
+                        )
+                        .order_by(AiChatMessage.created_at)
+                        .limit(1)
+                    )
+                    row_fm = fm.scalar_one_or_none()
+                    if row_fm:
+                        first_msgs[sid] = row_fm[:80]  # truncate preview
     except Exception as e:
         logger.error("Error listing chat sessions: %s", e)
         return {"sessions": []}
@@ -852,7 +884,23 @@ async def list_chat_sessions(limit: int = Query(20, ge=1, le=100)):
             "session_id": row.session_id,
             "last_at": row.last_at.isoformat() if row.last_at else "",
             "message_count": row.msg_count,
+            "first_message": first_msgs.get(row.session_id, ""),
         }
         for row in rows
     ]
     return {"sessions": sessions}
+
+
+@router.delete("/chat/sessions/{session_id}")
+async def delete_chat_session(session_id: str):
+    """Delete all messages for a chat session."""
+    try:
+        async with async_session() as session:
+            await session.execute(
+                sa.delete(AiChatMessage).where(AiChatMessage.session_id == session_id)
+            )
+            await session.commit()
+    except Exception as e:
+        logger.error("Error deleting chat session %s: %s", session_id, e)
+        return {"ok": False, "error": str(e)}
+    return {"ok": True}

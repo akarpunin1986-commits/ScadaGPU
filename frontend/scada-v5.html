@@ -337,7 +337,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 #sanekPanel{position:fixed;top:0;right:-420px;width:420px;height:100vh;background:#0c1021;border-left:1.5px solid #232d4a;z-index:998;transition:right .35s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;font-family:'Nunito',system-ui,sans-serif}
 #sanekPanel.open{right:0}
 .sn-hd{padding:14px 18px;border-bottom:1px solid #232d4a;display:flex;align-items:center;gap:12px;background:#141a2e}
-.sn-hd canvas{width:48px;height:48px;flex-shrink:0}
+.sn-hd canvas{width:72px;height:72px;flex-shrink:0;border-radius:50%}
 .sn-hd-info h3{font-size:16px;font-weight:800;color:#e8ecf4;margin:0}
 .sn-hd-status{font-size:11px;color:#4ade80;display:flex;align-items:center;gap:5px;position:relative}
 .sn-health-tip{position:absolute;top:100%;left:0;right:0;margin-top:6px;padding:10px 14px;background:#1c1030;border:1.5px solid #ff6b81;border-radius:12px;font-size:11.5px;line-height:1.5;color:#fca5a5;z-index:10;animation:snBubbleIn .3s ease;box-shadow:0 4px 20px rgba(255,107,129,.15);white-space:normal}
@@ -406,6 +406,46 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 [data-theme="light"] .sn-welcome h3{color:#1e293b}
 [data-theme="light"] .sn-welcome p{color:#64748b}
 [data-theme="light"] .sn-state-tag{color:#6d28d9}
+/* --- Sanek: History dropdown + Counter --- */
+.sn-hd-top{display:flex;align-items:center;gap:8px;position:relative}
+.sn-hist-btn{background:none;border:1.5px solid #232d4a;border-radius:10px;padding:5px 10px;color:#6b7a9e;cursor:pointer;font-size:11px;transition:all .2s;display:flex;align-items:center;gap:4px}
+.sn-hist-btn:hover{border-color:rgba(93,228,255,.3);color:#e8ecf4}
+.sn-hist-btn.active{border-color:#5de4ff;color:#5de4ff}
+.sn-counter{font-size:10px;color:#6b7a9e;font-family:'Space Mono',monospace;padding:2px 7px;border-radius:8px;background:rgba(93,228,255,.06);border:1px solid rgba(93,228,255,.1);white-space:nowrap;display:none}
+.sn-counter.vis{display:inline-block}
+.sn-counter.warn{color:#ffbe4a;border-color:rgba(255,190,74,.2);background:rgba(255,190,74,.06)}
+.sn-counter.crit{color:#ff6b81;border-color:rgba(255,107,129,.2);background:rgba(255,107,129,.06)}
+.sn-hist{max-height:0;overflow:hidden;background:#141a2e;border-bottom:1px solid transparent;transition:max-height .3s ease,border-color .3s}
+.sn-hist.open{max-height:55vh;overflow-y:auto;border-color:#232d4a}
+.sn-hist-hd{padding:10px 14px;border-bottom:1px solid #232d4a;display:flex;align-items:center;justify-content:space-between}
+.sn-hist-hd span{font-size:12px;font-weight:700;color:#e8ecf4}
+.sn-hist-hd button{background:none;border:none;color:#6b7a9e;cursor:pointer;font-size:11px}
+.sn-hist-hd button:hover{color:#5de4ff}
+.sn-hist-list{padding:6px}
+.sn-hist-item{padding:10px 12px;border-radius:10px;cursor:pointer;transition:background .2s;display:flex;align-items:center;gap:10px}
+.sn-hist-item:hover{background:rgba(93,228,255,.06)}
+.sn-hist-item.active{background:rgba(93,228,255,.1);border:1px solid rgba(93,228,255,.15)}
+.sn-hist-item .sn-hi-icon{width:28px;height:28px;border-radius:8px;background:rgba(93,228,255,.08);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.sn-hist-item .sn-hi-body{flex:1;min-width:0}
+.sn-hist-item .sn-hi-title{font-size:12px;color:#e8ecf4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.sn-hist-item .sn-hi-meta{font-size:10px;color:#6b7a9e;margin-top:2px;display:flex;gap:8px}
+.sn-hi-del{background:none;border:none;cursor:pointer;font-size:12px;padding:4px 6px;border-radius:6px;opacity:0;transition:opacity .2s,background .2s;flex-shrink:0}
+.sn-hist-item:hover .sn-hi-del{opacity:.6}
+.sn-hi-del:hover{opacity:1!important;background:rgba(255,107,129,.12)}
+.sn-hist-empty{padding:24px;text-align:center;color:#6b7a9e;font-size:12px}
+.sn-ctx-badge{font-size:9px;padding:2px 6px;border-radius:6px;background:rgba(93,228,255,.08);color:#5de4ff;border:1px solid rgba(93,228,255,.1);white-space:nowrap;display:inline-block;margin-left:6px}
+[data-theme="light"] .sn-hist-btn{border-color:#d1d5db;color:#64748b}
+[data-theme="light"] .sn-hist-btn:hover{border-color:rgba(109,40,217,.3);color:#1e293b}
+[data-theme="light"] .sn-hist-btn.active{border-color:#6d28d9;color:#6d28d9}
+[data-theme="light"] .sn-counter{color:#64748b;background:rgba(109,40,217,.04);border-color:rgba(109,40,217,.1)}
+[data-theme="light"] .sn-hist{background:#fff;border-color:#e2e8f0}
+[data-theme="light"] .sn-hist-hd{border-color:#e2e8f0}
+[data-theme="light"] .sn-hist-hd span{color:#1e293b}
+[data-theme="light"] .sn-hist-item:hover{background:rgba(109,40,217,.04)}
+[data-theme="light"] .sn-hist-item.active{background:rgba(109,40,217,.06);border-color:rgba(109,40,217,.12)}
+[data-theme="light"] .sn-hist-item .sn-hi-title{color:#1e293b}
+[data-theme="light"] .sn-hist-item .sn-hi-meta{color:#64748b}
+[data-theme="light"] .sn-ctx-badge{background:rgba(109,40,217,.04);color:#6d28d9;border-color:rgba(109,40,217,.1)}
 </style></head><body>
 <div class="app">
 <div class="sb"><div class="sb-hd">
@@ -1169,7 +1209,7 @@ function R(a,b){return+(a+Math.random()*(b-a)).toFixed(1)}function RI(a,b){retur
 function now(){return new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
 let curView='monitoring';
 function renderSB(){const k=Object.keys(S);$('sbSites').innerHTML=k.length?k.map(id=>{const s=S[id],active=id===cur;return`<div class="sb-tree${active?' open':''}"><div class="si${active?' on':''}" onclick="sel('${id}')"><span class="si-arrow">${active?'▼':'▶'}</span><span class="si-name">${esc(s.name)}</span><div class="si-acts"><button class="si-btn" onclick="event.stopPropagation();openEdit('${id}')">✏</button><button class="si-btn del" onclick="event.stopPropagation();openDel('${id}')">✕</button></div></div>${active?`<div class="sb-sub"><button class="sb-sub-btn${curView==='monitoring'?' on':''}" onclick="event.stopPropagation();curView='monitoring';renderDash();renderSB()">⚡ Мониторинг</button><button class="sb-sub-btn${curView==='alarms'?' on':''}" onclick="event.stopPropagation();curView='alarms';showAlarms();renderSB()">🚨 Аварии</button><button class="sb-sub-btn${curView==='archive'?' on':''}" onclick="event.stopPropagation();curView='archive';showArchive('${id}');renderSB()">📊 Архив</button><button class="sb-sub-btn${curView==='to'?' on':''}" onclick="event.stopPropagation();curView='to';openTOTemplates();renderSB()">📋 ТО</button></div>`:''}</div>`}).join(''):'<div style="padding:20px;text-align:center;font-size:11px;color:var(--t4)">Нет объектов. Нажмите «+ Объект»</div>'}
-function sel(id){archiveMode=false;curView='monitoring';cur=id;sv();renderSB();renderDash()}
+function sel(id){archiveMode=false;curView='monitoring';cur=id;sv();renderSB();renderDash();if(_snOpen)_snUpdateCtxBadge()}
 function openAddSite(){editId=null;$('smT').textContent='Новый объект';$('fN').value='';$('fC').value='';$('fC').disabled=false;$('fD').value='';populateRespSelect('');$('smA').innerHTML='<button class="bp" onclick="saveSite()">Создать</button>';showM('site')}
 function openEdit(id){editId=id;const s=S[id];$('smT').textContent='Редактировать: '+s.name;$('fN').value=s.name;$('fC').value=id;$('fC').disabled=true;$('fD').value=s.desc||'';populateRespSelect(s.responsible||'');$('smA').innerHTML=`<div style="display:flex;gap:8px"><button class="bp" style="flex:1" onclick="saveSite()">Сохранить</button><button class="bdn" style="flex:0;padding:10px 16px" onclick="hideM('site');openDel('${id}')">🗑</button></div>`;showM('site')}
 async function saveSite(){const n=$('fN').value.trim(),c=$('fC').value.trim().toLowerCase().replace(/[^a-z0-9_-]/g,''),d=$('fD').value.trim(),resp=$('fResp').value;if(!n||!c){ae('⚠ Укажите название и код');return}if(!editId&&S[c]){ae('⚠ Объект с кодом «'+c+'» уже существует');return}if(editId){S[editId].name=n;S[editId].desc=d;S[editId].responsible=resp;ae('✏ '+n);
@@ -3183,7 +3223,7 @@ else ae('❌ Ошибка: '+(r.error||'unknown'))}
 catch(e){ae('❌ '+e.message)}}
 
 // ===================== SANEK CHAT + AVATAR =====================
-var _snOpen=false,_snSid=null,_snSending=false;
+var _snOpen=false,_snSid=null,_snSending=false,_snMsgCount=0,_snHistOpen=false;
 
 // === SANEK AVATAR ENGINE (from sanek_v4) ===
 var _sn={
@@ -3341,7 +3381,7 @@ function _snDraw(){
   if(wc&&wc.offsetParent!==null){var ctx=wc.getContext('2d');ctx.clearRect(0,0,320,320);ctx.save();ctx.translate(160,170+fY+S.bounceY*.6);ctx.rotate(S.readingNod);ctx.scale(S.squishX*.55,S.squishY*.55);_snDrawBody(ctx,0,0,.55);ctx.restore()}
   // Header mini canvas
   var mc=$('snMiniCanvas');
-  if(mc&&mc.offsetParent!==null){var ctx2=mc.getContext('2d');ctx2.clearRect(0,0,96,96);ctx2.save();ctx2.translate(48,52);ctx2.scale(.16,.16);_snDrawBody(ctx2,0,0,.16);ctx2.restore()}
+  if(mc&&mc.offsetParent!==null){var ctx2=mc.getContext('2d');ctx2.clearRect(0,0,192,192);ctx2.save();ctx2.translate(96,104);ctx2.scale(.30,.30);_snDrawBody(ctx2,0,0,.30);ctx2.restore()}
   // Button canvas
   var bc=$('snBtnCanvas');
   if(bc){var ctx3=bc.getContext('2d');ctx3.clearRect(0,0,128,128);ctx3.save();ctx3.translate(64,68+fY*.3);ctx3.scale(.22,.22);_snDrawBody(ctx3,0,0,.22);ctx3.restore()}
@@ -3363,12 +3403,15 @@ _snDraw();
 function toggleSanek(){
   _snOpen=!_snOpen;
   $('sanekPanel').classList.toggle('open',_snOpen);
-  if(_snOpen)$('sanekInput').focus();
+  if(_snOpen){$('sanekInput').focus();_snUpdateCtxBadge()}
+  if(!_snOpen&&_snHistOpen)_snToggleHistory();
 }
 
 function sanekNewSession(){
-  _snSid=null;snSetState('idle');
+  _snSid=null;_snMsgCount=0;_snUpdateCounter();snSetState('idle');
+  if(_snHistOpen)_snToggleHistory();
   $('sanekMessages').innerHTML='<div class="sn-welcome"><div class="sn-welcome-avatar"><div class="sn-welcome-glow"></div><canvas id="snWelcomeCanvas" width="320" height="320"></canvas></div><div class="sn-state-tag" id="snStateTag">готов — жду команды</div><h3>Привет! Я — Санёк</h3><p>AI-ассистент вашей СКАДА-системы.<br>Спроси о состоянии генераторов, авариях,<br>ТО или дай команду управления.</p><div class="sn-hints"><button class="sn-hint" onclick="sanekHint(this)">📊 Какие объекты и устройства есть?</button><button class="sn-hint" onclick="sanekHint(this)">⚡ Покажи текущую мощность генераторов</button><button class="sn-hint" onclick="sanekHint(this)">🚨 Есть активные аварии?</button><button class="sn-hint" onclick="sanekHint(this)">📋 Дай общую сводку по системе</button></div></div>';
+  _snUpdateCtxBadge();
 }
 
 function sanekHint(el){
@@ -3377,8 +3420,9 @@ function sanekHint(el){
 }
 
 // Typing detection — switches avatar to reading state
-(function(){
-  var _snTypingTimeout=null;
+// NOTE: attached via setTimeout(0) because sanekInput is below this script in DOM
+var _snTypingTimeout=null;
+function _snInitTypingDetection(){
   var inp=$('sanekInput');
   if(!inp)return;
   inp.addEventListener('input',function(){
@@ -3389,7 +3433,8 @@ function sanekHint(el){
   });
   inp.addEventListener('focus',function(){if(inp.value.length>0&&_sn.state==='idle')snSetState('reading')});
   inp.addEventListener('blur',function(){if(_sn.state==='reading')setTimeout(function(){if(_sn.state==='reading')snSetState('idle')},500)});
-})();
+}
+// _snInitTypingDetection() called from <script> after sanekInput in DOM
 
 function _snAddMsg(role,text){
   var msgs=$('sanekMessages');
@@ -3477,9 +3522,13 @@ async function _snSendMessage(text){
   try{
     var body={message:text};
     if(_snSid)body.session_id=_snSid;
+    var ctx=_snGetContext();
+    if(ctx.site)body.context={site:ctx.site,site_name:ctx.siteName,view:ctx.view};
+    _snMsgCount++;_snUpdateCounter();
     var r=await api.post('/api/ai/chat',body);
     _snHideTyping();
     if(r.session_id)_snSid=r.session_id;
+    _snMsgCount++;_snUpdateCounter();
     if(r.actions&&r.actions.length)_snShowActions(r.actions);
     if(r.message){
       // Detect error messages from backend by their emoji prefixes
@@ -3515,6 +3564,135 @@ async function _snSendMessage(text){
     snSetState('alert');setTimeout(function(){if(_sn.state==='alert')snSetState('idle')},5000);
   }finally{
     _snSending=false;$('sanekSendBtn').disabled=false;
+  }
+}
+
+// === MESSAGE COUNTER ===
+function _snUpdateCounter(){
+  var el=$('snMsgCounter');if(!el)return;
+  if(_snMsgCount<1){el.classList.remove('vis','warn','crit');return}
+  el.textContent=_snMsgCount+' сбщ';
+  el.classList.add('vis');
+  el.classList.toggle('warn',_snMsgCount>=30&&_snMsgCount<45);
+  el.classList.toggle('crit',_snMsgCount>=45);
+}
+
+// === PAGE CONTEXT BADGE ===
+function _snGetContext(){
+  var ctx={site:null,siteName:null,view:null};
+  if(typeof cur!=='undefined'&&cur&&typeof S!=='undefined'&&S[cur]){
+    ctx.site=cur;ctx.siteName=S[cur].name;
+  }
+  if(typeof curView!=='undefined'&&curView){ctx.view=curView}
+  return ctx;
+}
+
+function _snUpdateCtxBadge(){
+  var el=$('snCtxBadge');if(!el)return;
+  var ctx=_snGetContext();
+  if(!ctx.siteName){el.style.display='none';return}
+  var viewLabel={'monitoring':'Мониторинг','alarms':'Аварии','archive':'Архив','to':'ТО'}[ctx.view]||'';
+  el.textContent=ctx.siteName+(viewLabel?' · '+viewLabel:'');
+  el.style.display='inline-block';
+}
+
+// === HISTORY PANEL ===
+function _snToggleHistory(){
+  _snHistOpen=!_snHistOpen;
+  var panel=$('snHistPanel'),btn=$('snHistBtn');
+  if(panel)panel.classList.toggle('open',_snHistOpen);
+  if(btn)btn.classList.toggle('active',_snHistOpen);
+  if(_snHistOpen)_snLoadSessions();
+}
+
+async function _snLoadSessions(){
+  var list=$('snHistList');if(!list)return;
+  list.innerHTML='<div class="sn-hist-empty">Загрузка...</div>';
+  try{
+    var r=await api.get('/api/ai/chat/sessions?limit=30');
+    if(!r.sessions||!r.sessions.length){
+      list.innerHTML='<div class="sn-hist-empty">Нет сохранённых чатов</div>';
+      return;
+    }
+    var html='';
+    for(var i=0;i<r.sessions.length;i++){
+      var s=r.sessions[i];
+      var isActive=_snSid&&s.session_id===_snSid;
+      var dt=s.last_at?_snFmtDate(s.last_at):'';
+      var preview=s.first_message||('Сессия '+s.session_id);
+      html+='<div class="sn-hist-item'+(isActive?' active':'')+'" onclick="_snLoadSession(\''+s.session_id+'\')">'
+        +'<div class="sn-hi-icon">'+(isActive?'💬':'🗨')+'</div>'
+        +'<div class="sn-hi-body">'
+        +'<div class="sn-hi-title">'+_snEsc(preview)+'</div>'
+        +'<div class="sn-hi-meta"><span>'+dt+'</span><span>'+s.message_count+' сбщ</span></div>'
+        +'</div>'
+        +'<button class="sn-hi-del" onclick="event.stopPropagation();_snDeleteSession(\''+s.session_id+'\')" title="Удалить чат">🗑</button>'
+        +'</div>';
+    }
+    list.innerHTML=html;
+  }catch(e){
+    list.innerHTML='<div class="sn-hist-empty">Ошибка загрузки: '+(e.message||'')+'</div>';
+  }
+}
+
+function _snFmtDate(iso){
+  try{
+    var d=new Date(iso);
+    var now=new Date();
+    var hh=String(d.getHours()).padStart(2,'0');
+    var mm=String(d.getMinutes()).padStart(2,'0');
+    var isToday=d.toDateString()===now.toDateString();
+    if(isToday)return 'Сегодня '+hh+':'+mm;
+    var yesterday=new Date(now);yesterday.setDate(yesterday.getDate()-1);
+    if(d.toDateString()===yesterday.toDateString())return 'Вчера '+hh+':'+mm;
+    var dd=String(d.getDate()).padStart(2,'0');
+    var mo=String(d.getMonth()+1).padStart(2,'0');
+    return dd+'.'+mo+' '+hh+':'+mm;
+  }catch(e){return iso}
+}
+
+function _snEsc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+async function _snLoadSession(sid){
+  if(sid===_snSid){_snToggleHistory();return}
+  _snSid=sid;_snMsgCount=0;
+  if(_snHistOpen)_snToggleHistory();
+  var msgs=$('sanekMessages');
+  var welcome=msgs.querySelector('.sn-welcome');if(welcome)welcome.remove();
+  msgs.innerHTML='<div class="sn-hist-empty">Загрузка истории...</div>';
+  snSetState('thinking');
+  try{
+    var r=await api.get('/api/ai/chat/history?session_id='+sid+'&limit=100');
+    msgs.innerHTML='';
+    if(r.messages&&r.messages.length){
+      for(var i=0;i<r.messages.length;i++){
+        var m=r.messages[i];
+        if(m.role==='user'||m.role==='assistant'||m.role==='error'){
+          _snAddMsg(m.role==='error'?'error':m.role,m.content);
+          _snMsgCount++;
+        }
+      }
+    }else{
+      msgs.innerHTML='<div class="sn-hist-empty">Пустая сессия</div>';
+    }
+    _snUpdateCounter();
+    snSetState('idle');
+  }catch(e){
+    msgs.innerHTML='';
+    _snAddMsg('error','Не удалось загрузить историю: '+(e.message||''));
+    snSetState('alert');
+  }
+}
+
+async function _snDeleteSession(sid){
+  if(!confirm('Удалить этот чат?'))return;
+  try{
+    await api.del('/api/ai/chat/sessions/'+sid);
+    // If deleted session is current — reset to new chat
+    if(_snSid===sid)sanekNewSession();
+    _snLoadSessions();
+  }catch(e){
+    alert('Ошибка удаления: '+(e.message||''));
   }
 }
 
@@ -3559,6 +3737,7 @@ async function _snHealthCheck(){
 
 setTimeout(_snHealthCheck,2000);
 setInterval(_snHealthCheck,30000);
+setTimeout(_snUpdateCtxBadge,500);
 </script>
 <script src="/alarm_modal.js"></script>
 <!-- Power Limit Modal -->
@@ -3626,13 +3805,18 @@ setInterval(_snHealthCheck,30000);
 <!-- Sanek Chat Panel -->
 <div id="sanekPanel">
 <div class="sn-hd">
-<canvas id="snMiniCanvas" width="96" height="96"></canvas>
+<canvas id="snMiniCanvas" width="192" height="192"></canvas>
 <div style="flex:1">
-<div class="sn-hd-info"><h3>Санёк</h3></div>
+<div class="sn-hd-info"><h3>Санёк</h3> <span class="sn-counter" id="snMsgCounter"></span> <span class="sn-ctx-badge" id="snCtxBadge" style="display:none"></span></div>
 <div class="sn-hd-status" id="snStatusRow" onclick="_snShowHealthDetail()" style="cursor:pointer" title="Нажмите для подробностей"><div class="sn-hd-dot" id="snStatusDot"></div> <span id="snStatusText">готов — жду команды</span></div>
 </div>
-<button onclick="sanekNewSession()" style="background:none;border:1.5px solid #232d4a;border-radius:10px;padding:5px 10px;color:#6b7a9e;cursor:pointer;font-size:11px;transition:all .2s" title="Новая сессия">🔄</button>
+<button class="sn-hist-btn" id="snHistBtn" onclick="_snToggleHistory()" title="История чатов">📋</button>
+<button onclick="sanekNewSession()" style="background:none;border:1.5px solid #232d4a;border-radius:10px;padding:5px 10px;color:#6b7a9e;cursor:pointer;font-size:11px;transition:all .2s" title="Новый чат">✨</button>
 <button onclick="toggleSanek()" style="background:none;border:none;color:#6b7a9e;cursor:pointer;font-size:20px;padding:4px 8px;transition:color .2s" onmouseover="this.style.color='#ff6b81'" onmouseout="this.style.color='#6b7a9e'">&times;</button>
+</div>
+<div class="sn-hist" id="snHistPanel">
+<div class="sn-hist-hd"><span>История чатов</span><button onclick="_snToggleHistory()">✕ закрыть</button></div>
+<div class="sn-hist-list" id="snHistList"><div class="sn-hist-empty">Загрузка...</div></div>
 </div>
 <div class="sn-msgs" id="sanekMessages">
 <div class="sn-welcome">
@@ -3653,4 +3837,5 @@ setInterval(_snHealthCheck,30000);
 <button class="sn-send-btn" id="sanekSendBtn" onclick="sendToSanek()"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
 </div>
 </div>
+<script>_snInitTypingDetection();</script>
 </body></html>
