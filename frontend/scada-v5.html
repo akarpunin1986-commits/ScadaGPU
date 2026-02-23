@@ -441,6 +441,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 [data-theme="light"] .sn-hist-item .sn-hi-title{color:#1e293b}
 [data-theme="light"] .sn-hist-item .sn-hi-meta{color:#64748b}
 [data-theme="light"] .sn-ctx-badge{background:rgba(109,40,217,.04);color:#6d28d9;border-color:rgba(109,40,217,.1)}
+[data-theme="light"] .sn-send-btn{background:linear-gradient(135deg,#6d28d9,#4f46e5)}
+[data-theme="light"] .sn-send-btn:hover{box-shadow:0 0 20px rgba(109,40,217,.3)}
+[data-theme="light"] .sn-send-btn svg{fill:#fff}
+[data-theme="light"] .sn-pending-btns .sn-yes{background:linear-gradient(135deg,#6d28d9,#4f46e5);color:#fff}
+[data-theme="light"] .sn-typing span{background:#6d28d9}
+[data-theme="light"] .sn-hist-hd button:hover{color:#6d28d9}
+[data-theme="light"] .sn-hist-item .sn-hi-icon{background:rgba(109,40,217,.08)}
 </style></head><body>
 <div class="app">
 <div class="sb"><div class="sb-hd">
@@ -564,6 +571,7 @@ html.setAttribute('data-theme',next);
 localStorage.setItem('s5theme',next);
 updateThemeBtn();
 updateChartTheme();
+if(typeof _snUpdateThemeColors==='function')_snUpdateThemeColors();
 }
 function updateThemeBtn(){
 const btn=$('themeBtn');if(!btn)return;
@@ -3231,19 +3239,44 @@ var _sn={
   tColor:{r:93,g:228,b:255}
 };
 
-var _snColors={
+var _snColorsDark={
   idle:{r:93,g:228,b:255},reading:{r:251,g:146,b:60},listening:{r:255,g:190,b:74},
   thinking:{r:167,g:139,b:250},alert:{r:255,g:107,b:129},success:{r:74,g:222,b:128},sleeping:{r:100,g:116,b:139}
 };
+var _snColorsLight={
+  idle:{r:109,g:40,b:217},reading:{r:217,g:119,b:6},listening:{r:180,g:83,b:9},
+  thinking:{r:79,g:70,b:229},alert:{r:220,g:38,b:38},success:{r:5,g:150,b:105},sleeping:{r:100,g:116,b:139}
+};
+var _snGlowsDark={
+  idle:'rgba(93,228,255,.15)',reading:'rgba(251,146,60,.18)',listening:'rgba(255,190,74,.2)',
+  thinking:'rgba(167,139,250,.15)',alert:'rgba(255,107,129,.15)',success:'rgba(74,222,128,.2)',sleeping:'rgba(100,116,139,.06)'
+};
+var _snGlowsLight={
+  idle:'rgba(109,40,217,.15)',reading:'rgba(217,119,6,.18)',listening:'rgba(180,83,9,.2)',
+  thinking:'rgba(79,70,229,.15)',alert:'rgba(220,38,38,.15)',success:'rgba(5,150,105,.2)',sleeping:'rgba(100,116,139,.06)'
+};
+var _snTagColorsDark={idle:'#5de4ff',reading:'#fb923c',listening:'#ffbe4a',thinking:'#a78bfa',alert:'#ff6b81',success:'#4ade80',sleeping:'#64748b'};
+var _snTagColorsLight={idle:'#6d28d9',reading:'#d97706',listening:'#b45309',thinking:'#4f46e5',alert:'#dc2626',success:'#059669',sleeping:'#64748b'};
+var _snColors=_snColorsDark,_snGlows=_snGlowsDark,_snTagColors=_snTagColorsDark;
 var _snLabels={
   idle:'готов — жду команды',reading:'читаю — вижу что пишешь...',listening:'слушаю — говори...',
   thinking:'думаю — анализирую...',alert:'ошибка — требуется внимание',success:'готово — задача выполнена!',sleeping:'сон — нет подключения'
 };
-var _snGlows={
-  idle:'rgba(93,228,255,.15)',reading:'rgba(251,146,60,.18)',listening:'rgba(255,190,74,.2)',
-  thinking:'rgba(167,139,250,.15)',alert:'rgba(255,107,129,.15)',success:'rgba(74,222,128,.2)',sleeping:'rgba(100,116,139,.06)'
-};
-var _snTagColors={idle:'#5de4ff',reading:'#fb923c',listening:'#ffbe4a',thinking:'#a78bfa',alert:'#ff6b81',success:'#4ade80',sleeping:'#64748b'};
+var _snIsLightTheme=false;
+function _snUpdateThemeColors(){
+  var lt=document.documentElement.getAttribute('data-theme')==='light';
+  _snIsLightTheme=lt;
+  _snColors=lt?_snColorsLight:_snColorsDark;
+  _snGlows=lt?_snGlowsLight:_snGlowsDark;
+  _snTagColors=lt?_snTagColorsLight:_snTagColorsDark;
+  var tc={..._snColors[_sn.state]};
+  _sn.tColor=tc;
+  _sn.color={r:tc.r,g:tc.g,b:tc.b};
+  // Update status UI colors
+  var st=$('snStatusText');if(st)st.style.color=_snTagColors[_sn.state];
+  var dot=$('snStatusDot');if(dot){dot.style.background=_snTagColors[_sn.state];dot.style.boxShadow='0 0 6px '+_snTagColors[_sn.state]}
+  var hds=document.querySelector('.sn-hd-status');if(hds)hds.style.color=_snTagColors[_sn.state];
+}
 
 function _snLerp(a,b,t){return a+(b-a)*t}
 function _snLerpC(c,t,s){c.r=_snLerp(c.r,t.r,s);c.g=_snLerp(c.g,t.g,s);c.b=_snLerp(c.b,t.b,s)}
@@ -3275,11 +3308,13 @@ function _snDrawBody(c,ox,oy,s){
   c.fillStyle=tG;c.beginPath();c.arc(tx,ty,tr*3,0,Math.PI*2);c.fill();
   c.fillStyle=_snRgb(col);c.beginPath();c.arc(tx,ty,tr,0,Math.PI*2);c.fill();c.restore();
   // Head
-  var hG=c.createRadialGradient(ox-30,oy-40,0,ox,oy,headR);hG.addColorStop(0,'#232f52');hG.addColorStop(1,'#131a2f');
+  var hG=c.createRadialGradient(ox-30,oy-40,0,ox,oy,headR);
+  if(_snIsLightTheme){hG.addColorStop(0,'#232f52');hG.addColorStop(1,'#131a2f')}
+  else{hG.addColorStop(0,'#e8ecf4');hG.addColorStop(1,'#d0d5e3')}
   c.fillStyle=hG;c.beginPath();c.ellipse(ox,oy,headR,headR*.95,0,0,Math.PI*2);c.fill();
-  var hlG=c.createRadialGradient(ox-40,oy-50,0,ox-40,oy-50,headR*.8);hlG.addColorStop(0,'rgba(255,255,255,.07)');hlG.addColorStop(1,'rgba(255,255,255,0)');
+  var hlG=c.createRadialGradient(ox-40,oy-50,0,ox-40,oy-50,headR*.8);hlG.addColorStop(0,_snIsLightTheme?'rgba(255,255,255,.07)':'rgba(255,255,255,.25)');hlG.addColorStop(1,'rgba(255,255,255,0)');
   c.fillStyle=hlG;c.beginPath();c.ellipse(ox,oy,headR,headR*.95,0,0,Math.PI*2);c.fill();
-  c.strokeStyle=_snRgb(col,.2);c.lineWidth=2.5;c.beginPath();c.ellipse(ox,oy,headR,headR*.95,0,0,Math.PI*2);c.stroke();
+  c.strokeStyle=_snRgb(col,_snIsLightTheme?.2:.3);c.lineWidth=2.5;c.beginPath();c.ellipse(ox,oy,headR,headR*.95,0,0,Math.PI*2);c.stroke();
   // Cheeks
   var cA=S.state==='success'?.2:S.state==='listening'?.15:S.state==='reading'?.1:.06;
   [-1,1].forEach(function(side){
@@ -3292,7 +3327,7 @@ function _snDrawBody(c,ox,oy,s){
     var ex=ox+side*eS+S.eyeX,ey=eY+S.eyeY;
     var sW=S.state==='listening'?52:S.state==='reading'?48:46;
     var sH=S.state==='listening'?52:S.state==='reading'?44:46;
-    c.fillStyle='rgba(0,8,24,.6)';c.beginPath();c.ellipse(ex,ey,sW,sH*S.blinkOpen,0,0,Math.PI*2);c.fill();
+    c.fillStyle=_snIsLightTheme?'rgba(0,8,24,.6)':'rgba(0,8,24,.12)';c.beginPath();c.ellipse(ex,ey,sW,sH*S.blinkOpen,0,0,Math.PI*2);c.fill();
     if(S.blinkOpen>.15){
       var iR=S.state==='listening'?28:S.state==='alert'?22:S.state==='reading'?22:24;
       var iG=c.createRadialGradient(ex,ey,0,ex,ey,iR*1.8);iG.addColorStop(0,_snRgb(col,.4));iG.addColorStop(1,_snRgb(col,0));
@@ -3386,6 +3421,7 @@ document.addEventListener('mousemove',function(e){
 });
 
 // Start avatar loop
+_snUpdateThemeColors();
 _snDraw();
 
 // === CHAT LOGIC ===
