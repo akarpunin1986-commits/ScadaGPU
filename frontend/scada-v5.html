@@ -3114,7 +3114,7 @@ var _snColors={
 };
 var _snLabels={
   idle:'готов — жду команды',reading:'читаю — вижу что пишешь...',listening:'слушаю — говори...',
-  thinking:'думаю — анализирую...',alert:'внимание — требуется действие',success:'готово — задача выполнена!',sleeping:'сон — нет подключения'
+  thinking:'думаю — анализирую...',alert:'ошибка — требуется внимание',success:'готово — задача выполнена!',sleeping:'сон — нет подключения'
 };
 var _snGlows={
   idle:'rgba(93,228,255,.15)',reading:'rgba(251,146,60,.18)',listening:'rgba(255,190,74,.2)',
@@ -3129,7 +3129,9 @@ function _snRgb(c,a){return a!==undefined?`rgba(${Math.round(c.r)},${Math.round(
 function snSetState(state){
   _sn.state=state;_sn.tColor={..._snColors[state]};_sn.emotionT=0;
   var tag=$('snStateTag');if(tag){tag.textContent=_snLabels[state];tag.style.color=_snTagColors[state]}
-  var st=$('snStatusText');if(st)st.textContent=_snLabels[state];
+  var st=$('snStatusText');if(st){st.textContent=_snLabels[state];st.style.color=_snTagColors[state]}
+  var dot=$('snStatusDot');if(dot){dot.style.background=_snTagColors[state];dot.style.boxShadow='0 0 6px '+_snTagColors[state]}
+  var hds=document.querySelector('.sn-hd-status');if(hds)hds.style.color=_snTagColors[state];
   var glow=document.querySelector('.sn-welcome-glow');if(glow)glow.style.background='radial-gradient(circle,'+_snGlows[state]+' 0%,transparent 70%)';
   var bg=document.querySelector('.sn-btn-glow');if(bg)bg.style.background='radial-gradient(circle,'+_snGlows[state]+' 0%,transparent 70%)';
   _sn.tSquishX=1.12;_sn.tSquishY=.9;
@@ -3490,7 +3492,7 @@ async function _snSendMessage(text){
 <canvas id="snMiniCanvas" width="96" height="96"></canvas>
 <div style="flex:1">
 <div class="sn-hd-info"><h3>Санёк</h3></div>
-<div class="sn-hd-status"><div class="sn-hd-dot"></div> <span id="snStatusText">онлайн — жду команды</span></div>
+<div class="sn-hd-status"><div class="sn-hd-dot" id="snStatusDot"></div> <span id="snStatusText">готов — жду команды</span></div>
 </div>
 <button onclick="sanekNewSession()" style="background:none;border:1.5px solid #232d4a;border-radius:10px;padding:5px 10px;color:#6b7a9e;cursor:pointer;font-size:11px;transition:all .2s" title="Новая сессия">🔄</button>
 <button onclick="toggleSanek()" style="background:none;border:none;color:#6b7a9e;cursor:pointer;font-size:20px;padding:4px 8px;transition:color .2s" onmouseover="this.style.color='#ff6b81'" onmouseout="this.style.color='#6b7a9e'">&times;</button>
