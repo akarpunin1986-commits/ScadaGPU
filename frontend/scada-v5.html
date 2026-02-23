@@ -86,6 +86,10 @@ body{background:var(--bg);color:var(--t);font-family:var(--u);height:100vh;overf
 .qb.q-auto:hover{border-color:var(--b);color:var(--b);background:var(--bb)}
 .qb.q-manual:hover{border-color:var(--y);color:var(--y);background:var(--yd)}
 .qb.q-danger{border-color:rgba(255,64,96,.3);color:var(--r);background:var(--rd)}.qb.q-danger:hover{background:rgba(255,64,96,.2);border-color:var(--r)}
+.qb.q-start.on{border-color:var(--g);color:var(--g);background:var(--gd);font-weight:700;box-shadow:0 0 6px rgba(0,224,154,.15)}
+.qb.q-stop.on{border-color:var(--r);color:var(--r);background:var(--rd);font-weight:700;box-shadow:0 0 6px rgba(255,64,96,.15)}
+.qb.q-auto.on{border-color:var(--b);color:var(--b);background:var(--bb);font-weight:700;box-shadow:0 0 6px rgba(29,78,216,.15)}
+.qb.q-manual.on{border-color:var(--y);color:var(--y);background:var(--yd);font-weight:700;box-shadow:0 0 6px rgba(255,176,32,.15)}
 .cmd-st{margin-top:6px;padding:5px 10px;border-radius:6px;font-size:10px;font-family:var(--m);background:var(--gd);color:var(--g);display:none;text-align:center}.cmd-st.sh{display:block}
 .to-block{margin-top:3px;padding:4px 7px;background:var(--ov);border:1px solid var(--bd);border-radius:var(--rs);cursor:pointer;transition:all .2s}.to-block:hover{border-color:var(--bd2)}
 .to-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}.to-name{font-size:10px;font-weight:600;font-family:var(--m)}.to-g{color:var(--g)}.to-y{color:var(--y)}.to-r{color:var(--r)}.to-remain{font-size:9px;font-family:var(--m);color:var(--t3)}
@@ -1694,6 +1698,7 @@ const kvs=card.querySelectorAll('.kv');
 if(on&&isOnline){kvs[0].className='kv vg';kvs[0].innerHTML=p.toFixed(1)+'<span class="ku">кВт</span>';kvs[1].className='kv vn';kvs[1].innerHTML=u.toFixed(0)+'<span class="ku">В</span>';kvs[2].className='kv vn';kvs[2].innerHTML=Math.round(I)+'<span class="ku">А</span>';kvs[3].className='kv vn';kvs[3].innerHTML=f.toFixed(2)+'<span class="ku">Гц</span>'}else kvs.forEach(k=>{k.className='kv vm';k.textContent='—'});
 const modes=card.querySelectorAll('.mdt');modes.forEach(m=>m.classList.remove('on'));
 if(mx){if(mx.mode_auto)modes[0]?.classList.add('on');if(mx.mode_manual)modes[1]?.classList.add('on');if(mx.mode_test)modes[2]?.classList.add('on');if(mx.mode_stop)modes[3]?.classList.add('on')}else{if(on)modes[0]?.classList.add('on');else modes[3]?.classList.add('on')}
+if(typeof updateQuickButtons==='function')updateQuickButtons('c'+sl,mx);
 // Power Limit block
 const plb=$(sl+'-pl');if(plb){const hasPL=mx&&(mx.current_p_pct!=null||mx.target_p_pct!=null);if(hasPL&&isOnline){plb.style.display='';plb.classList.remove('disabled');const cpP=mx.current_p_pct??0,tpP=mx.target_p_pct,cpQ=mx.current_q_pct??0,tpQ=mx.target_q_pct;const pfEl=$(sl+'-pl-pf'),qfEl=$(sl+'-pl-qf'),pvEl=$(sl+'-pl-pv'),qvEl=$(sl+'-pl-qv');if(pfEl){pfEl.style.width=Math.min(cpP,100)+'%';pfEl.className='pl-fill'+(cpP>80?' pl-crit':cpP>50?' pl-warn':'')}if(qfEl){qfEl.style.width=Math.min(Math.abs(cpQ),100)+'%';qfEl.className='pl-fill pl-q'+(Math.abs(cpQ)>80?' pl-crit':Math.abs(cpQ)>50?' pl-warn':'')}if(pvEl)pvEl.textContent=cpP.toFixed(1)+'%'+(tpP!=null?' → '+tpP.toFixed(1)+'%':'');if(qvEl)qvEl.textContent=cpQ.toFixed(1)+'%'+(tpQ!=null?' → '+tpQ.toFixed(1)+'%':'')}else if(hasPL&&!isOnline){plb.style.display='';plb.classList.add('disabled')}else{plb.style.display='none'}}
 // Update run hours display in header
@@ -2030,7 +2035,19 @@ async function readSprConfig(){
     if(banner)banner.innerHTML='<span style="color:var(--y)">⏳ Считывание конфигурации с контроллера...</span>';
     if(status)status.innerHTML='';
     try{
-        const cfg=await api.get('/api/commands/spr-config/'+devId);
+        const ac=new AbortController();
+        const tid=setTimeout(()=>ac.abort(),10000);
+        let cfg;
+        try{
+            const r=await fetch(API_BASE+'/api/commands/spr-config/'+devId,{signal:ac.signal});
+            clearTimeout(tid);
+            if(!r.ok)throw new Error('HTTP '+r.status);
+            cfg=await r.json();
+        }catch(fe){
+            clearTimeout(tid);
+            if(fe.name==='AbortError')throw new Error('Таймаут 10с — контроллер не ответил');
+            throw fe;
+        }
         if(!cfg.success)throw new Error(cfg.message);
         sprCurrentConfig={loadMode:cfg.load_mode,pRaw:cfg.p_raw,qRaw:cfg.q_raw,readAt:Date.now()};
         sprSelectedLoadMode=cfg.load_mode;
@@ -2075,8 +2092,23 @@ function setSprLoadMode(mode){
 }
 
 // Update control tab buttons to reflect current controller mode (called from applySprDetailed)
+function updateQuickButtons(cardId, mx){
+    if(!mx)return;
+    const card=$(cardId);if(!card)return;
+    const isRunning=mx.genset_status===9;
+    const qbs=card.querySelectorAll('.qb');
+    qbs.forEach(b=>{
+        b.classList.remove('on');
+        if(b.classList.contains('q-start')&&isRunning)b.classList.add('on');
+        else if(b.classList.contains('q-auto')&&mx.mode_auto)b.classList.add('on');
+        else if(b.classList.contains('q-manual')&&mx.mode_manual)b.classList.add('on');
+        else if(b.classList.contains('q-stop')&&mx.mode_stop)b.classList.add('on');
+    });
+}
 function updateSprControlMode(mx){
     if(!mx)return;
+    // --- Quick buttons (top row) ---
+    updateQuickButtons('cspr',mx);
     // --- Command buttons: Авто / Ручн. / Стоп ---
     const cmdMap=[
         {id:'sprCmdAuto',flag:'mode_auto',cls:'act-g'},
