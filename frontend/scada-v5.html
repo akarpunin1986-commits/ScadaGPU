@@ -2187,12 +2187,13 @@ plugins:{
   },
   crosshair:false,
   zoom:{
-    pan:{enabled:true,mode:'x',modifierKey:null},
+    pan:{enabled:true,mode:'x',modifierKey:null,onPanComplete:function(ctx){console.log('[ZOOM] pan complete, x range:',ctx.chart.scales.x.min,'→',ctx.chart.scales.x.max)}},
     zoom:{
       wheel:{enabled:true,speed:0.08},
       pinch:{enabled:true},
       drag:{enabled:false},
-      mode:'x'
+      mode:'x',
+      onZoomComplete:function(ctx){console.log('[ZOOM] zoom complete, x range:',ctx.chart.scales.x.min,'→',ctx.chart.scales.x.max,'zoom level:',ctx.chart.getZoomLevel())}
     },
     limits:{x:{minRange:30000}} // min 30 sec range
   }
@@ -2543,6 +2544,7 @@ options:{
 const rb=$('arcResetZoom');if(rb)rb.style.display='none';
 // Update legend with latest values after render
 arcChart.update();
+console.log('[ARC] Chart created, datasets:',arcChart.data.datasets.length,', points per ds:',arcChart.data.datasets.map(d=>d.data.length));
 // Show chart description
 const descEl=$('arcDesc');
 if(descEl)descEl.innerHTML=grp.desc?`<b>ℹ️ Пояснение:</b> ${grp.desc}`:'';
@@ -2669,6 +2671,7 @@ title:{display:true,text:'кВт',color:c.tick,font:{family:'Outfit',size:11,wei
 }}});
 const rb=$('pwResetZoom');if(rb)rb.style.display='none';
 pwChart.update();
+console.log('[PW] Chart created, datasets:',pwChart.data.datasets.length,', points per ds:',pwChart.data.datasets.map(d=>d.data.length));
 }
 // === END POWER CHART ===
 
