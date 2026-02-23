@@ -3377,6 +3377,11 @@ function _snIsErrorMsg(msg){
 }
 
 async function _snSendMessage(text){
+  if(!_snHealthOk){
+    _snAddMsg('error','⚠ '+_snHealthError+'\n\nОткройте «🤖 AI Провайдер» в боковом меню и настройте провайдера.');
+    snSetState('alert');
+    return;
+  }
   _snSending=true;$('sanekSendBtn').disabled=true;
   snSetState('thinking');
   _snShowTyping();
@@ -3424,6 +3429,31 @@ async function _snSendMessage(text){
     _snSending=false;$('sanekSendBtn').disabled=false;
   }
 }
+
+// === HEALTH CHECK — периодическая проверка AI-провайдера ===
+var _snHealthOk=true,_snHealthError='';
+
+async function _snHealthCheck(){
+  if(_snSending)return;
+  try{
+    var r=await api.get('/api/ai/health');
+    if(r.available){
+      _snHealthOk=true;_snHealthError='';
+      if(_sn.state==='alert'||_sn.state==='sleeping')snSetState('idle');
+    }else{
+      _snHealthOk=false;
+      _snHealthError=r.error||'AI провайдер недоступен';
+      if(_sn.state==='idle'||_sn.state==='sleeping')snSetState('alert');
+    }
+  }catch(e){
+    _snHealthOk=false;
+    _snHealthError='Сервер СКАДА недоступен';
+    if(_sn.state==='idle'||_sn.state==='sleeping')snSetState('alert');
+  }
+}
+
+setTimeout(_snHealthCheck,2000);
+setInterval(_snHealthCheck,30000);
 </script>
 <script src="/alarm_modal.js"></script>
 <!-- Power Limit Modal -->

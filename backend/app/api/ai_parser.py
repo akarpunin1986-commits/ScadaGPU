@@ -151,6 +151,7 @@ class HealthResponse(BaseModel):
     available: bool
     provider: str = ""
     model: str = ""
+    error: str = ""
 
 
 class ConfigRequest(BaseModel):
@@ -414,12 +415,26 @@ async def delete_provider(provider: str):
 async def ai_health():
     """Check if AI agent is configured and available."""
     provider = _get_active_provider()
+
+    if not provider or provider not in VALID_PROVIDERS:
+        return HealthResponse(
+            available=False, provider="", model="",
+            error="AI провайдер не выбран. Откройте «🤖 AI Провайдер» и активируйте провайдера.",
+        )
+
     api_key = _get_api_key(provider)
-    available = bool(api_key)
+    if not api_key:
+        label = {"openai": "OpenAI", "claude": "Claude", "gemini": "Gemini", "grok": "Grok"}.get(provider, provider)
+        return HealthResponse(
+            available=False, provider=provider, model="",
+            error=f"API ключ для {label} не настроен.",
+        )
+
     return HealthResponse(
-        available=available,
-        provider=provider if available else "",
-        model=_get_model(provider) if available else "",
+        available=True,
+        provider=provider,
+        model=_get_model(provider),
+        error="",
     )
 
 
