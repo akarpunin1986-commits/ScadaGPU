@@ -680,12 +680,23 @@ async def sanek_chat(req: ChatRequest):
 
     # Resolve provider
     provider = _get_active_provider()
+
+    if not provider or provider not in VALID_PROVIDERS:
+        return ChatResponse(
+            message="⚠ AI провайдер не выбран.\n\n"
+                    "Откройте «🤖 AI Провайдер» в боковом меню слева, "
+                    "добавьте API ключ и активируйте провайдера.",
+        )
+
     api_key = _get_api_key(provider)
     model = _get_model(provider)
+    label = {"openai": "OpenAI", "claude": "Claude", "gemini": "Gemini", "grok": "Grok"}.get(provider, provider)
 
     if not api_key:
         return ChatResponse(
-            message=f"⚠ AI провайдер не настроен. Откройте настройки и добавьте API ключ для {provider}.",
+            message=f"🔑 API ключ для {label} не настроен.\n\n"
+                    f"Откройте «🤖 AI Провайдер» в боковом меню, "
+                    f"введите ключ для {label} и нажмите «Сохранить».",
         )
 
     # Session management

@@ -330,42 +330,72 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 [data-theme="light"] .kp{background:rgba(0,0,0,.03)}
 [data-theme="light"] .cmd-st{background:rgba(5,150,105,.1);color:#047857}
 /* ===== Sanek Chat Panel ===== */
-#sanekBtn{position:fixed;bottom:20px;right:20px;z-index:999;width:56px;height:56px;border-radius:50%;background:var(--g);border:none;cursor:pointer;font-size:24px;box-shadow:0 4px 16px rgba(0,224,154,.35);transition:all .2s;color:#000}
-#sanekBtn:hover{transform:scale(1.08);box-shadow:0 6px 24px rgba(0,224,154,.5)}
-#sanekPanel{position:fixed;top:0;right:-400px;width:400px;height:100vh;background:var(--bg2);border-left:1px solid var(--bd);z-index:998;transition:right .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column}
+#sanekBtn{position:fixed;bottom:20px;right:20px;z-index:999;width:64px;height:64px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#232f52,#131a2f);border:2px solid rgba(93,228,255,.25);cursor:pointer;box-shadow:0 4px 20px rgba(93,228,255,.2);transition:all .3s cubic-bezier(.34,1.56,.64,1);padding:0;overflow:hidden}
+#sanekBtn:hover{transform:scale(1.1);box-shadow:0 6px 30px rgba(93,228,255,.35);border-color:rgba(93,228,255,.5)}
+#sanekBtn canvas{width:100%;height:100%;pointer-events:none}
+.sn-btn-glow{position:fixed;bottom:14px;right:14px;width:76px;height:76px;border-radius:50%;background:radial-gradient(circle,rgba(93,228,255,.15) 0%,transparent 70%);z-index:998;pointer-events:none;animation:snBtnBreathe 4s ease-in-out infinite}
+@keyframes snBtnBreathe{0%,100%{transform:scale(.9);opacity:.5}50%{transform:scale(1.1);opacity:1}}
+#sanekPanel{position:fixed;top:0;right:-420px;width:420px;height:100vh;background:#0c1021;border-left:1.5px solid #232d4a;z-index:998;transition:right .35s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;font-family:'Nunito',system-ui,sans-serif}
 #sanekPanel.open{right:0}
-.sn-hd{padding:14px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;background:var(--ov)}
-.sn-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
-.sn-msg{max-width:88%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.5;word-wrap:break-word;white-space:pre-wrap}
-.sn-msg.user{align-self:flex-end;background:var(--g);color:#000;border-bottom-right-radius:4px}
-.sn-msg.assistant{align-self:flex-start;background:var(--ov);color:var(--t);border:1px solid var(--bd);border-bottom-left-radius:4px}
-.sn-msg.assistant .sn-icon{font-size:14px;margin-right:4px}
-.sn-action{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(0,224,154,.15);color:var(--g);margin-top:4px}
-.sn-pending{background:rgba(255,176,32,.12);border:1px solid rgba(255,176,32,.3);border-radius:8px;padding:10px;margin-top:6px}
-.sn-pending-btns{display:flex;gap:6px;margin-top:8px}
-.sn-pending-btns button{padding:6px 16px;border-radius:6px;border:none;cursor:pointer;font-size:12px;font-weight:600}
-.sn-pending-btns .sn-yes{background:var(--g);color:#000}
-.sn-pending-btns .sn-no{background:var(--r);color:#fff}
-.sn-input-row{padding:10px;border-top:1px solid var(--bd);display:flex;gap:8px;background:var(--ov)}
-.sn-input-row input{flex:1;padding:10px 12px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--t);font-size:13px;outline:none}
-.sn-input-row input:focus{border-color:var(--g)}
-.sn-input-row button{padding:8px 14px;border-radius:8px;background:var(--g);border:none;color:#000;cursor:pointer;font-size:16px;font-weight:700}
-.sn-input-row button:disabled{opacity:.4;cursor:not-allowed}
-.sn-typing{align-self:flex-start;padding:10px 14px;border-radius:12px;background:var(--ov);border:1px solid var(--bd);border-bottom-left-radius:4px}
-.sn-typing span{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--t3);margin:0 2px;animation:snDot 1.4s infinite}
-.sn-typing span:nth-child(2){animation-delay:.2s}
-.sn-typing span:nth-child(3){animation-delay:.4s}
-@keyframes snDot{0%,80%,100%{opacity:.3;transform:scale(.8)}40%{opacity:1;transform:scale(1.1)}}
-.sn-welcome{text-align:center;padding:24px 16px;color:var(--t3)}
-.sn-welcome .sn-big{font-size:40px;margin-bottom:8px}
-.sn-welcome h3{color:var(--t);margin:0 0 6px;font-size:15px}
-.sn-welcome p{font-size:12px;margin:0 0 16px;line-height:1.5}
-.sn-hints{display:flex;flex-direction:column;gap:6px}
-.sn-hint{padding:8px 12px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--t2);font-size:12px;cursor:pointer;text-align:left;transition:all .15s}
-.sn-hint:hover{border-color:var(--g);color:var(--t);background:rgba(0,224,154,.05)}
-[data-theme="light"] #sanekBtn{box-shadow:0 4px 16px rgba(109,40,217,.25);background:var(--accent,#6d28d9);color:#fff}
-[data-theme="light"] .sn-msg.user{background:var(--accent,#6d28d9);color:#fff}
-[data-theme="light"] .sn-action{background:rgba(109,40,217,.1);color:#6d28d9}
+.sn-hd{padding:14px 18px;border-bottom:1px solid #232d4a;display:flex;align-items:center;gap:12px;background:#141a2e}
+.sn-hd canvas{width:48px;height:48px;flex-shrink:0}
+.sn-hd-info h3{font-size:16px;font-weight:800;color:#e8ecf4;margin:0}
+.sn-hd-status{font-size:11px;color:#4ade80;display:flex;align-items:center;gap:5px}
+.sn-hd-dot{width:6px;height:6px;background:#4ade80;border-radius:50%;animation:snPulse 2s ease-in-out infinite}
+@keyframes snPulse{0%,100%{opacity:1}50%{opacity:.3}}
+.sn-msgs{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:12px;background:#0c1021}
+.sn-msg{max-width:86%;padding:11px 16px;border-radius:18px;font-size:13.5px;line-height:1.55;word-wrap:break-word;white-space:pre-wrap;animation:snBubbleIn .4s cubic-bezier(.34,1.56,.64,1) both}
+@keyframes snBubbleIn{from{opacity:0;transform:translateY(10px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+.sn-msg.user{align-self:flex-end;background:linear-gradient(135deg,rgba(93,228,255,.12),rgba(167,139,250,.08));border:1px solid rgba(93,228,255,.15);color:#7eeaff;border-bottom-right-radius:6px}
+.sn-msg.assistant{align-self:flex-start;background:#1a2240;border:1px solid #232d4a;color:#e8ecf4;border-bottom-left-radius:6px}
+.sn-msg.assistant .sn-bname{font-size:11px;font-weight:800;color:#5de4ff;margin-bottom:3px}
+.sn-action{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(74,222,128,.12);color:#4ade80;margin-top:4px;border:1px solid rgba(74,222,128,.15)}
+.sn-pending{background:rgba(255,190,74,.08);border:1px solid rgba(255,190,74,.2);border-radius:14px;padding:12px;margin-top:6px}
+.sn-pending-btns{display:flex;gap:8px;margin-top:10px}
+.sn-pending-btns button{padding:8px 20px;border-radius:12px;border:none;cursor:pointer;font-size:12px;font-weight:700;transition:transform .2s}
+.sn-pending-btns button:hover{transform:scale(1.05)}
+.sn-pending-btns .sn-yes{background:linear-gradient(135deg,#5de4ff,#4ade80);color:#0c1021}
+.sn-pending-btns .sn-no{background:rgba(255,107,129,.15);color:#ff6b81;border:1px solid rgba(255,107,129,.25)}
+.sn-input-row{padding:12px 18px;border-top:1px solid #232d4a;display:flex;gap:10px;align-items:center;background:#141a2e}
+.sn-input-row input{flex:1;padding:10px 16px;border:1px solid #232d4a;border-radius:14px;background:#0c1021;color:#e8ecf4;font-size:13px;font-family:inherit;outline:none;transition:border-color .3s}
+.sn-input-row input:focus{border-color:#5de4ff}
+.sn-input-row input::placeholder{color:#6b7a9e}
+.sn-send-btn{width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;background:linear-gradient(135deg,#5de4ff,#4ade80);display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s;flex-shrink:0}
+.sn-send-btn:hover{transform:scale(1.12);box-shadow:0 0 20px rgba(74,222,128,.3)}
+.sn-send-btn:disabled{opacity:.3;cursor:not-allowed;transform:none;box-shadow:none}
+.sn-send-btn svg{width:18px;height:18px;fill:#0c1021}
+.sn-msg.error{align-self:flex-start;background:rgba(255,107,129,.06);border:1px solid rgba(255,107,129,.18);color:#ff8fa3;border-bottom-left-radius:6px}
+.sn-msg.error .sn-bname{color:#ff6b81}
+[data-theme="light"] .sn-msg.error{background:rgba(220,38,38,.05);border-color:rgba(220,38,38,.15);color:#dc2626}
+[data-theme="light"] .sn-msg.error .sn-bname{color:#dc2626}
+.sn-typing{align-self:flex-start;padding:12px 16px;border-radius:18px;background:#1a2240;border:1px solid #232d4a;border-bottom-left-radius:6px}
+.sn-typing span{display:inline-block;width:8px;height:8px;border-radius:50%;background:#5de4ff;margin:0 2px;animation:snDotBounce 1.2s ease-in-out infinite}
+.sn-typing span:nth-child(2){animation-delay:.15s}
+.sn-typing span:nth-child(3){animation-delay:.3s}
+@keyframes snDotBounce{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-8px);opacity:1}}
+.sn-welcome{text-align:center;padding:32px 20px;color:#6b7a9e}
+.sn-welcome-avatar{position:relative;width:160px;height:160px;margin:0 auto 12px}
+.sn-welcome-avatar canvas{width:100%;height:100%}
+.sn-welcome-glow{position:absolute;inset:-20px;border-radius:50%;background:radial-gradient(circle,rgba(93,228,255,.15) 0%,transparent 70%);animation:snBtnBreathe 4s ease-in-out infinite}
+.sn-welcome h3{color:#e8ecf4;margin:0 0 6px;font-size:16px;font-weight:800}
+.sn-welcome p{font-size:12px;margin:0 0 20px;line-height:1.6;color:#6b7a9e}
+.sn-hints{display:flex;flex-direction:column;gap:8px}
+.sn-hint{padding:10px 14px;border:1.5px solid #232d4a;border-radius:14px;background:#141a2e;color:#6b7a9e;font-size:12px;cursor:pointer;text-align:left;transition:all .25s cubic-bezier(.34,1.56,.64,1)}
+.sn-hint:hover{border-color:rgba(93,228,255,.3);color:#e8ecf4;background:#1a2240;transform:translateY(-2px);box-shadow:0 4px 16px rgba(93,228,255,.06)}
+.sn-state-tag{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#5de4ff;text-align:center;margin-top:-4px;transition:color .4s}
+[data-theme="light"] #sanekBtn{background:radial-gradient(circle at 40% 35%,#e8ecf4,#d1d5db);border-color:rgba(109,40,217,.25);box-shadow:0 4px 20px rgba(109,40,217,.15)}
+[data-theme="light"] #sanekPanel{background:#f8fafc;border-color:#d1d5db}
+[data-theme="light"] .sn-hd{background:#fff;border-color:#e2e8f0}
+[data-theme="light"] .sn-msgs{background:#f1f5f9}
+[data-theme="light"] .sn-msg.user{background:linear-gradient(135deg,rgba(109,40,217,.1),rgba(79,70,229,.06));border-color:rgba(109,40,217,.15);color:#6d28d9}
+[data-theme="light"] .sn-msg.assistant{background:#fff;border-color:#e2e8f0;color:#1e293b}
+[data-theme="light"] .sn-msg.assistant .sn-bname{color:#6d28d9}
+[data-theme="light"] .sn-input-row{background:#fff;border-color:#e2e8f0}
+[data-theme="light"] .sn-input-row input{background:#f1f5f9;border-color:#e2e8f0;color:#1e293b}
+[data-theme="light"] .sn-input-row input:focus{border-color:#6d28d9}
+[data-theme="light"] .sn-hint{background:#fff;border-color:#e2e8f0;color:#64748b}
+[data-theme="light"] .sn-hint:hover{border-color:rgba(109,40,217,.3);color:#1e293b;background:#f5f3ff}
+[data-theme="light"] .sn-action{background:rgba(109,40,217,.08);color:#6d28d9;border-color:rgba(109,40,217,.12)}
 </style></head><body>
 <div class="app">
 <div class="sb"><div class="sb-hd">
@@ -3064,9 +3094,182 @@ if(r.success){ae('✅ Тестовая задача создана: #'+r.task_id
 else ae('❌ Ошибка: '+(r.error||'unknown'))}
 catch(e){ae('❌ '+e.message)}}
 
-// ===================== SANEK CHAT =====================
+// ===================== SANEK CHAT + AVATAR =====================
 var _snOpen=false,_snSid=null,_snSending=false;
 
+// === SANEK AVATAR ENGINE (from sanek_v4) ===
+var _sn={
+  state:'idle',time:0,
+  eyeX:0,eyeY:0,targetEyeX:0,targetEyeY:0,
+  bounceY:0,squishX:1,squishY:1,tSquishX:1,tSquishY:1,
+  blinkTimer:0,blinkOpen:1,mouthOpen:0,tMouthOpen:0,
+  emotionT:0,keystrokeImpact:0,readingNod:0,
+  color:{r:93,g:228,b:255},
+  tColor:{r:93,g:228,b:255}
+};
+
+var _snColors={
+  idle:{r:93,g:228,b:255},reading:{r:251,g:146,b:60},listening:{r:255,g:190,b:74},
+  thinking:{r:167,g:139,b:250},alert:{r:255,g:107,b:129},success:{r:74,g:222,b:128},sleeping:{r:100,g:116,b:139}
+};
+var _snLabels={
+  idle:'готов — жду команды',reading:'читаю — вижу что пишешь...',listening:'слушаю — говори...',
+  thinking:'думаю — анализирую...',alert:'внимание — требуется действие',success:'готово — задача выполнена!',sleeping:'сон — нет подключения'
+};
+var _snGlows={
+  idle:'rgba(93,228,255,.15)',reading:'rgba(251,146,60,.18)',listening:'rgba(255,190,74,.2)',
+  thinking:'rgba(167,139,250,.15)',alert:'rgba(255,107,129,.15)',success:'rgba(74,222,128,.2)',sleeping:'rgba(100,116,139,.06)'
+};
+var _snTagColors={idle:'#5de4ff',reading:'#fb923c',listening:'#ffbe4a',thinking:'#a78bfa',alert:'#ff6b81',success:'#4ade80',sleeping:'#64748b'};
+
+function _snLerp(a,b,t){return a+(b-a)*t}
+function _snLerpC(c,t,s){c.r=_snLerp(c.r,t.r,s);c.g=_snLerp(c.g,t.g,s);c.b=_snLerp(c.b,t.b,s)}
+function _snRgb(c,a){return a!==undefined?`rgba(${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)},${a})`:`rgb(${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)})`}
+
+function snSetState(state){
+  _sn.state=state;_sn.tColor={..._snColors[state]};_sn.emotionT=0;
+  var tag=$('snStateTag');if(tag){tag.textContent=_snLabels[state];tag.style.color=_snTagColors[state]}
+  var st=$('snStatusText');if(st)st.textContent=_snLabels[state];
+  var glow=document.querySelector('.sn-welcome-glow');if(glow)glow.style.background='radial-gradient(circle,'+_snGlows[state]+' 0%,transparent 70%)';
+  var bg=document.querySelector('.sn-btn-glow');if(bg)bg.style.background='radial-gradient(circle,'+_snGlows[state]+' 0%,transparent 70%)';
+  _sn.tSquishX=1.12;_sn.tSquishY=.9;
+  setTimeout(()=>{_sn.tSquishX=.94;_sn.tSquishY=1.08},120);
+  setTimeout(()=>{_sn.tSquishX=1;_sn.tSquishY=1},280);
+  if(state==='success')_sn.bounceY=-20;
+}
+
+function _snDrawBody(c,ox,oy,s){
+  var S=_sn,t=S.time,col=S.color,headR=150;
+  // Shadow
+  c.save();c.translate(ox,oy+20);c.scale(1,.25);
+  var shG=c.createRadialGradient(0,0,0,0,0,headR*.8);shG.addColorStop(0,'rgba(0,0,0,.15)');shG.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=shG;c.beginPath();c.arc(0,0,headR*.8,0,Math.PI*2);c.fill();c.restore();
+  // Antenna
+  var aw=Math.sin(t*2.5)*4+S.keystrokeImpact*Math.sin(t*20)*6;
+  c.save();c.strokeStyle=_snRgb(col,.5);c.lineWidth=4;c.lineCap='round';
+  c.beginPath();c.moveTo(ox,oy-headR+10);c.quadraticCurveTo(ox+aw,oy-headR-25,ox+aw*.5,oy-headR-45);c.stroke();
+  var tx=ox+aw*.5,ty=oy-headR-45,tr=7+Math.sin(t*3)*2;
+  var tG=c.createRadialGradient(tx,ty,0,tx,ty,tr*3);tG.addColorStop(0,_snRgb(col,.8));tG.addColorStop(.5,_snRgb(col,.2));tG.addColorStop(1,_snRgb(col,0));
+  c.fillStyle=tG;c.beginPath();c.arc(tx,ty,tr*3,0,Math.PI*2);c.fill();
+  c.fillStyle=_snRgb(col);c.beginPath();c.arc(tx,ty,tr,0,Math.PI*2);c.fill();c.restore();
+  // Head
+  var hG=c.createRadialGradient(ox-30,oy-40,0,ox,oy,headR);hG.addColorStop(0,'#232f52');hG.addColorStop(1,'#131a2f');
+  c.fillStyle=hG;c.beginPath();c.ellipse(ox,oy,headR,headR*.95,0,0,Math.PI*2);c.fill();
+  var hlG=c.createRadialGradient(ox-40,oy-50,0,ox-40,oy-50,headR*.8);hlG.addColorStop(0,'rgba(255,255,255,.07)');hlG.addColorStop(1,'rgba(255,255,255,0)');
+  c.fillStyle=hlG;c.beginPath();c.ellipse(ox,oy,headR,headR*.95,0,0,Math.PI*2);c.fill();
+  c.strokeStyle=_snRgb(col,.2);c.lineWidth=2.5;c.beginPath();c.ellipse(ox,oy,headR,headR*.95,0,0,Math.PI*2);c.stroke();
+  // Cheeks
+  var cA=S.state==='success'?.2:S.state==='listening'?.15:S.state==='reading'?.1:.06;
+  [-1,1].forEach(function(side){
+    var cG=c.createRadialGradient(ox+side*105,oy+35,0,ox+side*105,oy+35,30);cG.addColorStop(0,_snRgb(col,cA));cG.addColorStop(1,_snRgb(col,0));
+    c.fillStyle=cG;c.beginPath();c.ellipse(ox+side*105,oy+35,30,22,0,0,Math.PI*2);c.fill();
+  });
+  // Eyes
+  var eS=55,eY=oy-15;
+  [-1,1].forEach(function(side){
+    var ex=ox+side*eS+S.eyeX,ey=eY+S.eyeY;
+    var sW=S.state==='listening'?52:S.state==='reading'?48:46;
+    var sH=S.state==='listening'?52:S.state==='reading'?44:46;
+    c.fillStyle='rgba(0,8,24,.6)';c.beginPath();c.ellipse(ex,ey,sW,sH*S.blinkOpen,0,0,Math.PI*2);c.fill();
+    if(S.blinkOpen>.15){
+      var iR=S.state==='listening'?28:S.state==='alert'?22:S.state==='reading'?22:24;
+      var iG=c.createRadialGradient(ex,ey,0,ex,ey,iR*1.8);iG.addColorStop(0,_snRgb(col,.4));iG.addColorStop(1,_snRgb(col,0));
+      c.fillStyle=iG;c.beginPath();c.arc(ex,ey,iR*1.8,0,Math.PI*2);c.fill();
+      c.fillStyle=_snRgb(col);c.beginPath();c.arc(ex,ey,iR,0,Math.PI*2);c.fill();
+      var inG=c.createRadialGradient(ex,ey,iR*.2,ex,ey,iR);inG.addColorStop(0,'rgba('+Math.round(col.r*.3)+','+Math.round(col.g*.3)+','+Math.round(col.b*.3)+',.5)');inG.addColorStop(1,'rgba(0,0,0,0)');
+      c.fillStyle=inG;c.beginPath();c.arc(ex,ey,iR,0,Math.PI*2);c.fill();
+      var pR=S.state==='alert'?7:S.state==='reading'?6:S.state==='listening'?10:8;
+      c.fillStyle='#000';c.beginPath();c.arc(ex+S.eyeX*.3,ey+S.eyeY*.3,pR,0,Math.PI*2);c.fill();
+      c.fillStyle='rgba(255,255,255,.9)';c.beginPath();c.arc(ex+8,ey-8,6,0,Math.PI*2);c.fill();
+      c.fillStyle='rgba(255,255,255,.6)';c.beginPath();c.arc(ex-5,ey+6,3,0,Math.PI*2);c.fill();
+    }
+    if(S.blinkOpen<.3){
+      c.strokeStyle=_snRgb(col,.6);c.lineWidth=4;c.lineCap='round';c.beginPath();
+      if(S.state==='success')c.arc(ex,ey+5,22,Math.PI,0);else{c.moveTo(ex-22,ey);c.lineTo(ex+22,ey)}c.stroke();
+    }
+  });
+  // Eyebrows
+  if(S.state==='alert'){c.strokeStyle=_snRgb(col,.8);c.lineWidth=5;c.lineCap='round';[-1,1].forEach(function(side){var bx=ox+side*eS,by=eY-48;c.beginPath();c.moveTo(bx-side*22,by+6);c.lineTo(bx+side*22,by-4);c.stroke()})}
+  if(S.state==='thinking'){c.strokeStyle=_snRgb(col,.5);c.lineWidth=4;c.lineCap='round';var lbx=ox-eS,rbx=ox+eS,by=eY-48;c.beginPath();c.moveTo(lbx-22,by+4);c.lineTo(lbx+22,by-8);c.stroke();c.beginPath();c.moveTo(rbx-22,by-2);c.lineTo(rbx+22,by+2);c.stroke()}
+  if(S.state==='reading'){c.strokeStyle=_snRgb(col,.5);c.lineWidth=4;c.lineCap='round';[-1,1].forEach(function(side){var bx=ox+side*eS,by=eY-46;c.beginPath();c.moveTo(bx-20,by+2);c.quadraticCurveTo(bx,by-5,bx+20,by+1);c.stroke()})}
+  // Mouth
+  var mY=oy+55;
+  if(S.state==='success'){c.strokeStyle=_snRgb(col,.9);c.lineWidth=4;c.lineCap='round';c.beginPath();c.arc(ox,mY-10,35,.15,Math.PI-.15);c.stroke();if(S.mouthOpen>.4){c.fillStyle='#ff8ba7';c.beginPath();c.ellipse(ox,mY+4,14,8*S.mouthOpen,0,0,Math.PI);c.fill()}}
+  else if(S.state==='alert'){c.strokeStyle=_snRgb(col,.7);c.lineWidth=3.5;c.lineCap='round';c.beginPath();c.moveTo(ox-18,mY);c.lineTo(ox+18,mY);c.stroke()}
+  else if(S.state==='listening'){c.fillStyle='rgba(0,8,24,.5)';c.beginPath();c.ellipse(ox,mY,16,12+S.mouthOpen*14,0,0,Math.PI*2);c.fill();c.strokeStyle=_snRgb(col,.5);c.lineWidth=2;c.beginPath();c.ellipse(ox,mY,16,12+S.mouthOpen*14,0,0,Math.PI*2);c.stroke()}
+  else if(S.state==='thinking'){c.strokeStyle=_snRgb(col,.6);c.lineWidth=3.5;c.lineCap='round';var mW=Math.sin(t*1.5)*3;c.beginPath();c.moveTo(ox-15,mY+mW);c.quadraticCurveTo(ox,mY-8+mW,ox+20,mY+2+mW);c.stroke()}
+  else if(S.state==='reading'){c.strokeStyle=_snRgb(col,.6);c.lineWidth=3;c.lineCap='round';var mP=S.keystrokeImpact*2;c.beginPath();c.moveTo(ox-14,mY-1);c.quadraticCurveTo(ox,mY+5+mP,ox+14,mY-1);c.stroke()}
+  else if(S.state==='sleeping'){c.strokeStyle=_snRgb(col,.3);c.lineWidth=2.5;c.lineCap='round';c.beginPath();c.arc(ox,mY+4,12,.3,Math.PI-.3);c.stroke()}
+  else{c.strokeStyle=_snRgb(col,.7);c.lineWidth=3.5;c.lineCap='round';c.beginPath();c.arc(ox,mY-6,26,.25,Math.PI-.25);c.stroke()}
+  // Reading text lines
+  if(S.state==='reading'){var lY=oy+100,lW=[50,65,40,55,35],cur=Math.floor((Math.sin(t*1.8)+1)/2*4.99);lW.forEach(function(w,i){c.fillStyle=_snRgb(col,i===cur?.4:.1);c.beginPath();c.roundRect?c.roundRect(ox-35,lY+i*10,w,4,2):(c.rect(ox-35,lY+i*10,w,4));c.fill()});if(Math.sin(t*6)>0){c.fillStyle=_snRgb(col,.7);c.fillRect(ox-35+lW[cur]+3,lY+cur*10-1,2,6)}}
+  // Thinking bubbles
+  if(S.state==='thinking'){[{x:95,y:-80,r:6+Math.sin(t*2)*1},{x:115,y:-105,r:9+Math.sin(t*2+1)*1.5},{x:130,y:-135,r:13+Math.sin(t*2+2)*2}].forEach(function(b,i){c.fillStyle=_snRgb(col,.15+i*.1+Math.sin(t*1.5+i)*.05);c.beginPath();c.arc(ox+b.x,oy+b.y+Math.sin(t+i)*4,b.r,0,Math.PI*2);c.fill()})}
+  // Alert ring
+  if(S.state==='alert'){var ap=(Math.sin(t*4)+1)/2;c.strokeStyle=_snRgb(col,.1+ap*.15);c.lineWidth=3;c.setLineDash([8,8]);c.lineDashOffset=-t*40;c.beginPath();c.ellipse(ox,oy,headR+15,headR*.95+15,0,0,Math.PI*2);c.stroke();c.setLineDash([]);var bdX=ox+110,bdY=oy-100;c.fillStyle=_snRgb(col,.9);c.beginPath();c.arc(bdX,bdY,18,0,Math.PI*2);c.fill();c.fillStyle='#fff';c.font='bold 22px sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText('!',bdX,bdY+1)}
+  // Listening waves
+  if(S.state==='listening'){for(var i=0;i<12;i++){var h=8+Math.abs(Math.sin(t*5+i*.8))*22,a=.4+Math.abs(Math.sin(t*5+i*.8))*.5;c.fillStyle=_snRgb(col,a);var bx=ox-60+i*10;c.beginPath();c.roundRect?c.roundRect(bx,oy+105-h/2,6,h,3):(c.fillRect(bx,oy+105-h/2,6,h));c.fill()}}
+  // Sleeping Zzz
+  if(S.state==='sleeping'){c.textAlign='center';[{x:85,y:-60,s:18,d:0},{x:105,y:-90,s:24,d:.6},{x:120,y:-125,s:30,d:1.2}].forEach(function(z,i){var t2=(t*.7+z.d)%3,a=t2<2?Math.sin(t2/2*Math.PI)*.5:0,dr=Math.sin(t*.5+i)*5;c.fillStyle=_snRgb(col,a);c.font='800 '+z.s+'px sans-serif';c.fillText('z',ox+z.x+dr,oy+z.y-t2*8)})}
+  // Success sparkles
+  if(S.state==='success'){for(var i=0;i<6;i++){var ang=(Math.PI*2/6)*i+t*.5,dist=headR+25+Math.sin(t*2+i)*10,sx=ox+Math.cos(ang)*dist,sy=oy+Math.sin(ang)*dist*.85,sa2=.3+Math.sin(t*3+i*1.5)*.3,sr=3+Math.sin(t*4+i)*2;c.fillStyle=_snRgb(col,sa2);c.beginPath();for(var j=0;j<4;j++){var sa=(Math.PI/2)*j+t*2,sr2=j%2===0?sr*2.5:sr*.5,px=sx+Math.cos(sa)*sr2,py=sy+Math.sin(sa)*sr2;j===0?c.moveTo(px,py):c.lineTo(px,py)}c.closePath();c.fill()}}
+}
+
+// Animation tick
+function _snTick(){
+  var S=_sn;S.time+=.016;S.emotionT=Math.min(S.emotionT+.016,10);
+  _snLerpC(S.color,S.tColor,.06);
+  // Eye behavior per state
+  if(S.state==='reading'){var rs=1.8+Math.sin(S.time*.3)*.3;S.eyeX=_snLerp(S.eyeX,Math.sin(S.time*rs)*16,.12);S.eyeY=_snLerp(S.eyeY,10+Math.sin(S.time*.6)*2,.08);S.readingNod=Math.sin(S.time*1.2)*.03}
+  else if(S.state==='thinking'){S.eyeX=_snLerp(S.eyeX,Math.sin(S.time*.7)*14,.04);S.eyeY=_snLerp(S.eyeY,-10+Math.cos(S.time*.5)*4,.04);S.readingNod=_snLerp(S.readingNod,0,.05)}
+  else if(S.state==='idle'||S.state==='alert'||S.state==='success'){S.eyeX=_snLerp(S.eyeX,S.targetEyeX*12,.08);S.eyeY=_snLerp(S.eyeY,S.targetEyeY*8,.08);S.readingNod=_snLerp(S.readingNod,0,.05)}
+  else{S.eyeX=_snLerp(S.eyeX,0,.05);S.eyeY=_snLerp(S.eyeY,0,.05);S.readingNod=_snLerp(S.readingNod,0,.05)}
+  S.keystrokeImpact=_snLerp(S.keystrokeImpact,0,.15);
+  S.squishX=_snLerp(S.squishX,S.tSquishX,.12);S.squishY=_snLerp(S.squishY,S.tSquishY,.12);
+  S.bounceY=_snLerp(S.bounceY,0,.08);
+  // Blink
+  S.blinkTimer+=.016;
+  if(S.state==='sleeping')S.blinkOpen=_snLerp(S.blinkOpen,0,.1);
+  else if(S.state==='success')S.blinkOpen=_snLerp(S.blinkOpen,.35,.1);
+  else if(S.state==='reading'){if(S.blinkTimer>6+Math.random()*3){S.blinkTimer=0;S.blinkOpen=0}if(S.blinkOpen<.5)S.blinkOpen=_snLerp(S.blinkOpen,1,.3)}
+  else{if(S.blinkTimer>3+Math.random()*2){S.blinkTimer=0;S.blinkOpen=0}if(S.blinkOpen<.5)S.blinkOpen=_snLerp(S.blinkOpen,1,.25)}
+  // Mouth
+  if(S.state==='listening')S.tMouthOpen=.3+Math.abs(Math.sin(S.time*6))*.5;
+  else if(S.state==='success')S.tMouthOpen=.7;
+  else if(S.state==='alert')S.tMouthOpen=.15;
+  else if(S.state==='reading')S.tMouthOpen=.05+S.keystrokeImpact*.15;
+  else S.tMouthOpen=0;
+  S.mouthOpen=_snLerp(S.mouthOpen,S.tMouthOpen,.1);
+}
+
+// Draw on multiple canvases
+function _snDraw(){
+  _snTick();
+  var S=_sn,fY=Math.sin(S.time*.8)*6;
+  // Welcome canvas (big)
+  var wc=$('snWelcomeCanvas');
+  if(wc&&wc.offsetParent!==null){var ctx=wc.getContext('2d');ctx.clearRect(0,0,320,320);ctx.save();ctx.translate(160,170+fY+S.bounceY*.6);ctx.rotate(S.readingNod);ctx.scale(S.squishX*.55,S.squishY*.55);_snDrawBody(ctx,0,0,.55);ctx.restore()}
+  // Header mini canvas
+  var mc=$('snMiniCanvas');
+  if(mc&&mc.offsetParent!==null){var ctx2=mc.getContext('2d');ctx2.clearRect(0,0,96,96);ctx2.save();ctx2.translate(48,52);ctx2.scale(.16,.16);_snDrawBody(ctx2,0,0,.16);ctx2.restore()}
+  // Button canvas
+  var bc=$('snBtnCanvas');
+  if(bc){var ctx3=bc.getContext('2d');ctx3.clearRect(0,0,128,128);ctx3.save();ctx3.translate(64,68+fY*.3);ctx3.scale(.22,.22);_snDrawBody(ctx3,0,0,.22);ctx3.restore()}
+  requestAnimationFrame(_snDraw);
+}
+
+// Mouse tracking for eyes
+document.addEventListener('mousemove',function(e){
+  var btn=$('sanekBtn');if(!btn)return;
+  var r=btn.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+  _sn.targetEyeX=Math.max(-1,Math.min(1,(e.clientX-cx)/300*2));
+  _sn.targetEyeY=Math.max(-1,Math.min(1,(e.clientY-cy)/300*2));
+});
+
+// Start avatar loop
+_snDraw();
+
+// === CHAT LOGIC ===
 function toggleSanek(){
   _snOpen=!_snOpen;
   $('sanekPanel').classList.toggle('open',_snOpen);
@@ -3074,9 +3277,8 @@ function toggleSanek(){
 }
 
 function sanekNewSession(){
-  _snSid=null;
-  const msgs=$('sanekMessages');
-  msgs.innerHTML='<div class="sn-welcome"><div class="sn-big">🤖</div><h3>Привет! Я — Санёк</h3><p>AI-ассистент вашей СКАДА-системы.<br>Спросите о состоянии генераторов, авариях,<br>ТО или дайте команду управления.</p><div class="sn-hints"><button class="sn-hint" onclick="sanekHint(this)">📊 Какие объекты и устройства есть?</button><button class="sn-hint" onclick="sanekHint(this)">⚡ Покажи текущую мощность генераторов</button><button class="sn-hint" onclick="sanekHint(this)">🚨 Есть активные аварии?</button><button class="sn-hint" onclick="sanekHint(this)">📋 Дай общую сводку по системе</button></div></div>';
+  _snSid=null;snSetState('idle');
+  $('sanekMessages').innerHTML='<div class="sn-welcome"><div class="sn-welcome-avatar"><div class="sn-welcome-glow"></div><canvas id="snWelcomeCanvas" width="320" height="320"></canvas></div><div class="sn-state-tag" id="snStateTag">готов — жду команды</div><h3>Привет! Я — Санёк</h3><p>AI-ассистент вашей СКАДА-системы.<br>Спроси о состоянии генераторов, авариях,<br>ТО или дай команду управления.</p><div class="sn-hints"><button class="sn-hint" onclick="sanekHint(this)">📊 Какие объекты и устройства есть?</button><button class="sn-hint" onclick="sanekHint(this)">⚡ Покажи текущую мощность генераторов</button><button class="sn-hint" onclick="sanekHint(this)">🚨 Есть активные аварии?</button><button class="sn-hint" onclick="sanekHint(this)">📋 Дай общую сводку по системе</button></div></div>';
 }
 
 function sanekHint(el){
@@ -3084,16 +3286,31 @@ function sanekHint(el){
   sendToSanek();
 }
 
-function _snAddMsg(role,text){
-  const msgs=$('sanekMessages');
-  // Remove welcome on first message
-  const welcome=msgs.querySelector('.sn-welcome');
-  if(welcome)welcome.remove();
+// Typing detection — switches avatar to reading state
+(function(){
+  var _snTypingTimeout=null;
+  var inp=$('sanekInput');
+  if(!inp)return;
+  inp.addEventListener('input',function(){
+    _sn.keystrokeImpact=1;
+    if(inp.value.length>0&&_sn.state!=='thinking'){snSetState('reading')}
+    clearTimeout(_snTypingTimeout);
+    _snTypingTimeout=setTimeout(function(){if(_sn.state==='reading'&&!inp.value.length)snSetState('idle')},2000);
+  });
+  inp.addEventListener('focus',function(){if(inp.value.length>0&&_sn.state==='idle')snSetState('reading')});
+  inp.addEventListener('blur',function(){if(_sn.state==='reading')setTimeout(function(){if(_sn.state==='reading')snSetState('idle')},500)});
+})();
 
-  const div=document.createElement('div');
+function _snAddMsg(role,text){
+  var msgs=$('sanekMessages');
+  var welcome=msgs.querySelector('.sn-welcome');
+  if(welcome)welcome.remove();
+  var div=document.createElement('div');
   div.className='sn-msg '+role;
-  if(role==='assistant'){
-    div.innerHTML='<span class="sn-icon">🤖</span> '+_snFormatText(text);
+  if(role==='error'){
+    div.innerHTML='<div class="sn-bname">Санёк</div>'+_snFormatText(text);
+  } else if(role==='assistant'){
+    div.innerHTML='<div class="sn-bname">Санёк</div>'+_snFormatText(text);
   } else {
     div.textContent=text;
   }
@@ -3103,112 +3320,106 @@ function _snAddMsg(role,text){
 }
 
 function _snFormatText(text){
-  // Simple markdown-like formatting
   return text
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
-    .replace(/`(.+?)`/g,'<code style="background:rgba(0,0,0,.2);padding:1px 4px;border-radius:3px;font-size:12px">$1</code>')
+    .replace(/`(.+?)`/g,'<code style="background:rgba(0,0,0,.3);padding:1px 5px;border-radius:4px;font-size:12px;font-family:Space Mono,monospace">$1</code>')
     .replace(/\n/g,'<br>');
 }
 
 function _snShowTyping(){
-  const msgs=$('sanekMessages');
-  const div=document.createElement('div');
-  div.className='sn-typing';
-  div.id='snTyping';
+  var msgs=$('sanekMessages');
+  var div=document.createElement('div');
+  div.className='sn-typing';div.id='snTyping';
   div.innerHTML='<span></span><span></span><span></span>';
-  msgs.appendChild(div);
-  msgs.scrollTop=msgs.scrollHeight;
+  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
 }
-
-function _snHideTyping(){
-  const t=$('snTyping');
-  if(t)t.remove();
-}
+function _snHideTyping(){var t=$('snTyping');if(t)t.remove()}
 
 function _snShowActions(actions){
   if(!actions||!actions.length)return;
-  const msgs=$('sanekMessages');
-  const wrap=document.createElement('div');
+  var msgs=$('sanekMessages'),wrap=document.createElement('div');
   wrap.style.cssText='display:flex;flex-wrap:wrap;gap:4px;padding:0 4px;align-self:flex-start';
-  actions.forEach(a=>{
-    const badge=document.createElement('span');
-    badge.className='sn-action';
-    badge.textContent='✅ '+a.tool;
-    wrap.appendChild(badge);
-  });
-  msgs.appendChild(wrap);
-  msgs.scrollTop=msgs.scrollHeight;
+  actions.forEach(function(a){var badge=document.createElement('span');badge.className='sn-action';badge.textContent='✅ '+a.tool;wrap.appendChild(badge)});
+  msgs.appendChild(wrap);msgs.scrollTop=msgs.scrollHeight;
 }
 
 function _snShowPending(pending){
   if(!pending)return;
-  const msgs=$('sanekMessages');
-  const div=document.createElement('div');
+  var msgs=$('sanekMessages'),div=document.createElement('div');
   div.className='sn-pending';
-  div.innerHTML='<div style="font-size:13px;line-height:1.5">'+_snFormatText(pending.description)+'</div>'+
-    '<div class="sn-pending-btns">'+
-    '<button class="sn-yes" onclick="sanekConfirm(true)">✅ Да</button>'+
-    '<button class="sn-no" onclick="sanekConfirm(false)">❌ Нет</button>'+
-    '</div>';
-  msgs.appendChild(div);
-  msgs.scrollTop=msgs.scrollHeight;
+  div.innerHTML='<div style="font-size:13px;line-height:1.5">'+_snFormatText(pending.description)+'</div><div class="sn-pending-btns"><button class="sn-yes" onclick="sanekConfirm(true)">✅ Да, выполнить</button><button class="sn-no" onclick="sanekConfirm(false)">❌ Отмена</button></div>';
+  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
+  snSetState('alert');
 }
 
 async function sanekConfirm(yes){
-  // Remove pending buttons
-  document.querySelectorAll('.sn-pending').forEach(el=>{
-    el.querySelectorAll('button').forEach(b=>b.disabled=true);
-  });
-  const text=yes?'Да':'Нет';
+  document.querySelectorAll('.sn-pending').forEach(function(el){el.querySelectorAll('button').forEach(function(b){b.disabled=true})});
+  var text=yes?'Да':'Нет';
   _snAddMsg('user',text);
   await _snSendMessage(text);
 }
 
 async function sendToSanek(){
-  const input=$('sanekInput');
-  const text=input.value.trim();
+  var input=$('sanekInput'),text=input.value.trim();
   if(!text||_snSending)return;
   input.value='';
   _snAddMsg('user',text);
   await _snSendMessage(text);
 }
 
+function _snIsErrorMsg(msg){
+  if(!msg)return false;
+  var prefixes=['⚠','🔑','⏱','🌐','⚡','❌','🔧','📋'];
+  return prefixes.some(function(p){return msg.startsWith(p)});
+}
+
 async function _snSendMessage(text){
-  _snSending=true;
-  $('sanekSendBtn').disabled=true;
+  _snSending=true;$('sanekSendBtn').disabled=true;
+  snSetState('thinking');
   _snShowTyping();
 
   try{
-    const body={message:text};
+    var body={message:text};
     if(_snSid)body.session_id=_snSid;
-
-    const r=await api.post('/api/ai/chat',body);
+    var r=await api.post('/api/ai/chat',body);
     _snHideTyping();
-
     if(r.session_id)_snSid=r.session_id;
-
-    // Show tool actions if any
-    if(r.actions&&r.actions.length){
-      _snShowActions(r.actions);
-    }
-
-    // Show assistant message
+    if(r.actions&&r.actions.length)_snShowActions(r.actions);
     if(r.message){
-      _snAddMsg('assistant',r.message);
-    }
-
-    // Show pending action if any
-    if(r.pending_action){
+      // Detect error messages from backend by their emoji prefixes
+      if(_snIsErrorMsg(r.message)){
+        _snAddMsg('error',r.message);
+        snSetState('alert');setTimeout(function(){if(_sn.state==='alert')snSetState('idle')},5000);
+      } else {
+        _snAddMsg('assistant',r.message);
+        if(r.pending_action){_snShowPending(r.pending_action)}
+        else{snSetState('success');setTimeout(function(){if(_sn.state==='success')snSetState('idle')},2500)}
+      }
+    } else if(r.pending_action){
       _snShowPending(r.pending_action);
+    } else {
+      _snAddMsg('error','❌ Пустой ответ от сервера.\n\nВозможно, AI провайдер не настроен или бэкенд работает с ошибками.');
+      snSetState('alert');setTimeout(function(){if(_sn.state==='alert')snSetState('idle')},5000);
     }
-
   }catch(e){
     _snHideTyping();
-    _snAddMsg('assistant','❌ Ошибка: '+(e.message||'Не удалось связаться с сервером'));
+    var em=e.message||'';
+    var msg;
+    if(em.includes('404'))
+      msg='❌ Эндпоинт чата не найден (404).\n\nБэкенд СКАДА требует обновления. Выполните деплой на сервере.';
+    else if(em.includes('Failed to fetch')||em.includes(': 0'))
+      msg='❌ Сервер СКАДА недоступен.\n\nПроверьте что бэкенд запущен и доступен по сети.';
+    else if(em.includes('500'))
+      msg='❌ Внутренняя ошибка сервера.\n\nПроверьте логи бэкенда: docker logs scada-backend';
+    else if(em.includes('502')||em.includes('503'))
+      msg='❌ Сервер СКАДА временно недоступен (перезагружается).\n\nПодождите 10 секунд и повторите.';
+    else
+      msg='❌ Не удалось связаться с сервером.\n\n'+(em?'Детали: '+em:'Проверьте доступность бэкенда.');
+    _snAddMsg('error',msg);
+    snSetState('alert');setTimeout(function(){if(_sn.state==='alert')snSetState('idle')},5000);
   }finally{
-    _snSending=false;
-    $('sanekSendBtn').disabled=false;
+    _snSending=false;$('sanekSendBtn').disabled=false;
   }
 }
 </script>
@@ -3271,20 +3482,25 @@ async function _snSendMessage(text){
 </div>
 </div>
 <!-- Sanek Chat Button -->
-<button id="sanekBtn" onclick="toggleSanek()">🤖</button>
+<div class="sn-btn-glow"></div>
+<button id="sanekBtn" onclick="toggleSanek()"><canvas id="snBtnCanvas" width="128" height="128"></canvas></button>
 <!-- Sanek Chat Panel -->
 <div id="sanekPanel">
 <div class="sn-hd">
-<span style="font-size:22px">🤖</span>
-<div style="flex:1"><div style="font-weight:700;font-size:14px">Санёк</div><div style="font-size:10px;color:var(--t3)">AI-ассистент СКАДА</div></div>
-<button onclick="sanekNewSession()" style="background:none;border:1px solid var(--bd);border-radius:6px;padding:4px 8px;color:var(--t2);cursor:pointer;font-size:11px" title="Новая сессия">🔄</button>
-<button onclick="toggleSanek()" style="background:none;border:none;color:var(--t2);cursor:pointer;font-size:18px;padding:4px 8px">&times;</button>
+<canvas id="snMiniCanvas" width="96" height="96"></canvas>
+<div style="flex:1">
+<div class="sn-hd-info"><h3>Санёк</h3></div>
+<div class="sn-hd-status"><div class="sn-hd-dot"></div> <span id="snStatusText">онлайн — жду команды</span></div>
+</div>
+<button onclick="sanekNewSession()" style="background:none;border:1.5px solid #232d4a;border-radius:10px;padding:5px 10px;color:#6b7a9e;cursor:pointer;font-size:11px;transition:all .2s" title="Новая сессия">🔄</button>
+<button onclick="toggleSanek()" style="background:none;border:none;color:#6b7a9e;cursor:pointer;font-size:20px;padding:4px 8px;transition:color .2s" onmouseover="this.style.color='#ff6b81'" onmouseout="this.style.color='#6b7a9e'">&times;</button>
 </div>
 <div class="sn-msgs" id="sanekMessages">
 <div class="sn-welcome">
-<div class="sn-big">🤖</div>
+<div class="sn-welcome-avatar"><div class="sn-welcome-glow"></div><canvas id="snWelcomeCanvas" width="320" height="320"></canvas></div>
+<div class="sn-state-tag" id="snStateTag">готов — жду команды</div>
 <h3>Привет! Я — Санёк</h3>
-<p>AI-ассистент вашей СКАДА-системы.<br>Спросите о состоянии генераторов, авариях,<br>ТО или дайте команду управления.</p>
+<p>AI-ассистент вашей СКАДА-системы.<br>Спроси о состоянии генераторов, авариях,<br>ТО или дай команду управления.</p>
 <div class="sn-hints">
 <button class="sn-hint" onclick="sanekHint(this)">📊 Какие объекты и устройства есть?</button>
 <button class="sn-hint" onclick="sanekHint(this)">⚡ Покажи текущую мощность генераторов</button>
@@ -3294,8 +3510,8 @@ async function _snSendMessage(text){
 </div>
 </div>
 <div class="sn-input-row">
-<input id="sanekInput" placeholder="Спросите Санька..." onkeydown="if(event.key==='Enter'&&!event.shiftKey)sendToSanek()">
-<button id="sanekSendBtn" onclick="sendToSanek()">➤</button>
+<input id="sanekInput" placeholder="Спроси Санька..." onkeydown="if(event.key==='Enter'&&!event.shiftKey)sendToSanek()">
+<button class="sn-send-btn" id="sanekSendBtn" onclick="sendToSanek()"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
 </div>
 </div>
 </body></html>

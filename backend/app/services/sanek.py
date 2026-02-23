@@ -18,6 +18,90 @@ from config import settings
 logger = logging.getLogger("scada.sanek")
 
 # ---------------------------------------------------------------------------
+# Provider display names
+# ---------------------------------------------------------------------------
+PROVIDER_LABELS = {"openai": "OpenAI", "claude": "Claude", "gemini": "Gemini", "grok": "Grok"}
+
+
+def _format_llm_error(provider: str, error, status_code: int = 0) -> str:
+    """
+    Format LLM provider errors into human-readable Russian messages.
+    Classifies by error type and provides actionable advice.
+    """
+    label = PROVIDER_LABELS.get(provider, provider)
+    err_str = str(error).lower()
+
+    # Auth errors (invalid API key)
+    if status_code in (401, 403) or any(kw in err_str for kw in (
+        "401", "403", "unauthorized", "authentication", "invalid api key",
+        "incorrect api key", "invalid x-api-key", "permission denied",
+    )):
+        return (
+            f"🔑 Ошибка авторизации: API ключ провайдера {label} недействителен "
+            f"или отозван.\n\n"
+            f"Откройте «🤖 AI Провайдер» в боковом меню и проверьте ключ."
+        )
+
+    # Rate limit
+    if status_code == 429 or any(kw in err_str for kw in (
+        "429", "rate limit", "rate_limit", "too many requests", "quota",
+    )):
+        return (
+            f"⚡ Лимит запросов: провайдер {label} ограничил частоту обращений.\n\n"
+            f"Подождите 30 секунд и повторите попытку."
+        )
+
+    # Timeout
+    if any(kw in err_str for kw in (
+        "timeout", "timed out", "timeouterror",
+    )):
+        return (
+            f"⏱ Превышено время ожидания: провайдер {label} не ответил вовремя.\n\n"
+            f"Возможно, сервер перегружен — попробуйте позже или смените провайдер."
+        )
+
+    # Connection / network errors
+    if any(kw in err_str for kw in (
+        "connecterror", "connectionerror", "connection refused",
+        "name resolution", "unreachable", "no route", "dns",
+        "failed to establish", "cannot connect",
+    )):
+        return (
+            f"🌐 Нет связи с провайдером: не удалось подключиться к {label} API.\n\n"
+            f"Проверьте доступ в интернет или попробуйте другой провайдер."
+        )
+
+    # Server errors (5xx)
+    if status_code >= 500 or any(kw in err_str for kw in (
+        "500", "502", "503", "504", "internal server error",
+        "bad gateway", "service unavailable",
+    )):
+        return (
+            f"🔧 Сервер провайдера {label} временно недоступен (ошибка {status_code or 'сервера'}).\n\n"
+            f"Попробуйте позже или переключитесь на другой провайдер."
+        )
+
+    # Model not found
+    if any(kw in err_str for kw in ("model not found", "model_not_found", "does not exist")):
+        return (
+            f"📋 Модель не найдена у провайдера {label}.\n\n"
+            f"Откройте «🤖 AI Провайдер» и выберите корректную модель."
+        )
+
+    # Fallback — unknown error
+    short_err = str(error)[:200]
+    return (
+        f"❌ Ошибка провайдера {label}: {short_err}\n\n"
+        f"Попробуйте повторить или сменить провайдер в настройках."
+    )
+
+
+def _format_http_error(provider: str, status_code: int, error_body: str) -> str:
+    """Format HTTP status errors for Claude/Gemini (non-SDK providers)."""
+    return _format_llm_error(provider, error_body, status_code=status_code)
+
+
+# ---------------------------------------------------------------------------
 # Internal API base URL (within Docker network)
 # ---------------------------------------------------------------------------
 _API_BASE = "http://127.0.0.1:8000"
@@ -595,7 +679,7 @@ class SanekAssistant:
                 )
             except Exception as e:
                 logger.error("OpenAI/Grok error: %s", e)
-                return {"message": f"Ошибка {self.provider}: {str(e)}", "actions": actions, "pending_action": None}
+                return {"message": _format_llm_error(self.provider, e), "actions": actions, "pending_action": None}
 
             choice = response.choices[0]
 
@@ -675,11 +759,14 @@ class SanekAssistant:
                     )
             except Exception as e:
                 logger.error("Claude error: %s", e)
-                return {"message": f"Ошибка Claude: {str(e)}", "actions": actions, "pending_action": None}
+                return {"message": _format_llm_error("claude", e), "actions": actions, "pending_action": None}
 
             if resp.status_code != 200:
-                err = resp.json().get("error", {}).get("message", resp.text[:200])
-                return {"message": f"Ошибка Claude API: {err}", "actions": actions, "pending_action": None}
+                try:
+                    err = resp.json().get("error", {}).get("message", resp.text[:200])
+                except Exception:
+                    err = resp.text[:200]
+                return {"message": _format_http_error("claude", resp.status_code, err), "actions": actions, "pending_action": None}
 
             data = resp.json()
             stop_reason = data.get("stop_reason", "")
@@ -776,11 +863,14 @@ class SanekAssistant:
                     resp = await http.post(url, json=body)
             except Exception as e:
                 logger.error("Gemini error: %s", e)
-                return {"message": f"Ошибка Gemini: {str(e)}", "actions": actions, "pending_action": None}
+                return {"message": _format_llm_error("gemini", e), "actions": actions, "pending_action": None}
 
             if resp.status_code != 200:
-                err = resp.json().get("error", {}).get("message", resp.text[:200])
-                return {"message": f"Ошибка Gemini API: {err}", "actions": actions, "pending_action": None}
+                try:
+                    err = resp.json().get("error", {}).get("message", resp.text[:200])
+                except Exception:
+                    err = resp.text[:200]
+                return {"message": _format_http_error("gemini", resp.status_code, err), "actions": actions, "pending_action": None}
 
             data = resp.json()
             candidate = data.get("candidates", [{}])[0]
