@@ -329,15 +329,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 [data-theme="light"] .kp{background:rgba(0,0,0,.03)}
 [data-theme="light"] .cmd-st{background:rgba(5,150,105,.1);color:#047857}
 /* ===== Sanek Chat Panel ===== */
-#sanekBtn{position:fixed;bottom:20px;right:20px;z-index:999;width:64px;height:64px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#232f52,#131a2f);border:2px solid rgba(93,228,255,.25);cursor:pointer;box-shadow:0 4px 20px rgba(93,228,255,.2);transition:all .3s cubic-bezier(.34,1.56,.64,1);padding:0;overflow:hidden}
-#sanekBtn:hover{transform:scale(1.1);box-shadow:0 6px 30px rgba(93,228,255,.35);border-color:rgba(93,228,255,.5)}
+#sanekBtn{position:fixed;bottom:20px;right:20px;z-index:999;width:96px;height:96px;border-radius:50%;background:transparent;border:none;cursor:pointer;transition:all .3s cubic-bezier(.34,1.56,.64,1);padding:0;overflow:hidden}
+#sanekBtn:hover{transform:scale(1.1)}
 #sanekBtn canvas{width:100%;height:100%;pointer-events:none}
-.sn-btn-glow{position:fixed;bottom:14px;right:14px;width:76px;height:76px;border-radius:50%;background:radial-gradient(circle,rgba(93,228,255,.15) 0%,transparent 70%);z-index:998;pointer-events:none;animation:snBtnBreathe 4s ease-in-out infinite}
-@keyframes snBtnBreathe{0%,100%{transform:scale(.9);opacity:.5}50%{transform:scale(1.1);opacity:1}}
 #sanekPanel{position:fixed;top:0;right:-420px;width:420px;height:100vh;background:#0c1021;border-left:1.5px solid #232d4a;z-index:998;transition:right .35s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;font-family:'Nunito',system-ui,sans-serif}
 #sanekPanel.open{right:0}
-.sn-hd{padding:14px 18px;border-bottom:1px solid #232d4a;display:flex;align-items:center;gap:12px;background:#141a2e}
-.sn-hd canvas{width:72px;height:72px;flex-shrink:0;border-radius:50%}
+.sn-hd{padding:14px 18px;border-bottom:1px solid #232d4a;display:flex;align-items:center;gap:14px;background:#141a2e}
+.sn-hd canvas{width:128px;height:128px;flex-shrink:0;border-radius:50%;overflow:hidden}
 .sn-hd-info h3{font-size:16px;font-weight:800;color:#e8ecf4;margin:0}
 .sn-hd-status{font-size:11px;color:#4ade80;display:flex;align-items:center;gap:5px;position:relative}
 .sn-health-tip{position:absolute;top:100%;left:0;right:0;margin-top:6px;padding:10px 14px;background:#1c1030;border:1.5px solid #ff6b81;border-radius:12px;font-size:11.5px;line-height:1.5;color:#fca5a5;z-index:10;animation:snBubbleIn .3s ease;box-shadow:0 4px 20px rgba(255,107,129,.15);white-space:normal}
@@ -379,17 +377,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .sn-typing span:nth-child(2){animation-delay:.15s}
 .sn-typing span:nth-child(3){animation-delay:.3s}
 @keyframes snDotBounce{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-8px);opacity:1}}
-.sn-welcome{text-align:center;padding:32px 20px;color:#6b7a9e}
-.sn-welcome-avatar{position:relative;width:160px;height:160px;margin:0 auto 12px}
-.sn-welcome-avatar canvas{width:100%;height:100%}
-.sn-welcome-glow{position:absolute;inset:-20px;border-radius:50%;background:radial-gradient(circle,rgba(93,228,255,.15) 0%,transparent 70%);animation:snBtnBreathe 4s ease-in-out infinite}
-.sn-welcome h3{color:#e8ecf4;margin:0 0 6px;font-size:16px;font-weight:800}
-.sn-welcome p{font-size:12px;margin:0 0 20px;line-height:1.6;color:#6b7a9e}
+.sn-welcome{text-align:center;padding:40px 24px 24px;color:#6b7a9e}
+.sn-welcome-line{width:40px;height:3px;border-radius:2px;background:linear-gradient(90deg,#5de4ff,#4ade80);margin:0 auto 18px;opacity:.5}
+.sn-welcome h3{color:#e8ecf4;margin:0 0 8px;font-size:17px;font-weight:800}
+.sn-welcome p{font-size:12.5px;margin:0 0 24px;line-height:1.7;color:#6b7a9e}
 .sn-hints{display:flex;flex-direction:column;gap:8px}
 .sn-hint{padding:10px 14px;border:1.5px solid #232d4a;border-radius:14px;background:#141a2e;color:#6b7a9e;font-size:12px;cursor:pointer;text-align:left;transition:all .25s cubic-bezier(.34,1.56,.64,1)}
 .sn-hint:hover{border-color:rgba(93,228,255,.3);color:#e8ecf4;background:#1a2240;transform:translateY(-2px);box-shadow:0 4px 16px rgba(93,228,255,.06)}
-.sn-state-tag{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#5de4ff;text-align:center;margin-top:-4px;transition:color .4s}
-[data-theme="light"] #sanekBtn{background:radial-gradient(circle at 40% 35%,#e8ecf4,#d1d5db);border-color:rgba(109,40,217,.25);box-shadow:0 4px 20px rgba(109,40,217,.15)}
+[data-theme="light"] #sanekBtn{background:transparent}
 [data-theme="light"] #sanekPanel{background:#f8fafc;border-color:#d1d5db}
 [data-theme="light"] .sn-hd{background:#fff;border-color:#e2e8f0}
 [data-theme="light"] .sn-msgs{background:#f1f5f9}
@@ -405,7 +400,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 [data-theme="light"] .sn-hd-info h3{color:#1e293b}
 [data-theme="light"] .sn-welcome h3{color:#1e293b}
 [data-theme="light"] .sn-welcome p{color:#64748b}
-[data-theme="light"] .sn-state-tag{color:#6d28d9}
+[data-theme="light"] .sn-welcome-line{background:linear-gradient(90deg,#6d28d9,#4f46e5)}
 /* --- Sanek: History dropdown + Counter --- */
 .sn-hd-top{display:flex;align-items:center;gap:8px;position:relative}
 .sn-hist-btn{background:none;border:1.5px solid #232d4a;border-radius:10px;padding:5px 10px;color:#6b7a9e;cursor:pointer;font-size:11px;transition:all .2s;display:flex;align-items:center;gap:4px}
@@ -3256,12 +3251,9 @@ function _snRgb(c,a){return a!==undefined?`rgba(${Math.round(c.r)},${Math.round(
 
 function snSetState(state){
   _sn.state=state;_sn.tColor={..._snColors[state]};_sn.emotionT=0;
-  var tag=$('snStateTag');if(tag){tag.textContent=_snLabels[state];tag.style.color=_snTagColors[state]}
   var st=$('snStatusText');if(st){st.textContent=_snLabels[state];st.style.color=_snTagColors[state]}
   var dot=$('snStatusDot');if(dot){dot.style.background=_snTagColors[state];dot.style.boxShadow='0 0 6px '+_snTagColors[state]}
   var hds=document.querySelector('.sn-hd-status');if(hds)hds.style.color=_snTagColors[state];
-  var glow=document.querySelector('.sn-welcome-glow');if(glow)glow.style.background='radial-gradient(circle,'+_snGlows[state]+' 0%,transparent 70%)';
-  var bg=document.querySelector('.sn-btn-glow');if(bg)bg.style.background='radial-gradient(circle,'+_snGlows[state]+' 0%,transparent 70%)';
   _sn.tSquishX=1.12;_sn.tSquishY=.9;
   setTimeout(()=>{_sn.tSquishX=.94;_sn.tSquishY=1.08},120);
   setTimeout(()=>{_sn.tSquishX=1;_sn.tSquishY=1},280);
@@ -3376,15 +3368,12 @@ function _snTick(){
 function _snDraw(){
   _snTick();
   var S=_sn,fY=Math.sin(S.time*.8)*6;
-  // Welcome canvas (big)
-  var wc=$('snWelcomeCanvas');
-  if(wc&&wc.offsetParent!==null){var ctx=wc.getContext('2d');ctx.clearRect(0,0,320,320);ctx.save();ctx.translate(160,170+fY+S.bounceY*.6);ctx.rotate(S.readingNod);ctx.scale(S.squishX*.55,S.squishY*.55);_snDrawBody(ctx,0,0,.55);ctx.restore()}
-  // Header mini canvas
+  // Header mini canvas — full Sanek with antenna
   var mc=$('snMiniCanvas');
-  if(mc&&mc.offsetParent!==null){var ctx2=mc.getContext('2d');ctx2.clearRect(0,0,192,192);ctx2.save();ctx2.translate(96,104);ctx2.scale(.30,.30);_snDrawBody(ctx2,0,0,.30);ctx2.restore()}
-  // Button canvas
+  if(mc&&mc.offsetParent!==null){var ctx2=mc.getContext('2d');ctx2.clearRect(0,0,320,320);ctx2.save();ctx2.translate(160,172);ctx2.scale(.45,.45);_snDrawBody(ctx2,0,0,.45);ctx2.restore()}
+  // Button canvas — clean, no glow bleed
   var bc=$('snBtnCanvas');
-  if(bc){var ctx3=bc.getContext('2d');ctx3.clearRect(0,0,128,128);ctx3.save();ctx3.translate(64,68+fY*.3);ctx3.scale(.22,.22);_snDrawBody(ctx3,0,0,.22);ctx3.restore()}
+  if(bc){var ctx3=bc.getContext('2d');ctx3.clearRect(0,0,192,192);ctx3.save();ctx3.beginPath();ctx3.arc(96,96,95,0,Math.PI*2);ctx3.clip();ctx3.translate(96,104+fY*.3);ctx3.scale(.32,.32);_snDrawBody(ctx3,0,0,.32);ctx3.restore()}
   requestAnimationFrame(_snDraw);
 }
 
@@ -3403,6 +3392,7 @@ _snDraw();
 function toggleSanek(){
   _snOpen=!_snOpen;
   $('sanekPanel').classList.toggle('open',_snOpen);
+  $('sanekBtn').style.display=_snOpen?'none':'';
   if(_snOpen){$('sanekInput').focus();_snUpdateCtxBadge()}
   if(!_snOpen&&_snHistOpen)_snToggleHistory();
 }
@@ -3410,7 +3400,7 @@ function toggleSanek(){
 function sanekNewSession(){
   _snSid=null;_snMsgCount=0;_snUpdateCounter();snSetState('idle');
   if(_snHistOpen)_snToggleHistory();
-  $('sanekMessages').innerHTML='<div class="sn-welcome"><div class="sn-welcome-avatar"><div class="sn-welcome-glow"></div><canvas id="snWelcomeCanvas" width="320" height="320"></canvas></div><div class="sn-state-tag" id="snStateTag">готов — жду команды</div><h3>Привет! Я — Санёк</h3><p>AI-ассистент вашей СКАДА-системы.<br>Спроси о состоянии генераторов, авариях,<br>ТО или дай команду управления.</p><div class="sn-hints"><button class="sn-hint" onclick="sanekHint(this)">📊 Какие объекты и устройства есть?</button><button class="sn-hint" onclick="sanekHint(this)">⚡ Покажи текущую мощность генераторов</button><button class="sn-hint" onclick="sanekHint(this)">🚨 Есть активные аварии?</button><button class="sn-hint" onclick="sanekHint(this)">📋 Дай общую сводку по системе</button></div></div>';
+  $('sanekMessages').innerHTML='<div class="sn-welcome"><div class="sn-welcome-line"></div><h3>Чем могу помочь?</h3><p>Спроси о состоянии генераторов, авариях,<br>ТО или дай команду управления.</p><div class="sn-hints"><button class="sn-hint" onclick="sanekHint(this)">📊 Какие объекты и устройства есть?</button><button class="sn-hint" onclick="sanekHint(this)">⚡ Покажи текущую мощность генераторов</button><button class="sn-hint" onclick="sanekHint(this)">🚨 Есть активные аварии?</button><button class="sn-hint" onclick="sanekHint(this)">📋 Дай общую сводку по системе</button></div></div>';
   _snUpdateCtxBadge();
 }
 
@@ -3800,12 +3790,11 @@ setTimeout(_snUpdateCtxBadge,500);
 </div>
 </div>
 <!-- Sanek Chat Button -->
-<div class="sn-btn-glow"></div>
-<button id="sanekBtn" onclick="toggleSanek()"><canvas id="snBtnCanvas" width="128" height="128"></canvas></button>
+<button id="sanekBtn" onclick="toggleSanek()"><canvas id="snBtnCanvas" width="192" height="192"></canvas></button>
 <!-- Sanek Chat Panel -->
 <div id="sanekPanel">
 <div class="sn-hd">
-<canvas id="snMiniCanvas" width="192" height="192"></canvas>
+<canvas id="snMiniCanvas" width="320" height="320"></canvas>
 <div style="flex:1">
 <div class="sn-hd-info"><h3>Санёк</h3> <span class="sn-counter" id="snMsgCounter"></span> <span class="sn-ctx-badge" id="snCtxBadge" style="display:none"></span></div>
 <div class="sn-hd-status" id="snStatusRow" onclick="_snShowHealthDetail()" style="cursor:pointer" title="Нажмите для подробностей"><div class="sn-hd-dot" id="snStatusDot"></div> <span id="snStatusText">готов — жду команды</span></div>
@@ -3820,10 +3809,9 @@ setTimeout(_snUpdateCtxBadge,500);
 </div>
 <div class="sn-msgs" id="sanekMessages">
 <div class="sn-welcome">
-<div class="sn-welcome-avatar"><div class="sn-welcome-glow"></div><canvas id="snWelcomeCanvas" width="320" height="320"></canvas></div>
-<div class="sn-state-tag" id="snStateTag">готов — жду команды</div>
-<h3>Привет! Я — Санёк</h3>
-<p>AI-ассистент вашей СКАДА-системы.<br>Спроси о состоянии генераторов, авариях,<br>ТО или дай команду управления.</p>
+<div class="sn-welcome-line"></div>
+<h3>Чем могу помочь?</h3>
+<p>Спроси о состоянии генераторов, авариях,<br>ТО или дай команду управления.</p>
 <div class="sn-hints">
 <button class="sn-hint" onclick="sanekHint(this)">📊 Какие объекты и устройства есть?</button>
 <button class="sn-hint" onclick="sanekHint(this)">⚡ Покажи текущую мощность генераторов</button>

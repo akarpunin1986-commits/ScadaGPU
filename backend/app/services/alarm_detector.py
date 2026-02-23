@@ -14,7 +14,7 @@ import logging
 from datetime import datetime
 
 from redis.asyncio import Redis
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from models.alarm_event import AlarmEvent
@@ -127,6 +127,30 @@ class AlarmDetector:
             message = CONN_LOST_MESSAGES.get(device_type, f"Нет связи с устройством #{device_id}")
             try:
                 async with self.session_factory() as session:
+                    # Skip if already have active CONN_LOST (prevent duplicates)
+                    existing = await session.execute(
+                        select(AlarmEvent).where(and_(
+                            AlarmEvent.device_id == device_id,
+                            AlarmEvent.alarm_code == CONN_LOST_CODE,
+                            AlarmEvent.is_active == True,
+                        ))
+                    )
+                    if existing.scalar_one_or_none():
+                        logger.debug("CONN_LOST already active for device=%d, skip", device_id)
+                        self._prev_online[device_id] = False
+                        # Still auto-close hardware alarms
+                        await session.execute(
+                            update(AlarmEvent)
+                            .where(and_(
+                                AlarmEvent.device_id == device_id,
+                                AlarmEvent.alarm_code != CONN_LOST_CODE,
+                                AlarmEvent.is_active == True,
+                            ))
+                            .values(cleared_at=datetime.utcnow(), is_active=False)
+                        )
+                        await session.commit()
+                        return
+
                     alarm = AlarmEvent(
                         device_id=device_id,
                         alarm_code=CONN_LOST_CODE,
@@ -135,6 +159,20 @@ class AlarmDetector:
                         is_active=True,
                     )
                     session.add(alarm)
+
+                    # Auto-close hardware alarms — connection lost, state unknown
+                    hw_closed = await session.execute(
+                        update(AlarmEvent)
+                        .where(and_(
+                            AlarmEvent.device_id == device_id,
+                            AlarmEvent.alarm_code != CONN_LOST_CODE,
+                            AlarmEvent.is_active == True,
+                        ))
+                        .values(cleared_at=datetime.utcnow(), is_active=False)
+                    )
+                    if hw_closed.rowcount:
+                        logger.info("Auto-closed %d hardware alarms for device=%d (connection lost)", hw_closed.rowcount, device_id)
+
                     await session.commit()
                     logger.info("CONN_LOST ON: device=%d type=%s", device_id, device_type)
                     # Publish for isolated consumers (Bitrix24 module)
@@ -154,7 +192,7 @@ class AlarmDetector:
                 logger.error("AlarmDetector CONN_LOST insert error: %s", exc)
 
         elif not was_online and online_now:
-            # Transition: offline → online → clear CONN_LOST alarm
+            # Transition: offline → online → clear ALL active CONN_LOST alarms
             try:
                 async with self.session_factory() as session:
                     stmt = select(AlarmEvent).where(
@@ -165,12 +203,14 @@ class AlarmDetector:
                         )
                     )
                     result = await session.execute(stmt)
-                    active_alarm = result.scalar_one_or_none()
-                    if active_alarm:
-                        active_alarm.cleared_at = datetime.utcnow()
-                        active_alarm.is_active = False
+                    active_alarms = result.scalars().all()
+                    if active_alarms:
+                        now = datetime.utcnow()
+                        for a in active_alarms:
+                            a.cleared_at = now
+                            a.is_active = False
                         await session.commit()
-                        logger.info("CONN_LOST OFF: device=%d", device_id)
+                        logger.info("CONN_LOST OFF: device=%d (cleared %d records)", device_id, len(active_alarms))
             except Exception as exc:
                 logger.error("AlarmDetector CONN_LOST clear error: %s", exc)
 

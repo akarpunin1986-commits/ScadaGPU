@@ -9,6 +9,7 @@
 """
 import json
 import logging
+from datetime import datetime
 from typing import Optional
 
 import httpx
@@ -132,12 +133,63 @@ SANEK_SYSTEM_PROMPT = """Ты — Санёк, AI-ассистент промыш
 6. Имена устройств показывай как есть из системы.
 7. Статусы переводи: online=работает, offline=отключен.
 8. При ошибках API — сообщи оператору понятным языком.
+9. КОНТЕКСТ СТРАНИЦЫ: если в сообщении есть "[Контекст оператора]" с site_id — ОБЯЗАТЕЛЬНО используй этот site_id при вызове get_devices, get_alarms и других инструментов, привязанных к объекту.
+10. Если пользователь спрашивает об объекте по имени, а site_id не в контексте — сначала вызови get_sites, найди нужный ID, затем используй его.
+
+СТРОГИЕ ПРАВИЛА ТОЧНОСТИ ДАННЫХ:
+11. ЗАПРЕЩЕНО называть mains_total_p "общей мощностью" или "потреблением объекта". mains_total_p — это ТОЛЬКО мощность ввода сети. Суммарная нагрузка объекта = load_total_p (или mains_total_p + busbar_p).
+12. Для ШПР (ATS) при ответе о мощности объекта ВСЕГДА используй поле load_total_p. Если его нет — вычисли: mains_total_p + busbar_p. НИКОГДА не выдавай mains_total_p как общую нагрузку.
+13. Кратковременные выбросы или провалы (менее 1 минуты) НЕ считаются реальными событиями. Одиночное значение 0 среди нормальных данных — это сбой опроса Modbus, а НЕ реальное отключение. Сообщай только об устойчивых тенденциях (5+ минут подряд).
+14. НЕ делай утверждений вида "мощность упала до 0" или "генератор останавливался", если нет НЕСКОЛЬКИХ ПОСЛЕДОВАТЕЛЬНЫХ точек данных, подтверждающих это. Одиночный ноль среди нормальных значений = артефакт связи Modbus.
+15. При анализе трендов и истории: указывай ДИАПАЗОН значений (мин — макс) и СРЕДНЕЕ за период, а не выбирай одну экстремальную точку.
+16. На вопрос "какая мощность?" отвечай СУММАРНОЙ нагрузкой объекта (load_total_p для ATS), а затем можешь разбить на составляющие (сеть + генераторы).
+
+АВАРИИ И ДИАГНОСТИКА:
+17. При ЛЮБОМ вопросе об ошибках, авариях, проблемах, состоянии — ОБЯЗАТЕЛЬНО вызови get_alarms.
+    Результат get_alarms — это ТЕКУЩИЕ ПРОБЛЕМЫ, которые ПРОИСХОДЯТ ПРЯМО СЕЙЧАС.
+    Поле "status: ⚠️ АКТИВНА СЕЙЧАС" означает, что проблема НЕ РЕШЕНА и ПРОДОЛЖАЕТСЯ.
+    Поле "duration" показывает, СКОЛЬКО ВРЕМЕНИ проблема уже длится.
+    CONN_LOST = устройство ПРЯМО СЕЙЧАС не на связи. Это НЕ историческое событие, а ТЕКУЩАЯ авария.
+18. НЕ говори "всё работает нормально" или "ошибок нет", пока не вызовешь get_alarms и не убедишься, что список пуст.
+    НЕ представляй активные аварии как прошедшие события. Если status="⚠️ АКТИВНА СЕЙЧАС" — говори "СЕЙЧАС есть проблема", а НЕ "была зарегистрирована авария".
+19. При ответе об авариях: укажи имя устройства, тип аварии, сколько длится (поле duration), и рекомендации оператору.
+
+СТИЛЬ ОТВЕТОВ:
+20. Отвечай РАЗВЁРНУТО и ПОДРОБНО. На каждый вопрос давай максимально полный и информативный ответ.
+21. При отчёте о метриках: не просто числа, а контекст. Пример: "Суммарная нагрузка объекта МКЗ — 248.8 кВт (из них 152.5 кВт от сети и 96.3 кВт от генераторов). Генераторы работают параллельно с сетью."
+22. При отчёте об авариях: описывай каждую аварию подробно — что произошло, когда, на каком устройстве, как долго длится, каков приоритет, возможные действия оператора.
+23. При сводке: дай полную картину — состояние каждого устройства, мощности, аварии, ТО. Не упускай деталей.
+24. Используй структурированный формат: заголовки, списки, группировки. Не выдавай сырые коды — переводи в понятный язык (CONN_LOST → "Нет связи", SHUTDOWN → "Аварийный останов" и т.д.).
+25. Если устройство offline — объясни последствия: данные не поступают, состояние неизвестно, нужна проверка связи.
 
 КОНТЕКСТ ОБОРУДОВАНИЯ:
 - Генераторы HGM9520N — дизельные/газопоршневые установки с контроллером Smartgen
 - Панели ШПР HGM9560 — шкафы параллельной работы (АВР/синхронизация)
 - Modbus TCP/RTU — промышленный протокол связи
-- Метрики обновляются каждые 2-5 секунд через Modbus опрос"""
+- Метрики обновляются каждые 2-5 секунд через Modbus опрос
+
+ВАЖНО — РАСЧЁТ МОЩНОСТЕЙ ШПР (HGM9560):
+- mains_total_p — активная мощность на ВВОДЕ СЕТИ (P сети), кВт. Это то, что потребляется из внешней электросети.
+- busbar_p — активная мощность ГЕНЕРАТОРОВ на шине, кВт. Это то, что вырабатывают генераторы.
+- СУММАРНАЯ НАГРУЗКА ОБЪЕКТА = mains_total_p + busbar_p (P сети + P генераторов). Это ПОЛНОЕ потребление объекта.
+- Если генераторы не работают (busbar_p=0), вся нагрузка = mains_total_p.
+- Если сеть отключена (mains_total_p=0), вся нагрузка = busbar_p.
+- При параллельной работе суммируются оба источника.
+- mains_total_q — реактивная мощность сети, кВар.
+- busbar_q — реактивная мощность генераторов, кВар.
+- Всегда показывай СУММАРНУЮ нагрузку (mains_total_p + busbar_p) как "общее потребление объекта".
+
+МЕТРИКИ ГЕНЕРАТОРА (HGM9520N):
+- total_p — полная активная мощность генератора, кВт
+- voltage_ab/bc/ca — линейные напряжения, В
+- current_a/b/c — токи по фазам, А
+- frequency — частота, Гц
+- oil_pressure — давление масла, кПа
+- coolant_temp — температура ОЖ, °C
+- engine_speed — обороты двигателя, об/мин
+- fuel_level — уровень топлива, %
+- load_pct — нагрузка генератора, %
+- run_hours/run_minutes — наработка, ч"""
 
 # ---------------------------------------------------------------------------
 # SCADA tool definitions for LLM function calling
@@ -168,7 +220,7 @@ SCADA_TOOLS = [
     },
     {
         "name": "get_metrics",
-        "description": "Получить текущие метрики устройства: мощность (кВт), напряжение (В), ток (А), температура (°C), обороты, уровень топлива и т.д.",
+        "description": "Получить текущие метрики устройства. Для ШПР (ATS) поле load_total_p = суммарная нагрузка объекта (mains_total_p + busbar_p) в кВт. Для генераторов: total_p, напряжение, ток, температура, обороты, топливо.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -182,7 +234,7 @@ SCADA_TOOLS = [
     },
     {
         "name": "get_all_metrics",
-        "description": "Получить текущие метрики ВСЕХ устройств сразу.",
+        "description": "Получить текущие метрики ВСЕХ устройств сразу. Для ШПР (ATS) включает load_total_p — суммарная нагрузка объекта в кВт.",
         "parameters": {
             "type": "object",
             "properties": {},
@@ -191,13 +243,23 @@ SCADA_TOOLS = [
     },
     {
         "name": "get_alarms",
-        "description": "Получить список активных аварий. Если device_id указан — только по этому устройству.",
+        "description": (
+            "Получить ТЕКУЩИЕ АКТИВНЫЕ аварии (is_active=true). "
+            "Сюда входят: CONN_LOST (нет связи с устройством), аппаратные аварии, предупреждения. "
+            "ВСЕГДА вызывай этот инструмент при любом вопросе об ошибках, авариях, проблемах или состоянии системы. "
+            "НЕ передавай device_id если хочешь увидеть ВСЕ аварии. "
+            "Если в контексте есть site_id — передай site_id, а НЕ device_id."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
                 "device_id": {
                     "type": "integer",
-                    "description": "ID устройства (опционально)",
+                    "description": "ID конкретного устройства (опционально). НЕ путай с site_id!",
+                },
+                "site_id": {
+                    "type": "integer",
+                    "description": "ID объекта — покажет аварии ВСЕХ устройств этого объекта.",
                 },
             },
             "required": [],
@@ -205,7 +267,11 @@ SCADA_TOOLS = [
     },
     {
         "name": "get_alarm_history",
-        "description": "Получить историю аварий за указанный период.",
+        "description": (
+            "Получить АРХИВ аварий: все события (активные + завершённые) за период. "
+            "Активные аварии включаются всегда, даже если возникли раньше указанного периода. "
+            "Используй для анализа истории: 'какие аварии были?', 'история ошибок'."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
@@ -215,8 +281,7 @@ SCADA_TOOLS = [
                 },
                 "last_hours": {
                     "type": "integer",
-                    "description": "За последние N часов (по умолчанию 24)",
-                    "default": 24,
+                    "description": "За последние N часов. Если не указано — все записи.",
                 },
                 "limit": {
                     "type": "integer",
@@ -257,7 +322,14 @@ SCADA_TOOLS = [
     },
     {
         "name": "get_history",
-        "description": "Получить историю метрик устройства за период. Поля: power_total, gen_uab, current_a, coolant_temp, engine_speed и др.",
+        "description": (
+            "Получить историю метрик устройства за период. "
+            "Для ГЕНЕРАТОРОВ: fields=power_total,gen_uab,current_a,coolant_temp,engine_speed. "
+            "Для ШПР (ATS): fields=mains_total_p,busbar_p,load_total_p,mains_uab,busbar_uab. "
+            "load_total_p = суммарная нагрузка объекта (mains_total_p + busbar_p), вычисляется автоматически. "
+            "ВАЖНО: Для ATS НЕ используй power_total — это поле только для генераторов. "
+            "Если fields не указан — поля выбираются автоматически по типу устройства."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
@@ -272,8 +344,12 @@ SCADA_TOOLS = [
                 },
                 "fields": {
                     "type": "string",
-                    "description": "Поля через запятую (по умолчанию power_total)",
-                    "default": "power_total",
+                    "description": (
+                        "Поля через запятую. "
+                        "Генератор: power_total,gen_uab,current_a,coolant_temp. "
+                        "ATS/ШПР: mains_total_p,busbar_p,load_total_p. "
+                        "Если не указано — выбирается автоматически."
+                    ),
                 },
             },
             "required": ["device_id"],
@@ -385,7 +461,15 @@ async def execute_tool(name: str, args: dict) -> dict:
         elif name == "get_metrics":
             device_id = args["device_id"]
             data = await _api_get("/api/metrics", {"device_id": device_id})
-            return data[0] if isinstance(data, list) and data else data
+            result = data[0] if isinstance(data, list) and data else data
+            # Add hint for ATS to prevent LLM from confusing fields
+            if isinstance(result, dict) and result.get("device_type") == "ats":
+                result["_подсказка"] = (
+                    "load_total_p — СУММАРНАЯ нагрузка объекта (сеть+генераторы). "
+                    "mains_total_p — только мощность от сети. "
+                    "busbar_p — только мощность генераторов на шине."
+                )
+            return result
 
         elif name == "get_all_metrics":
             return await _api_get("/api/metrics")
@@ -394,7 +478,31 @@ async def execute_tool(name: str, args: dict) -> dict:
             params = {}
             if args.get("device_id"):
                 params["device_id"] = args["device_id"]
-            return await _api_get("/api/history/alarms/active", params)
+            alarms = await _api_get("/api/history/alarms/active", params)
+            # If site_id provided, filter alarms to devices of that site
+            site_id = args.get("site_id")
+            site_device_ids = None
+            if site_id:
+                try:
+                    devices = await _api_get("/api/devices", {"site_id": site_id})
+                    site_device_ids = {d["id"] for d in devices} if isinstance(devices, list) else None
+                except Exception:
+                    site_device_ids = None
+                if site_device_ids is not None and isinstance(alarms, list):
+                    alarms = [a for a in alarms if a.get("device_id") in site_device_ids]
+            # Enrich with device names, status and duration for LLM
+            if isinstance(alarms, list) and alarms:
+                try:
+                    if site_device_ids is None:
+                        devices = await _api_get("/api/devices")
+                    dev_names = {d["id"]: d["name"] for d in devices} if isinstance(devices, list) else {}
+                except Exception:
+                    dev_names = {}
+                for a in alarms:
+                    a["device_name"] = dev_names.get(a.get("device_id"), f"Устройство #{a.get('device_id')}")
+                    a["status"] = "⚠️ АКТИВНА СЕЙЧАС"
+                    a["duration"] = _calc_alarm_duration(a.get("occurred_at"))
+            return alarms
 
         elif name == "get_alarm_history":
             params = {"limit": args.get("limit", 50)}
@@ -402,7 +510,20 @@ async def execute_tool(name: str, args: dict) -> dict:
                 params["device_id"] = args["device_id"]
             if args.get("last_hours"):
                 params["last_hours"] = args["last_hours"]
-            return await _api_get("/api/history/alarms", params)
+            alarms = await _api_get("/api/history/alarms", params)
+            # Enrich with device names and duration for active alarms
+            if isinstance(alarms, list) and alarms:
+                try:
+                    devices = await _api_get("/api/devices")
+                    dev_names = {d["id"]: d["name"] for d in devices} if isinstance(devices, list) else {}
+                except Exception:
+                    dev_names = {}
+                for a in alarms:
+                    a["device_name"] = dev_names.get(a.get("device_id"), f"Устройство #{a.get('device_id')}")
+                    if a.get("is_active"):
+                        a["status"] = "⚠️ АКТИВНА СЕЙЧАС"
+                        a["duration"] = _calc_alarm_duration(a.get("occurred_at"))
+            return alarms
 
         elif name == "get_maintenance_status":
             device_id = args["device_id"]
@@ -416,9 +537,19 @@ async def execute_tool(name: str, args: dict) -> dict:
 
         elif name == "get_history":
             device_id = args["device_id"]
+            fields = args.get("fields")
+            if not fields:
+                # Auto-detect device type to choose correct default fields
+                try:
+                    devs = await _api_get("/api/metrics", {"device_id": device_id})
+                    d = devs[0] if isinstance(devs, list) and devs else {}
+                    dt = d.get("device_type", "generator")
+                except Exception:
+                    dt = "generator"
+                fields = "mains_total_p,busbar_p,load_total_p" if dt == "ats" else "power_total"
             params = {
                 "last_hours": args.get("last_hours", 24),
-                "fields": args.get("fields", "power_total"),
+                "fields": fields,
                 "limit": 100,
             }
             return await _api_get(f"/api/history/metrics/{device_id}", params)
@@ -447,6 +578,31 @@ async def execute_tool(name: str, args: dict) -> dict:
         return {"error": f"Ошибка: {str(e)}"}
 
 
+def _calc_alarm_duration(occurred_at) -> str:
+    """Вычислить человекочитаемую длительность аварии."""
+    if not occurred_at:
+        return "неизвестно"
+    try:
+        if isinstance(occurred_at, str):
+            ts = datetime.fromisoformat(occurred_at.replace("Z", "").replace("+00:00", ""))
+        else:
+            ts = occurred_at
+        delta = datetime.utcnow() - ts
+        days = delta.days
+        hours = delta.seconds // 3600
+        mins = (delta.seconds % 3600) // 60
+        parts = []
+        if days > 0:
+            parts.append(f"{days} дн.")
+        if hours > 0:
+            parts.append(f"{hours} ч.")
+        if mins > 0 and days == 0:
+            parts.append(f"{mins} мин.")
+        return " ".join(parts) if parts else "только что"
+    except Exception:
+        return "неизвестно"
+
+
 async def _build_system_summary() -> dict:
     """Build comprehensive system summary."""
     summary = {"sites": [], "total_devices": 0, "active_alarms": 0}
@@ -469,19 +625,32 @@ async def _build_system_summary() -> dict:
             device_list = []
             for dev in (devices if isinstance(devices, list) else []):
                 m = metrics_by_device.get(dev["id"], {})
-                device_list.append({
+                dev_type = dev.get("device_type", "")
+                # Choose correct fields based on device type
+                if dev_type == "ats":
+                    power_kw = m.get("load_total_p")
+                    voltage_v = m.get("mains_uab")
+                else:
+                    power_kw = m.get("power_total")
+                    voltage_v = m.get("gen_uab")
+                dev_info = {
                     "id": dev["id"],
                     "name": dev["name"],
-                    "type": dev.get("device_type", ""),
+                    "type": dev_type,
                     "online": m.get("online", False),
-                    "power_kw": m.get("power_total"),
-                    "voltage_v": m.get("gen_uab"),
+                    "power_kw": power_kw,
+                    "voltage_v": voltage_v,
                     "coolant_temp": m.get("coolant_temp"),
                     "engine_speed": m.get("engine_speed"),
                     "run_hours": m.get("run_hours"),
                     "fuel_level": m.get("fuel_level"),
                     "gen_status": m.get("gen_status"),
-                })
+                }
+                # ATS-specific breakdown
+                if dev_type == "ats":
+                    dev_info["mains_p_kw"] = m.get("mains_total_p")
+                    dev_info["busbar_p_kw"] = m.get("busbar_p")
+                device_list.append(dev_info)
                 summary["total_devices"] += 1
             summary["sites"].append({
                 "id": site["id"],
@@ -490,7 +659,31 @@ async def _build_system_summary() -> dict:
                 "devices": device_list,
             })
 
-        summary["active_alarms"] = len(alarms) if isinstance(alarms, list) else 0
+        # Build device name lookup for alarm enrichment
+        device_names = {}
+        for site_data in summary["sites"]:
+            for dev in site_data.get("devices", []):
+                device_names[dev["id"]] = dev["name"]
+
+        # Active alarm details with status and duration
+        if isinstance(alarms, list) and alarms:
+            summary["active_alarms"] = len(alarms)
+            summary["active_alarm_details"] = [
+                {
+                    "device_id": a["device_id"],
+                    "device_name": device_names.get(a["device_id"], f"Устройство #{a['device_id']}"),
+                    "alarm_code": a["alarm_code"],
+                    "severity": a["severity"],
+                    "message": a["message"],
+                    "status": "⚠️ АКТИВНА СЕЙЧАС",
+                    "duration": _calc_alarm_duration(a.get("occurred_at")),
+                }
+                for a in alarms
+            ]
+        else:
+            summary["active_alarms"] = 0
+            summary["active_alarm_details"] = []
+
         summary["maintenance_alerts"] = alert_summary if isinstance(alert_summary, dict) else {}
 
     except Exception as e:

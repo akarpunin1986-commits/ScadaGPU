@@ -19,6 +19,19 @@ from models import Device, get_session
 router = APIRouter(prefix="/api/metrics", tags=["metrics"])
 
 
+def _enrich_metrics(data: dict) -> dict:
+    """Add computed fields for AI and dashboard consumption."""
+    # For ATS (ШПР): total site load = mains_total_p + busbar_p
+    if data.get("device_type") == "ats":
+        mains_p = data.get("mains_total_p") or 0
+        busbar_p = data.get("busbar_p") or 0
+        data["load_total_p"] = round(mains_p + busbar_p, 1)
+        mains_q = data.get("mains_total_q") or 0
+        busbar_q = data.get("busbar_q") or 0
+        data["load_total_q"] = round(mains_q + busbar_q, 1)
+    return data
+
+
 @router.get("")
 async def get_metrics(
     request: Request,
@@ -32,7 +45,7 @@ async def get_metrics(
         raw = await redis.get(f"device:{device_id}:metrics")
         if raw:
             try:
-                return [json.loads(raw)]
+                return [_enrich_metrics(json.loads(raw))]
             except (json.JSONDecodeError, TypeError):
                 pass
         return []
@@ -44,13 +57,14 @@ async def get_metrics(
             raw = await redis.get(f"device:{did}:metrics")
             if raw:
                 try:
-                    results.append(json.loads(raw))
+                    results.append(_enrich_metrics(json.loads(raw)))
                 except (json.JSONDecodeError, TypeError):
                     pass
         return results
 
     from core.websocket import get_all_metrics_from_redis
-    return await get_all_metrics_from_redis(redis)
+    raw_list = await get_all_metrics_from_redis(redis)
+    return [_enrich_metrics(m) for m in raw_list]
 
 
 async def _get_device_ids_for_site(site_id: int, request: Request) -> list[int]:

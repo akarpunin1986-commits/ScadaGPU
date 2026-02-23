@@ -9,7 +9,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
-from sqlalchemy import select, func, and_, desc, text
+from sqlalchemy import select, func, and_, or_, desc, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
@@ -25,6 +25,24 @@ METRIC_FIELDS = {
     c.key for c in MetricsData.__table__.columns
     if c.key not in ("id", "device_id", "device_type")
 }
+
+# Virtual computed fields (not DB columns, calculated on the fly)
+VIRTUAL_FIELDS = {"load_total_p", "load_total_q"}
+
+# Source columns required for virtual field computation
+_VIRTUAL_SOURCES = {"mains_total_p", "busbar_p", "mains_total_q", "busbar_q", "device_type"}
+
+
+def _enrich_history_row(row_dict: dict) -> dict:
+    """Add computed fields for ATS history rows (mirrors _enrich_metrics in metrics.py)."""
+    if row_dict.get("device_type") == "ats":
+        mains_p = row_dict.get("mains_total_p") or 0
+        busbar_p = row_dict.get("busbar_p") or 0
+        row_dict["load_total_p"] = round(mains_p + busbar_p, 1)
+        mains_q = row_dict.get("mains_total_q") or 0
+        busbar_q = row_dict.get("busbar_q") or 0
+        row_dict["load_total_q"] = round(mains_q + busbar_q, 1)
+    return row_dict
 
 
 # ---------------------------------------------------------------------------
@@ -118,14 +136,22 @@ async def get_metrics_history(
     rows = result.scalars().all()
 
     if fields:
-        requested = {"timestamp", "online"} | {
-            f.strip() for f in fields.split(",") if f.strip() in METRIC_FIELDS
-        }
+        parsed = {f.strip() for f in fields.split(",") if f.strip()}
+        physical = {"timestamp", "online", "device_type"} | {f for f in parsed if f in METRIC_FIELDS}
+        virtual = parsed & VIRTUAL_FIELDS
+        # If virtual fields requested, pull source columns for computation
+        if virtual:
+            physical |= _VIRTUAL_SOURCES
+        # If ATS power fields present, also pull sources for enrichment
+        if {"mains_total_p", "busbar_p"} & physical:
+            physical |= _VIRTUAL_SOURCES
         return [
-            {k: getattr(row, k, None) for k in requested if hasattr(row, k)}
+            _enrich_history_row(
+                {k: getattr(row, k, None) for k in physical if hasattr(row, k)}
+            )
             for row in rows
         ]
-    return [_row_to_dict(row) for row in rows]
+    return [_enrich_history_row(_row_to_dict(row)) for row in rows]
 
 
 @router.get("/metrics/{device_id}/latest")
@@ -144,7 +170,7 @@ async def get_latest_metrics(
     result = await session.execute(stmt)
     rows = list(result.scalars().all())
     rows.reverse()  # oldest first
-    return [_row_to_dict(row) for row in rows]
+    return [_enrich_history_row(_row_to_dict(row)) for row in rows]
 
 
 @router.get("/metrics/{device_id}/downsampled")
@@ -170,12 +196,21 @@ async def get_metrics_downsampled(
         start_ts = now - timedelta(hours=last_hours)
         end_ts = now
 
-    field_list = [f.strip() for f in fields.split(",") if f.strip() in METRIC_FIELDS]
-    if not field_list:
-        field_list = ["power_total"]
+    parsed_fields = {f.strip() for f in fields.split(",") if f.strip()}
+    virtual_requested = parsed_fields & VIRTUAL_FIELDS
+    physical_fields = [f for f in parsed_fields if f in METRIC_FIELDS]
+
+    # If virtual fields requested, ensure source columns are queried
+    if virtual_requested:
+        for src in ("mains_total_p", "busbar_p", "mains_total_q", "busbar_q"):
+            if src not in physical_fields and src in METRIC_FIELDS:
+                physical_fields.append(src)
+
+    if not physical_fields:
+        physical_fields = ["power_total"]
 
     # Build time-bucket aggregation SQL
-    agg_parts = ", ".join(f"AVG({f}) AS {f}" for f in field_list)
+    agg_parts = ", ".join(f"AVG({f}) AS {f}" for f in physical_fields)
     sql = text(
         f"SELECT "
         f"  to_timestamp(floor(extract(epoch from timestamp) / :bucket) * :bucket) "
@@ -193,7 +228,25 @@ async def get_metrics_downsampled(
         "end_ts": end_ts,
         "bucket": bucket_seconds,
     })
-    return [dict(row._mapping) for row in result.all()]
+    rows_out = [dict(row._mapping) for row in result.all()]
+
+    # Enrich ATS rows with computed load_total_p / load_total_q
+    if virtual_requested and rows_out:
+        # Determine device type from DB
+        from models.device import Device
+        dev = await session.get(Device, device_id)
+        if dev and dev.device_type.value == "ats":
+            for r in rows_out:
+                mains_p = r.get("mains_total_p") or 0
+                busbar_p_val = r.get("busbar_p") or 0
+                if "load_total_p" in virtual_requested:
+                    r["load_total_p"] = round(mains_p + busbar_p_val, 1)
+                if "load_total_q" in virtual_requested:
+                    mains_q = r.get("mains_total_q") or 0
+                    busbar_q_val = r.get("busbar_q") or 0
+                    r["load_total_q"] = round(mains_q + busbar_q_val, 1)
+
+    return rows_out
 
 
 @router.get("/metrics/{device_id}/stats")
@@ -248,7 +301,13 @@ async def get_alarm_events(
         conditions.append(AlarmEvent.severity == severity)
     if last_hours is not None:
         cutoff = datetime.utcnow() - timedelta(hours=last_hours)
-        conditions.append(AlarmEvent.occurred_at >= cutoff)
+        # Active alarms are ongoing events — always include them
+        conditions.append(
+            or_(
+                AlarmEvent.occurred_at >= cutoff,
+                AlarmEvent.is_active == True,
+            )
+        )
     if conditions:
         stmt = stmt.where(and_(*conditions))
     stmt = stmt.order_by(desc(AlarmEvent.occurred_at)).offset(offset).limit(limit)

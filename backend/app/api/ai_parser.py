@@ -20,6 +20,7 @@ from config import settings
 from models.base import async_session
 from models.ai_provider import AiProviderConfig
 from models.ai_chat import AiChatMessage
+from models.site import Site
 
 router = APIRouter(prefix="/api/ai", tags=["ai-agent"])
 logger = logging.getLogger("scada.ai_parser")
@@ -751,13 +752,30 @@ async def sanek_chat(req: ChatRequest):
     # Inject page context as system hint if provided
     if req.context:
         ctx_parts = []
+        site_id_resolved = None
+        if req.context.get("site"):
+            # Resolve site code → numeric site_id
+            try:
+                async with async_session() as db:
+                    row = await db.execute(
+                        select(Site).where(
+                            sa.func.lower(Site.code) == req.context["site"].lower()
+                        )
+                    )
+                    site_obj = row.scalar_one_or_none()
+                    if site_obj:
+                        site_id_resolved = site_obj.id
+            except Exception as e:
+                logger.warning("Could not resolve site code %s: %s", req.context["site"], e)
         if req.context.get("site_name"):
             ctx_parts.append(f"объект: {req.context['site_name']}")
+        if site_id_resolved:
+            ctx_parts.append(f"site_id={site_id_resolved}")
         if req.context.get("view"):
             view_labels = {"monitoring": "Мониторинг", "alarms": "Аварии", "archive": "Архив", "to": "ТО"}
             ctx_parts.append(f"раздел: {view_labels.get(req.context['view'], req.context['view'])}")
         if ctx_parts:
-            ctx_hint = {"role": "system", "content": f"[Контекст оператора] Пользователь сейчас смотрит: {', '.join(ctx_parts)}."}
+            ctx_hint = {"role": "system", "content": f"[Контекст оператора] Пользователь сейчас смотрит: {', '.join(ctx_parts)}. Используй site_id из контекста при вызове get_devices, get_alarms и других инструментов."}
             messages.append(ctx_hint)
 
     # Check for pending action
