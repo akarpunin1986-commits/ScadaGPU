@@ -340,7 +340,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .sn-hd{padding:14px 18px;border-bottom:1px solid #232d4a;display:flex;align-items:center;gap:12px;background:#141a2e}
 .sn-hd canvas{width:48px;height:48px;flex-shrink:0}
 .sn-hd-info h3{font-size:16px;font-weight:800;color:#e8ecf4;margin:0}
-.sn-hd-status{font-size:11px;color:#4ade80;display:flex;align-items:center;gap:5px}
+.sn-hd-status{font-size:11px;color:#4ade80;display:flex;align-items:center;gap:5px;position:relative}
+.sn-health-tip{position:absolute;top:100%;left:0;right:0;margin-top:6px;padding:10px 14px;background:#1c1030;border:1.5px solid #ff6b81;border-radius:12px;font-size:11.5px;line-height:1.5;color:#fca5a5;z-index:10;animation:snBubbleIn .3s ease;box-shadow:0 4px 20px rgba(255,107,129,.15);white-space:normal}
+.sn-health-tip::before{content:'';position:absolute;top:-6px;left:16px;width:10px;height:10px;background:#1c1030;border-left:1.5px solid #ff6b81;border-top:1.5px solid #ff6b81;transform:rotate(45deg)}
+.sn-health-tip b{color:#ff6b81;font-weight:700}
+.sn-health-tip .sn-tip-close{position:absolute;top:6px;right:8px;background:none;border:none;color:#6b7a9e;cursor:pointer;font-size:14px;padding:0 4px}
+[data-theme="light"] .sn-health-tip{background:#fff0f0;border-color:#ef4444;color:#991b1b;box-shadow:0 4px 20px rgba(239,68,68,.12)}
+[data-theme="light"] .sn-health-tip::before{background:#fff0f0;border-color:#ef4444}
+[data-theme="light"] .sn-health-tip b{color:#dc2626}
 .sn-hd-dot{width:6px;height:6px;background:#4ade80;border-radius:50%;animation:snPulse 2s ease-in-out infinite}
 @keyframes snPulse{0%,100%{opacity:1}50%{opacity:.3}}
 .sn-msgs{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:12px;background:#0c1021}
@@ -396,6 +403,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 [data-theme="light"] .sn-hint{background:#fff;border-color:#e2e8f0;color:#64748b}
 [data-theme="light"] .sn-hint:hover{border-color:rgba(109,40,217,.3);color:#1e293b;background:#f5f3ff}
 [data-theme="light"] .sn-action{background:rgba(109,40,217,.08);color:#6d28d9;border-color:rgba(109,40,217,.12)}
+[data-theme="light"] .sn-hd-info h3{color:#1e293b}
+[data-theme="light"] .sn-welcome h3{color:#1e293b}
+[data-theme="light"] .sn-welcome p{color:#64748b}
+[data-theme="light"] .sn-state-tag{color:#6d28d9}
 </style></head><body>
 <div class="app">
 <div class="sb"><div class="sb-hd">
@@ -3431,7 +3442,24 @@ async function _snSendMessage(text){
 }
 
 // === HEALTH CHECK — периодическая проверка AI-провайдера ===
-var _snHealthOk=true,_snHealthError='';
+var _snHealthOk=true,_snHealthError='',_snHealthTipOpen=false;
+
+function _snShowHealthDetail(){
+  var row=$('snStatusRow');if(!row)return;
+  // Закрыть если уже открыт
+  var existing=row.querySelector('.sn-health-tip');
+  if(existing){existing.remove();_snHealthTipOpen=false;return}
+  if(_snHealthOk)return; // Не показывать если всё ок
+  var tip=document.createElement('div');
+  tip.className='sn-health-tip';
+  tip.innerHTML='<button class="sn-tip-close" onclick="event.stopPropagation();this.parentElement.remove()">&times;</button>'
+    +'<b>⚠ Проблема:</b> '+(_snHealthError||'Неизвестная ошибка')
+    +'<br><br>Откройте <b>«🤖 AI Провайдер»</b> в боковом меню, добавьте API-ключ и активируйте провайдера.';
+  row.appendChild(tip);
+  _snHealthTipOpen=true;
+  // Автозакрытие через 10 сек
+  setTimeout(function(){if(tip.parentElement)tip.remove();_snHealthTipOpen=false},10000);
+}
 
 async function _snHealthCheck(){
   if(_snSending)return;
@@ -3522,7 +3550,7 @@ setInterval(_snHealthCheck,30000);
 <canvas id="snMiniCanvas" width="96" height="96"></canvas>
 <div style="flex:1">
 <div class="sn-hd-info"><h3>Санёк</h3></div>
-<div class="sn-hd-status"><div class="sn-hd-dot" id="snStatusDot"></div> <span id="snStatusText">готов — жду команды</span></div>
+<div class="sn-hd-status" id="snStatusRow" onclick="_snShowHealthDetail()" style="cursor:pointer" title="Нажмите для подробностей"><div class="sn-hd-dot" id="snStatusDot"></div> <span id="snStatusText">готов — жду команды</span></div>
 </div>
 <button onclick="sanekNewSession()" style="background:none;border:1.5px solid #232d4a;border-radius:10px;padding:5px 10px;color:#6b7a9e;cursor:pointer;font-size:11px;transition:all .2s" title="Новая сессия">🔄</button>
 <button onclick="toggleSanek()" style="background:none;border:none;color:#6b7a9e;cursor:pointer;font-size:20px;padding:4px 8px;transition:color .2s" onmouseover="this.style.color='#ff6b81'" onmouseout="this.style.color='#6b7a9e'">&times;</button>
