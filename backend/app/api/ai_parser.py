@@ -1,33 +1,98 @@
 """
-Phase 5 — AI agent API for parsing maintenance documents from Bitrix24 Disk.
+Phase 5.1+5.2 — AI agent API with persistent multi-provider configuration
+and Sanek AI assistant chat.
 
-Isolated module: separate router, no SCADA core dependencies.
-Supports multiple LLM providers: OpenAI, Claude, Gemini, Grok.
+API keys stored in PostgreSQL (ai_provider_configs table).
+Supports multiple LLM providers simultaneously: OpenAI, Claude, Gemini, Grok.
+One provider is "active" — used by default for AI operations.
+Sanek assistant: full SCADA access via tool calling + persistent chat history.
 """
+import json
 import logging
+import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
+import sqlalchemy as sa
+from sqlalchemy import select, update
 
 from config import settings
+from models.base import async_session
+from models.ai_provider import AiProviderConfig
+from models.ai_chat import AiChatMessage
 
 router = APIRouter(prefix="/api/ai", tags=["ai-agent"])
 logger = logging.getLogger("scada.ai_parser")
 
-# Runtime config overrides (set from frontend, not persisted to .env)
-_runtime_config: dict = {}
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+VALID_PROVIDERS = ("openai", "claude", "gemini", "grok")
+
+DEFAULT_MODELS = {
+    "openai": "gpt-4o",
+    "claude": "claude-sonnet-4-20250514",
+    "gemini": "gemini-2.5-flash",
+    "grok": "grok-3-mini",
+}
+
+# ---------------------------------------------------------------------------
+# In-memory cache (populated from DB on startup, updated on save)
+# ---------------------------------------------------------------------------
+_cache: dict = {
+    "provider": "",   # active provider name
+    "keys": {},       # {provider: api_key}
+    "models": {},     # {provider: model}
+}
+
+
+def mask_key(key: str) -> str:
+    """Mask API key for safe display: 'sk-proj-abc...xyz4'."""
+    if not key:
+        return ""
+    if len(key) <= 8:
+        return key[:2] + "..." + key[-2:]
+    return key[:6] + "..." + key[-4:]
+
+
+async def load_ai_configs_from_db():
+    """Load all provider configs from DB into memory cache. Called on startup."""
+    global _cache
+    try:
+        async with async_session() as session:
+            result = await session.execute(select(AiProviderConfig))
+            rows = result.scalars().all()
+
+        for row in rows:
+            if row.is_configured and row.api_key:
+                _cache["keys"][row.provider] = row.api_key
+            if row.model:
+                _cache["models"][row.provider] = row.model
+            if row.is_active:
+                _cache["provider"] = row.provider
+
+        configured = [p for p in _cache["keys"]]
+        logger.info(
+            "AI configs loaded from DB: %d providers configured, active=%s",
+            len(configured),
+            _cache["provider"] or "none",
+        )
+    except Exception as e:
+        logger.warning("Could not load AI configs from DB (table may not exist yet): %s", e)
 
 
 def _get_active_provider() -> str:
-    """Get active provider from runtime config or settings."""
-    return _runtime_config.get("provider", settings.AI_PROVIDER)
+    """Get active provider: cache (from DB) → .env fallback."""
+    if _cache.get("provider"):
+        return _cache["provider"]
+    return settings.AI_PROVIDER
 
 
 def _get_api_key(provider: str) -> str:
-    """Get API key for provider from runtime config or settings."""
-    rt_keys = _runtime_config.get("keys", {})
-    if provider in rt_keys:
-        return rt_keys[provider]
+    """Get API key: cache (from DB) → .env fallback."""
+    cached = _cache.get("keys", {}).get(provider)
+    if cached:
+        return cached
     return {
         "openai": settings.OPENAI_API_KEY,
         "claude": settings.CLAUDE_API_KEY,
@@ -37,16 +102,17 @@ def _get_api_key(provider: str) -> str:
 
 
 def _get_model(provider: str) -> str:
-    """Get model for provider from runtime config or settings."""
-    rt_models = _runtime_config.get("models", {})
-    if provider in rt_models:
-        return rt_models[provider]
-    return {
+    """Get model: cache (from DB) → .env fallback → default."""
+    cached = _cache.get("models", {}).get(provider)
+    if cached:
+        return cached
+    env_model = {
         "openai": settings.OPENAI_MODEL,
         "claude": settings.CLAUDE_MODEL,
         "gemini": settings.GEMINI_MODEL,
         "grok": settings.GROK_MODEL,
     }.get(provider, "")
+    return env_model or DEFAULT_MODELS.get(provider, "")
 
 
 # ---------------------------------------------------------------------------
@@ -110,8 +176,239 @@ class TestResponse(BaseModel):
     error: str | None = None
 
 
+# --- New multi-provider schemas ---
+class ProviderInfo(BaseModel):
+    provider: str
+    is_configured: bool = False
+    is_active: bool = False
+    model: str = ""
+    api_key_masked: str = ""
+
+
+class ProvidersListResponse(BaseModel):
+    providers: list[ProviderInfo] = []
+    active_provider: str = ""
+
+
+class ProviderSaveRequest(BaseModel):
+    provider: str
+    api_key: str
+    model: str = ""
+
+
+class ProviderSaveResponse(BaseModel):
+    success: bool
+    message: str = ""
+
+
+class ProviderActivateRequest(BaseModel):
+    provider: str
+
+
+class ProviderActivateResponse(BaseModel):
+    success: bool
+    message: str = ""
+
+
 # ---------------------------------------------------------------------------
-# Endpoints
+# Multi-provider endpoints (new)
+# ---------------------------------------------------------------------------
+@router.get("/providers", response_model=ProvidersListResponse)
+async def list_providers():
+    """List all 4 providers with their status, masked keys, active flag."""
+    # Fetch from DB
+    db_rows = {}
+    try:
+        async with async_session() as session:
+            result = await session.execute(select(AiProviderConfig))
+            for row in result.scalars().all():
+                db_rows[row.provider] = row
+    except Exception as e:
+        logger.warning("Could not read AI configs from DB: %s", e)
+
+    providers = []
+    active = ""
+
+    for p in VALID_PROVIDERS:
+        db_row = db_rows.get(p)
+        if db_row and db_row.is_configured and db_row.api_key:
+            # From DB
+            info = ProviderInfo(
+                provider=p,
+                is_configured=True,
+                is_active=db_row.is_active,
+                model=db_row.model or DEFAULT_MODELS.get(p, ""),
+                api_key_masked=mask_key(db_row.api_key),
+            )
+            if db_row.is_active:
+                active = p
+        else:
+            # Check .env fallback
+            env_key = _get_api_key(p)
+            if env_key and p not in _cache.get("keys", {}):
+                info = ProviderInfo(
+                    provider=p,
+                    is_configured=True,
+                    is_active=(_get_active_provider() == p and not active),
+                    model=_get_model(p),
+                    api_key_masked=mask_key(env_key),
+                )
+                if info.is_active:
+                    active = p
+            else:
+                info = ProviderInfo(
+                    provider=p,
+                    is_configured=False,
+                    is_active=False,
+                    model=DEFAULT_MODELS.get(p, ""),
+                )
+        providers.append(info)
+
+    return ProvidersListResponse(providers=providers, active_provider=active)
+
+
+@router.post("/provider/save", response_model=ProviderSaveResponse)
+async def save_provider(req: ProviderSaveRequest):
+    """Save (upsert) API key + model for a provider to DB."""
+    if req.provider not in VALID_PROVIDERS:
+        return ProviderSaveResponse(
+            success=False,
+            message=f"Неизвестный провайдер: {req.provider}",
+        )
+
+    if not req.api_key.strip():
+        return ProviderSaveResponse(success=False, message="API ключ не указан")
+
+    model = req.model or DEFAULT_MODELS.get(req.provider, "")
+
+    try:
+        async with async_session() as session:
+            result = await session.execute(
+                select(AiProviderConfig).where(AiProviderConfig.provider == req.provider)
+            )
+            row = result.scalar_one_or_none()
+
+            if row:
+                row.api_key = req.api_key.strip()
+                row.model = model
+                row.is_configured = True
+            else:
+                row = AiProviderConfig(
+                    provider=req.provider,
+                    api_key=req.api_key.strip(),
+                    model=model,
+                    is_configured=True,
+                    is_active=False,
+                )
+                session.add(row)
+
+            await session.commit()
+
+        # Update cache
+        _cache["keys"][req.provider] = req.api_key.strip()
+        _cache["models"][req.provider] = model
+
+        logger.info(
+            "AI provider saved: %s, model=%s, key=%s",
+            req.provider, model, mask_key(req.api_key),
+        )
+        return ProviderSaveResponse(
+            success=True,
+            message=f"✅ {req.provider} сохранён в БД, модель: {model}",
+        )
+    except Exception as e:
+        logger.error("Error saving AI provider %s: %s", req.provider, e)
+        return ProviderSaveResponse(success=False, message=f"Ошибка: {e}")
+
+
+@router.post("/provider/activate", response_model=ProviderActivateResponse)
+async def activate_provider(req: ProviderActivateRequest):
+    """Set one provider as active (deactivate all others)."""
+    if req.provider not in VALID_PROVIDERS:
+        return ProviderActivateResponse(
+            success=False,
+            message=f"Неизвестный провайдер: {req.provider}",
+        )
+
+    # Check if provider has a key
+    key = _get_api_key(req.provider)
+    if not key:
+        return ProviderActivateResponse(
+            success=False,
+            message=f"⚠ {req.provider} не настроен — сначала сохраните API ключ",
+        )
+
+    try:
+        async with async_session() as session:
+            # Deactivate all
+            await session.execute(
+                update(AiProviderConfig).values(is_active=False)
+            )
+            # Activate requested
+            result = await session.execute(
+                select(AiProviderConfig).where(AiProviderConfig.provider == req.provider)
+            )
+            row = result.scalar_one_or_none()
+            if row:
+                row.is_active = True
+            else:
+                # Provider configured via .env only, create DB row
+                row = AiProviderConfig(
+                    provider=req.provider,
+                    api_key=key,
+                    model=_get_model(req.provider),
+                    is_configured=True,
+                    is_active=True,
+                )
+                session.add(row)
+
+            await session.commit()
+
+        # Update cache
+        _cache["provider"] = req.provider
+
+        logger.info("AI active provider set to: %s", req.provider)
+        return ProviderActivateResponse(
+            success=True,
+            message=f"★ {req.provider} активирован",
+        )
+    except Exception as e:
+        logger.error("Error activating AI provider %s: %s", req.provider, e)
+        return ProviderActivateResponse(success=False, message=f"Ошибка: {e}")
+
+
+@router.delete("/provider/{provider}")
+async def delete_provider(provider: str):
+    """Remove a provider's API key from DB."""
+    if provider not in VALID_PROVIDERS:
+        return {"success": False, "message": f"Неизвестный провайдер: {provider}"}
+
+    try:
+        async with async_session() as session:
+            result = await session.execute(
+                select(AiProviderConfig).where(AiProviderConfig.provider == provider)
+            )
+            row = result.scalar_one_or_none()
+            if row:
+                row.api_key = ""
+                row.is_configured = False
+                if row.is_active:
+                    row.is_active = False
+                    _cache["provider"] = ""
+                await session.commit()
+
+        # Remove from cache
+        _cache["keys"].pop(provider, None)
+
+        logger.info("AI provider removed: %s", provider)
+        return {"success": True, "message": f"{provider} удалён"}
+    except Exception as e:
+        logger.error("Error deleting AI provider %s: %s", provider, e)
+        return {"success": False, "message": f"Ошибка: {e}"}
+
+
+# ---------------------------------------------------------------------------
+# Existing endpoints (backward compatible)
 # ---------------------------------------------------------------------------
 @router.get("/health", response_model=HealthResponse)
 async def ai_health():
@@ -129,45 +426,35 @@ async def ai_health():
 @router.post("/config", response_model=ConfigResponse)
 async def set_ai_config(req: ConfigRequest):
     """
-    Set AI provider configuration at runtime.
-    Saves API key and model for the specified provider.
+    Legacy endpoint — saves config to DB (backward compatible).
+    Called by old frontend versions.
     """
-    global _runtime_config
-
-    if req.provider not in ("openai", "claude", "gemini", "grok"):
+    if req.provider not in VALID_PROVIDERS:
         return ConfigResponse(
             success=False,
             message=f"Неизвестный провайдер: {req.provider}",
         )
 
-    _runtime_config["provider"] = req.provider
-    if "keys" not in _runtime_config:
-        _runtime_config["keys"] = {}
-    if "models" not in _runtime_config:
-        _runtime_config["models"] = {}
+    # Save to DB via new logic
+    save_result = await save_provider(ProviderSaveRequest(
+        provider=req.provider,
+        api_key=req.api_key,
+        model=req.model,
+    ))
 
-    _runtime_config["keys"][req.provider] = req.api_key
-    if req.model:
-        _runtime_config["models"][req.provider] = req.model
+    if save_result.success:
+        # Also activate this provider
+        await activate_provider(ProviderActivateRequest(provider=req.provider))
 
-    logger.info(
-        "AI config updated: provider=%s, model=%s, key=%s...%s",
-        req.provider,
-        req.model or _get_model(req.provider),
-        req.api_key[:8],
-        req.api_key[-4:] if len(req.api_key) > 12 else "***",
-    )
     return ConfigResponse(
-        success=True,
-        message=f"{req.provider} настроен, модель: {req.model or _get_model(req.provider)}",
+        success=save_result.success,
+        message=save_result.message,
     )
 
 
 @router.post("/test", response_model=TestResponse)
 async def test_ai_provider(req: TestRequest):
-    """
-    Test connection to an LLM provider with a simple request.
-    """
+    """Test connection to an LLM provider with a simple request."""
     provider = req.provider
     api_key = req.api_key
     model = req.model
@@ -177,7 +464,7 @@ async def test_ai_provider(req: TestRequest):
 
     try:
         if provider == "openai":
-            from openai import AsyncOpenAI, APIError
+            from openai import AsyncOpenAI
             client = AsyncOpenAI(api_key=api_key, timeout=15)
             resp = await client.chat.completions.create(
                 model=model or "gpt-4o",
@@ -187,7 +474,7 @@ async def test_ai_provider(req: TestRequest):
             text = resp.choices[0].message.content or ""
             return TestResponse(
                 success=True,
-                message=f"✅ OpenAI ({model}): {text.strip()}",
+                message=f"✅ OpenAI ({model or 'gpt-4o'}): {text.strip()}",
             )
 
         elif provider == "claude":
@@ -211,7 +498,7 @@ async def test_ai_provider(req: TestRequest):
                     text = data.get("content", [{}])[0].get("text", "")
                     return TestResponse(
                         success=True,
-                        message=f"✅ Claude ({model}): {text.strip()}",
+                        message=f"✅ Claude ({model or 'claude-sonnet-4-20250514'}): {text.strip()}",
                     )
                 else:
                     err = resp.json().get("error", {}).get("message", resp.text)
@@ -241,7 +528,6 @@ async def test_ai_provider(req: TestRequest):
                     return TestResponse(success=False, error=f"Gemini API: {err}")
 
         elif provider == "grok":
-            # Grok uses OpenAI-compatible API at api.x.ai
             from openai import AsyncOpenAI
             client = AsyncOpenAI(
                 api_key=api_key,
@@ -256,7 +542,7 @@ async def test_ai_provider(req: TestRequest):
             text = resp.choices[0].message.content or ""
             return TestResponse(
                 success=True,
-                message=f"✅ Grok ({model}): {text.strip()}",
+                message=f"✅ Grok ({model or 'grok-3-mini'}): {text.strip()}",
             )
 
         else:
@@ -337,3 +623,210 @@ async def parse_maintenance_file(req: ParseRequest):
             success=False,
             error=f"Непредвиденная ошибка: {str(e)}",
         )
+
+
+# ---------------------------------------------------------------------------
+# Sanek Chat — AI assistant endpoints
+# ---------------------------------------------------------------------------
+class ChatRequest(BaseModel):
+    session_id: str = ""
+    message: str
+
+
+class ChatAction(BaseModel):
+    tool: str = ""
+    args: dict = {}
+    result: dict | None = None
+
+
+class PendingAction(BaseModel):
+    tool: str = ""
+    args: dict = {}
+    description: str = ""
+
+
+class ChatResponse(BaseModel):
+    session_id: str = ""
+    message: str = ""
+    actions: list[ChatAction] = []
+    pending_action: PendingAction | None = None
+
+
+class ChatHistoryMessage(BaseModel):
+    role: str
+    content: str
+    tool_calls: str | None = None
+    tool_name: str | None = None
+    created_at: str
+
+
+class ChatHistoryResponse(BaseModel):
+    session_id: str
+    messages: list[ChatHistoryMessage] = []
+
+
+# In-memory pending actions per session
+_pending_actions: dict[str, dict] = {}
+
+
+@router.post("/chat", response_model=ChatResponse)
+async def sanek_chat(req: ChatRequest):
+    """
+    Chat with Sanek AI assistant.
+    Supports tool calling to interact with SCADA system.
+    Dangerous commands require operator confirmation.
+    """
+    from services.sanek import SanekAssistant
+
+    # Resolve provider
+    provider = _get_active_provider()
+    api_key = _get_api_key(provider)
+    model = _get_model(provider)
+
+    if not api_key:
+        return ChatResponse(
+            message=f"⚠ AI провайдер не настроен. Откройте настройки и добавьте API ключ для {provider}.",
+        )
+
+    # Session management
+    session_id = req.session_id or str(uuid.uuid4())[:8]
+
+    # Save user message to DB
+    try:
+        async with async_session() as session:
+            session.add(AiChatMessage(
+                session_id=session_id,
+                role="user",
+                content=req.message,
+            ))
+            await session.commit()
+    except Exception as e:
+        logger.warning("Could not save user message: %s", e)
+
+    # Load conversation history from DB
+    messages = []
+    try:
+        async with async_session() as session:
+            result = await session.execute(
+                select(AiChatMessage)
+                .where(AiChatMessage.session_id == session_id)
+                .order_by(AiChatMessage.created_at)
+                .limit(50)
+            )
+            rows = result.scalars().all()
+            for row in rows:
+                if row.role in ("user", "assistant"):
+                    messages.append({"role": row.role, "content": row.content})
+    except Exception as e:
+        logger.warning("Could not load chat history: %s", e)
+        messages = [{"role": "user", "content": req.message}]
+
+    # Check for pending action
+    pending = _pending_actions.pop(session_id, None)
+
+    try:
+        assistant = SanekAssistant(
+            provider=provider,
+            api_key=api_key,
+            model=model,
+        )
+        result = await assistant.chat(messages=messages, pending_action=pending)
+    except Exception as e:
+        logger.error("Sanek chat error: %s", e, exc_info=True)
+        return ChatResponse(
+            session_id=session_id,
+            message=f"Ошибка: {str(e)}",
+        )
+
+    # Save assistant reply to DB
+    assistant_msg = result.get("message", "")
+    pending_action = result.get("pending_action")
+
+    try:
+        async with async_session() as session:
+            session.add(AiChatMessage(
+                session_id=session_id,
+                role="assistant",
+                content=assistant_msg,
+                tool_calls=json.dumps(result.get("actions", []), ensure_ascii=False, default=str) if result.get("actions") else None,
+            ))
+            await session.commit()
+    except Exception as e:
+        logger.warning("Could not save assistant message: %s", e)
+
+    # Store pending action for next turn
+    if pending_action:
+        _pending_actions[session_id] = pending_action
+
+    return ChatResponse(
+        session_id=session_id,
+        message=assistant_msg,
+        actions=[ChatAction(**a) for a in result.get("actions", [])],
+        pending_action=PendingAction(**pending_action) if pending_action else None,
+    )
+
+
+@router.get("/chat/history", response_model=ChatHistoryResponse)
+async def get_chat_history(
+    session_id: str = Query(..., description="Chat session ID"),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """Get chat history for a session."""
+    try:
+        async with async_session() as session:
+            result = await session.execute(
+                select(AiChatMessage)
+                .where(AiChatMessage.session_id == session_id)
+                .order_by(AiChatMessage.created_at)
+                .limit(limit)
+            )
+            rows = result.scalars().all()
+    except Exception as e:
+        logger.error("Error loading chat history: %s", e)
+        return ChatHistoryResponse(session_id=session_id)
+
+    messages = [
+        ChatHistoryMessage(
+            role=row.role,
+            content=row.content,
+            tool_calls=row.tool_calls,
+            tool_name=row.tool_name,
+            created_at=row.created_at.isoformat() if row.created_at else "",
+        )
+        for row in rows
+    ]
+
+    return ChatHistoryResponse(session_id=session_id, messages=messages)
+
+
+@router.get("/chat/sessions")
+async def list_chat_sessions(limit: int = Query(20, ge=1, le=100)):
+    """List recent chat sessions."""
+    from sqlalchemy import distinct, desc
+    try:
+        async with async_session() as session:
+            # Get distinct session_ids ordered by latest message
+            result = await session.execute(
+                select(
+                    AiChatMessage.session_id,
+                    sa.func.max(AiChatMessage.created_at).label("last_at"),
+                    sa.func.count(AiChatMessage.id).label("msg_count"),
+                )
+                .group_by(AiChatMessage.session_id)
+                .order_by(desc("last_at"))
+                .limit(limit)
+            )
+            rows = result.all()
+    except Exception as e:
+        logger.error("Error listing chat sessions: %s", e)
+        return {"sessions": []}
+
+    sessions = [
+        {
+            "session_id": row.session_id,
+            "last_at": row.last_at.isoformat() if row.last_at else "",
+            "message_count": row.msg_count,
+        }
+        for row in rows
+    ]
+    return {"sessions": sessions}

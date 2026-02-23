@@ -329,6 +329,43 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 [data-theme="light"] .pl-block{background:rgba(109,40,217,.04);border-color:rgba(109,40,217,.18)}
 [data-theme="light"] .kp{background:rgba(0,0,0,.03)}
 [data-theme="light"] .cmd-st{background:rgba(5,150,105,.1);color:#047857}
+/* ===== Sanek Chat Panel ===== */
+#sanekBtn{position:fixed;bottom:20px;right:20px;z-index:999;width:56px;height:56px;border-radius:50%;background:var(--g);border:none;cursor:pointer;font-size:24px;box-shadow:0 4px 16px rgba(0,224,154,.35);transition:all .2s;color:#000}
+#sanekBtn:hover{transform:scale(1.08);box-shadow:0 6px 24px rgba(0,224,154,.5)}
+#sanekPanel{position:fixed;top:0;right:-400px;width:400px;height:100vh;background:var(--bg2);border-left:1px solid var(--bd);z-index:998;transition:right .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column}
+#sanekPanel.open{right:0}
+.sn-hd{padding:14px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;background:var(--ov)}
+.sn-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+.sn-msg{max-width:88%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.5;word-wrap:break-word;white-space:pre-wrap}
+.sn-msg.user{align-self:flex-end;background:var(--g);color:#000;border-bottom-right-radius:4px}
+.sn-msg.assistant{align-self:flex-start;background:var(--ov);color:var(--t);border:1px solid var(--bd);border-bottom-left-radius:4px}
+.sn-msg.assistant .sn-icon{font-size:14px;margin-right:4px}
+.sn-action{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(0,224,154,.15);color:var(--g);margin-top:4px}
+.sn-pending{background:rgba(255,176,32,.12);border:1px solid rgba(255,176,32,.3);border-radius:8px;padding:10px;margin-top:6px}
+.sn-pending-btns{display:flex;gap:6px;margin-top:8px}
+.sn-pending-btns button{padding:6px 16px;border-radius:6px;border:none;cursor:pointer;font-size:12px;font-weight:600}
+.sn-pending-btns .sn-yes{background:var(--g);color:#000}
+.sn-pending-btns .sn-no{background:var(--r);color:#fff}
+.sn-input-row{padding:10px;border-top:1px solid var(--bd);display:flex;gap:8px;background:var(--ov)}
+.sn-input-row input{flex:1;padding:10px 12px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--t);font-size:13px;outline:none}
+.sn-input-row input:focus{border-color:var(--g)}
+.sn-input-row button{padding:8px 14px;border-radius:8px;background:var(--g);border:none;color:#000;cursor:pointer;font-size:16px;font-weight:700}
+.sn-input-row button:disabled{opacity:.4;cursor:not-allowed}
+.sn-typing{align-self:flex-start;padding:10px 14px;border-radius:12px;background:var(--ov);border:1px solid var(--bd);border-bottom-left-radius:4px}
+.sn-typing span{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--t3);margin:0 2px;animation:snDot 1.4s infinite}
+.sn-typing span:nth-child(2){animation-delay:.2s}
+.sn-typing span:nth-child(3){animation-delay:.4s}
+@keyframes snDot{0%,80%,100%{opacity:.3;transform:scale(.8)}40%{opacity:1;transform:scale(1.1)}}
+.sn-welcome{text-align:center;padding:24px 16px;color:var(--t3)}
+.sn-welcome .sn-big{font-size:40px;margin-bottom:8px}
+.sn-welcome h3{color:var(--t);margin:0 0 6px;font-size:15px}
+.sn-welcome p{font-size:12px;margin:0 0 16px;line-height:1.5}
+.sn-hints{display:flex;flex-direction:column;gap:6px}
+.sn-hint{padding:8px 12px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--t2);font-size:12px;cursor:pointer;text-align:left;transition:all .15s}
+.sn-hint:hover{border-color:var(--g);color:var(--t);background:rgba(0,224,154,.05)}
+[data-theme="light"] #sanekBtn{box-shadow:0 4px 16px rgba(109,40,217,.25);background:var(--accent,#6d28d9);color:#fff}
+[data-theme="light"] .sn-msg.user{background:var(--accent,#6d28d9);color:#fff}
+[data-theme="light"] .sn-action{background:rgba(109,40,217,.1);color:#6d28d9}
 </style></head><body>
 <div class="app">
 <div class="sb"><div class="sb-hd">
@@ -341,13 +378,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 <div class="mn" id="mainArea"></div></div>
 <!-- MODALS -->
 <!-- AI Provider Config -->
-<div class="mbg" id="m-aiconf"><div class="mod" style="max-width:520px"><div class="mhd"><h3>🤖 AI Провайдер</h3><button class="mx" onclick="hideM('aiconf')">✕</button></div><div class="mbd">
-<div style="font-size:12px;color:var(--t2);margin-bottom:12px">Выберите LLM-провайдера для AI-импорта регламентов ТО из мануалов</div>
+<div class="mbg" id="m-aiconf"><div class="mod" style="max-width:540px"><div class="mhd"><h3>🤖 AI Провайдеры</h3><button class="mx" onclick="hideM('aiconf')">✕</button></div><div class="mbd">
+<div style="font-size:12px;color:var(--t2);margin-bottom:12px">Настройте LLM-провайдеров. Можно подключить несколько — один будет активным.</div>
 <div id="aiProviderCards" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px"></div>
 <div id="aiKeySection" style="display:none">
 <div class="fg"><label class="fl" id="aiKeyLabel">API Key</label><div style="display:flex;gap:6px"><input class="fi" id="aiKeyInput" type="password" placeholder="sk-..." style="flex:1"><button class="bs2" style="padding:8px 12px;font-size:11px;flex-shrink:0" onclick="toggleAIKeyVis()">👁</button></div></div>
 <div class="fg"><label class="fl">Модель</label><select class="fi" id="aiModelSelect" style="padding:8px 10px"></select></div>
-<div style="display:flex;gap:8px;margin-bottom:10px"><button class="bp" style="flex:1" onclick="saveAIConfig()">💾 Сохранить</button><button class="bs2" style="padding:10px" onclick="testAIProvider()">🔌 Тест</button></div>
+<div style="display:flex;gap:8px;margin-bottom:10px"><button class="bp" style="flex:1" onclick="saveAIConfig()">💾 Сохранить</button><button class="bs2" style="padding:10px" onclick="testAIProvider()">🔌 Тест</button><button class="bs2" id="aiActivateBtn" style="padding:10px;font-size:11px" onclick="activateAIProvider()">★ Активировать</button></div>
 <div id="aiTestResult" style="margin-top:4px"></div>
 </div>
 <div id="aiStatus" style="padding:8px 10px;background:var(--ov);border:1px solid var(--bd);border-radius:6px;margin-top:8px;font-size:10px;color:var(--t3);line-height:1.5"></div>
@@ -1757,48 +1794,85 @@ var payload=JSON.stringify({fields:{TITLE:title,DESCRIPTION:desc,DESCRIPTION_IN_
 var chkPayload='// Для каждой работы:\ntask.checklistitem.add\n[TASK_ID, {"TITLE": "текст работы"}]';
 $('toBody').innerHTML+='<div style="padding:10px;background:var(--gd);border:1px solid rgba(0,224,154,.2);border-radius:8px;margin-top:10px"><div style="font-size:12px;color:var(--g);font-weight:600;margin-bottom:8px">📋 Задача для Битрикс24</div><div style="font-size:11px;color:var(--t2);line-height:1.5"><b>TITLE:</b> '+esc(title)+'<br><b>RESPONSIBLE_ID:</b> '+respId+' ('+esc(respName)+')<br><b>GROUP_ID:</b> '+(cfg.groupId||'—')+'<br><b>DEADLINE:</b> '+dlStr+'<br><b>PRIORITY:</b> '+(cfg.priority||1)+'<br><b>AUDITORS:</b> '+auditors+'<br><b>Чеклист:</b> '+tasks.length+' пунктов'+(cfg.addChecklist!==false?' (task.checklistitem.add)':' (отключён)')+'</div><details style="margin-top:8px"><summary style="cursor:pointer;font-size:10px;color:var(--t3)">Показать JSON payload</summary><pre style="font-size:9px;color:var(--t3);background:var(--bg);padding:8px;border-radius:4px;margin-top:4px;overflow-x:auto;white-space:pre-wrap">POST {webhook}/tasks.task.add\n'+esc(payload)+'</pre></details><div style="margin-top:8px;font-size:9px;color:var(--t4)">Требуется backend для отправки. URL: '+esc((cfg.url||'https://...').substring(0,35))+'...</div></div>';ae('📋 Б24 задача: '+title)}
 // initBxModal() defined above in BITRIX24 INTEGRATION section (async, loads from backend API)
-// === AI PROVIDER CONFIG ===
+// === AI PROVIDER CONFIG (Multi-provider, persistent DB storage) ===
 const AI_PROVIDERS={
 openai:{id:'openai',name:'OpenAI',color:'#10a37f',icon:'🟢',models:['gpt-4o','gpt-4o-mini','gpt-4-turbo','o3-mini'],keyPrefix:'sk-',keyPlaceholder:'sk-proj-...'},
 claude:{id:'claude',name:'Claude',color:'#d97706',icon:'🟠',models:['claude-sonnet-4-20250514','claude-3-5-haiku-20241022','claude-opus-4-20250514'],keyPrefix:'sk-ant-',keyPlaceholder:'sk-ant-api03-...'},
 gemini:{id:'gemini',name:'Gemini',color:'#4285f4',icon:'🔵',models:['gemini-2.5-pro','gemini-2.5-flash','gemini-2.0-flash'],keyPrefix:'AI',keyPlaceholder:'AIza...'},
 grok:{id:'grok',name:'Grok',color:'#ef4444',icon:'🔴',models:['grok-3','grok-3-mini','grok-2'],keyPrefix:'xai-',keyPlaceholder:'xai-...'}
 };
+var _aiDbData=null;var _aiEditPid=null;
 function getAIConfig(){try{return JSON.parse(localStorage.getItem('s5ai'))||{}}catch(e){return{}}}
 function saveAICfg(c){localStorage.setItem('s5ai',JSON.stringify(c))}
-function initAIModal(){var cfg=getAIConfig();var cards=$('aiProviderCards');if(!cards)return;
-var h='';for(var k in AI_PROVIDERS){var p=AI_PROVIDERS[k];var sel=cfg.provider===k;
-h+='<div onclick="selectAIProvider(\''+k+'\')" style="padding:10px;border:2px solid '+(sel?p.color:'var(--bd)')+';border-radius:var(--rad);cursor:pointer;background:'+(sel?p.color+'15':'var(--ov)')+';transition:all .2s;text-align:center" id="aip_'+k+'">';
+async function initAIModal(){
+var cfg=getAIConfig();_aiDbData=null;
+if(apiAvailable){try{_aiDbData=await api.get('/api/ai/providers')}catch(e){console.warn('AI providers fetch:',e)}}
+var cards=$('aiProviderCards');if(!cards)return;var h='';
+for(var k in AI_PROVIDERS){var p=AI_PROVIDERS[k];
+var isActive=_aiDbData?(_aiDbData.active_provider===k):(cfg.provider===k);
+var isCfg=false;
+if(_aiDbData){var dp=_aiDbData.providers.find(function(x){return x.provider===k});isCfg=dp?dp.is_configured:false}
+else{isCfg=!!(cfg.keys&&cfg.keys[k])}
+h+='<div onclick="selectAIProvider(\''+k+'\')" style="padding:10px;border:2px solid '+(isActive?p.color:isCfg?'var(--g)':'var(--bd)')+';border-radius:var(--rad);cursor:pointer;background:'+(isActive?p.color+'15':'var(--ov)')+';transition:all .2s;text-align:center;position:relative" id="aip_'+k+'">';
 h+='<div style="font-size:22px;margin-bottom:4px">'+p.icon+'</div>';
-h+='<div style="font-size:13px;font-weight:600;color:'+(sel?p.color:'var(--t)')+'">'+p.name+'</div>';
-h+='<div style="font-size:9px;color:var(--t3);margin-top:2px">'+p.models.length+' моделей</div>';
+h+='<div style="font-size:13px;font-weight:600;color:'+(isActive?p.color:'var(--t)')+'">'+p.name+'</div>';
+h+='<div style="font-size:9px;margin-top:2px;color:'+(isCfg?'var(--g)':'var(--t4)')+'">'+
+(isCfg?'● Настроен':'○ Нет ключа')+'</div>';
+if(isActive)h+='<div style="font-size:8px;color:'+p.color+';font-weight:700;margin-top:2px">★ АКТИВНЫЙ</div>';
 h+='</div>'}
 cards.innerHTML=h;
-if(cfg.provider){showAIKeySection(cfg.provider)}else{$('aiKeySection').style.display='none'}
+var showPid=_aiDbData?_aiDbData.active_provider:cfg.provider;
+if(showPid){showAIKeySection(showPid)}else{$('aiKeySection').style.display='none'}
 updateAIStatus()}
-function selectAIProvider(pid){var cfg=getAIConfig();cfg.provider=pid;saveAICfg(cfg);
-for(var k in AI_PROVIDERS){var el=$('aip_'+k);if(!el)continue;var p=AI_PROVIDERS[k];var sel=k===pid;
-el.style.borderColor=sel?p.color:'var(--bd)';el.style.background=sel?p.color+'15':'var(--ov)';
-el.querySelector('div:nth-child(2)').style.color=sel?p.color:'var(--t)'}
+function selectAIProvider(pid){
+for(var k in AI_PROVIDERS){var el=$('aip_'+k);if(!el)continue;var p=AI_PROVIDERS[k];
+var isActive=_aiDbData?(_aiDbData.active_provider===k):false;
+var isCfg=false;if(_aiDbData){var dp=_aiDbData.providers.find(function(x){return x.provider===k});isCfg=dp?dp.is_configured:false}
+var editing=k===pid;
+el.style.borderColor=editing?p.color:isActive?p.color:isCfg?'var(--g)':'var(--bd)';
+el.style.background=editing?p.color+'15':'var(--ov)'}
 showAIKeySection(pid)}
-function showAIKeySection(pid){var p=AI_PROVIDERS[pid];if(!p)return;var cfg=getAIConfig();
+function showAIKeySection(pid){var p=AI_PROVIDERS[pid];if(!p)return;
+_aiEditPid=pid;var cfg=getAIConfig();
 $('aiKeySection').style.display='block';
 $('aiKeyLabel').textContent=p.name+' API Key';$('aiKeyLabel').style.color=p.color;
-$('aiKeyInput').placeholder=p.keyPlaceholder;$('aiKeyInput').value=cfg.keys?.[pid]||'';$('aiKeyInput').type='password';
+$('aiKeyInput').placeholder=p.keyPlaceholder;$('aiKeyInput').type='password';
+// Load key from localStorage (DB never returns full key)
+$('aiKeyInput').value=cfg.keys?.[pid]||'';
 var sel=$('aiModelSelect');sel.innerHTML='';
+var savedModel=null;
+if(_aiDbData){var dp=_aiDbData.providers.find(function(x){return x.provider===pid});if(dp&&dp.model)savedModel=dp.model}
+if(!savedModel)savedModel=cfg.models?.[pid];
 for(var i=0;i<p.models.length;i++){var o=document.createElement('option');o.value=p.models[i];o.textContent=p.models[i];sel.appendChild(o)}
-var savedModel=cfg.models?.[pid];if(savedModel)sel.value=savedModel;
-$('aiTestResult').innerHTML=''}
+if(savedModel)sel.value=savedModel;
+$('aiTestResult').innerHTML='';
+// Update activate button
+var abtn=$('aiActivateBtn');if(abtn){
+var isActive=_aiDbData?(_aiDbData.active_provider===pid):cfg.provider===pid;
+abtn.textContent=isActive?'★ Активный':'☆ Активировать';
+abtn.style.background=isActive?'var(--gd)':'';abtn.style.color=isActive?'var(--g)':'';
+abtn.style.borderColor=isActive?'rgba(0,224,154,.3)':'';
+abtn.disabled=isActive}}
 function toggleAIKeyVis(){var inp=$('aiKeyInput');inp.type=inp.type==='password'?'text':'password'}
-function saveAIConfig(){var cfg=getAIConfig();var pid=cfg.provider;if(!pid){ae('⚠ Выберите провайдера');return}
+async function saveAIConfig(){var pid=_aiEditPid;if(!pid){ae('⚠ Выберите провайдера');return}
 var key=$('aiKeyInput').value.trim();var model=$('aiModelSelect').value;
 if(!key){ae('⚠ Введите API ключ');return}
-if(!cfg.keys)cfg.keys={};if(!cfg.models)cfg.models={};
+// Save to localStorage
+var cfg=getAIConfig();if(!cfg.keys)cfg.keys={};if(!cfg.models)cfg.models={};
 cfg.keys[pid]=key;cfg.models[pid]=model;saveAICfg(cfg);
-updateAIStatus();ae('✅ '+AI_PROVIDERS[pid].name+' сохранён');
-// Push config to backend
-if(apiAvailable){api.post('/api/ai/config',{provider:pid,api_key:key,model:model}).catch(function(e){console.warn('AI config push error:',e)})}}
-async function testAIProvider(){var cfg=getAIConfig();var pid=cfg.provider;if(!pid)return;
+// Save to DB via backend
+if(apiAvailable){try{var r=await api.post('/api/ai/provider/save',{provider:pid,api_key:key,model:model});
+if(r.success){ae('💾 '+AI_PROVIDERS[pid].name+' сохранён в БД')}
+else{ae('⚠ '+r.message)}}catch(e){ae('⚠ '+e.message);console.warn('AI save error:',e)}}
+else{ae('✅ '+AI_PROVIDERS[pid].name+' сохранён (локально)')}
+await initAIModal()}
+async function activateAIProvider(){var pid=_aiEditPid;if(!pid)return;
+if(!apiAvailable){ae('⚠ Backend недоступен');return}
+try{var r=await api.post('/api/ai/provider/activate',{provider:pid});
+if(r.success){ae('★ '+AI_PROVIDERS[pid].name+' активирован');
+var cfg=getAIConfig();cfg.provider=pid;saveAICfg(cfg);await initAIModal()}
+else{ae('⚠ '+r.message)}}catch(e){ae('⚠ '+e.message)}}
+async function testAIProvider(){var pid=_aiEditPid;if(!pid)return;
 var key=$('aiKeyInput').value.trim();var model=$('aiModelSelect').value;
 if(!key){$('aiTestResult').innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r)">Введите API ключ</div>';return}
 var el=$('aiTestResult');el.innerHTML='<div style="padding:6px 10px;background:var(--yd);border:1px solid rgba(255,176,32,.2);border-radius:6px;font-size:11px;color:var(--y);font-family:var(--m)">⏳ Проверка '+AI_PROVIDERS[pid].name+'...</div>';
@@ -1807,10 +1881,22 @@ if(r.success){el.innerHTML='<div style="padding:6px 10px;background:var(--gd);bo
 else{el.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r)">❌ '+(r.error||'Ошибка подключения')+'</div>'}}
 catch(e){el.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r)">❌ '+e.message+'</div>'}}
 else{setTimeout(function(){el.innerHTML='<div style="padding:6px 10px;background:var(--bb);border:1px solid rgba(64,144,255,.2);border-radius:6px;font-size:11px;color:var(--b);font-family:var(--m)">ℹ Backend недоступен — тест требует подключение к серверу</div>'},800)}}
-function updateAIStatus(){var cfg=getAIConfig();var el=$('aiStatus');if(!el)return;
+function updateAIStatus(){var el=$('aiStatus');if(!el)return;
+if(_aiDbData){
+var cfgCount=_aiDbData.providers.filter(function(p){return p.is_configured}).length;
+var ap=_aiDbData.active_provider;var apInfo=ap?AI_PROVIDERS[ap]:null;
+el.innerHTML='<b>Провайдеры:</b> '+cfgCount+'/4 настроено'+
+(apInfo?' · <b>Активный:</b> '+apInfo.icon+' <span style="color:'+apInfo.color+';font-weight:600">'+apInfo.name+'</span>':
+' · <span style="color:var(--y)">⚠ активный не выбран</span>');
+// Show configured providers list
+var cfgList=_aiDbData.providers.filter(function(p){return p.is_configured});
+if(cfgList.length>0){var det='';cfgList.forEach(function(dp){var pi=AI_PROVIDERS[dp.provider];
+det+='<br>'+pi.icon+' '+pi.name+': <span style="font-family:var(--m);font-size:9px">'+esc(dp.model)+'</span>'+(dp.is_active?' <span style="color:var(--g)">★</span>':'')});
+el.innerHTML+=det}}
+else{var cfg=getAIConfig();
 if(!cfg.provider){el.innerHTML='<b>Статус:</b> провайдер не выбран';return}
 var p=AI_PROVIDERS[cfg.provider];var hasKey=cfg.keys?.[cfg.provider];var model=cfg.models?.[cfg.provider]||p.models[0];
-el.innerHTML='<b>Статус:</b> '+p.icon+' <span style="color:'+p.color+';font-weight:600">'+p.name+'</span>'+(hasKey?' · <span style="color:var(--g)">🔑 ключ сохранён</span>':' · <span style="color:var(--y)">⚠ нет ключа</span>')+'<br><b>Модель:</b> <span style="font-family:var(--m)">'+model+'</span>'}
+el.innerHTML='<b>Статус:</b> '+p.icon+' <span style="color:'+p.color+';font-weight:600">'+p.name+'</span>'+(hasKey?' · <span style="color:var(--g)">🔑 ключ сохранён</span>':' · <span style="color:var(--y)">⚠ нет ключа</span>')+'<br><b>Модель:</b> <span style="font-family:var(--m)">'+model+'</span>'}}
 // === ALARM SYSTEM ===
 // HGM9520N alarms from protocol Table 27
 const ALARM_CODES={
@@ -2977,6 +3063,154 @@ try{const r=await api.post('/api/bitrix24/tasks/test');
 if(r.success){ae('✅ Тестовая задача создана: #'+r.task_id);b24Refresh()}
 else ae('❌ Ошибка: '+(r.error||'unknown'))}
 catch(e){ae('❌ '+e.message)}}
+
+// ===================== SANEK CHAT =====================
+var _snOpen=false,_snSid=null,_snSending=false;
+
+function toggleSanek(){
+  _snOpen=!_snOpen;
+  $('sanekPanel').classList.toggle('open',_snOpen);
+  if(_snOpen)$('sanekInput').focus();
+}
+
+function sanekNewSession(){
+  _snSid=null;
+  const msgs=$('sanekMessages');
+  msgs.innerHTML='<div class="sn-welcome"><div class="sn-big">🤖</div><h3>Привет! Я — Санёк</h3><p>AI-ассистент вашей СКАДА-системы.<br>Спросите о состоянии генераторов, авариях,<br>ТО или дайте команду управления.</p><div class="sn-hints"><button class="sn-hint" onclick="sanekHint(this)">📊 Какие объекты и устройства есть?</button><button class="sn-hint" onclick="sanekHint(this)">⚡ Покажи текущую мощность генераторов</button><button class="sn-hint" onclick="sanekHint(this)">🚨 Есть активные аварии?</button><button class="sn-hint" onclick="sanekHint(this)">📋 Дай общую сводку по системе</button></div></div>';
+}
+
+function sanekHint(el){
+  $('sanekInput').value=el.textContent.trim();
+  sendToSanek();
+}
+
+function _snAddMsg(role,text){
+  const msgs=$('sanekMessages');
+  // Remove welcome on first message
+  const welcome=msgs.querySelector('.sn-welcome');
+  if(welcome)welcome.remove();
+
+  const div=document.createElement('div');
+  div.className='sn-msg '+role;
+  if(role==='assistant'){
+    div.innerHTML='<span class="sn-icon">🤖</span> '+_snFormatText(text);
+  } else {
+    div.textContent=text;
+  }
+  msgs.appendChild(div);
+  msgs.scrollTop=msgs.scrollHeight;
+  return div;
+}
+
+function _snFormatText(text){
+  // Simple markdown-like formatting
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
+    .replace(/`(.+?)`/g,'<code style="background:rgba(0,0,0,.2);padding:1px 4px;border-radius:3px;font-size:12px">$1</code>')
+    .replace(/\n/g,'<br>');
+}
+
+function _snShowTyping(){
+  const msgs=$('sanekMessages');
+  const div=document.createElement('div');
+  div.className='sn-typing';
+  div.id='snTyping';
+  div.innerHTML='<span></span><span></span><span></span>';
+  msgs.appendChild(div);
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
+function _snHideTyping(){
+  const t=$('snTyping');
+  if(t)t.remove();
+}
+
+function _snShowActions(actions){
+  if(!actions||!actions.length)return;
+  const msgs=$('sanekMessages');
+  const wrap=document.createElement('div');
+  wrap.style.cssText='display:flex;flex-wrap:wrap;gap:4px;padding:0 4px;align-self:flex-start';
+  actions.forEach(a=>{
+    const badge=document.createElement('span');
+    badge.className='sn-action';
+    badge.textContent='✅ '+a.tool;
+    wrap.appendChild(badge);
+  });
+  msgs.appendChild(wrap);
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
+function _snShowPending(pending){
+  if(!pending)return;
+  const msgs=$('sanekMessages');
+  const div=document.createElement('div');
+  div.className='sn-pending';
+  div.innerHTML='<div style="font-size:13px;line-height:1.5">'+_snFormatText(pending.description)+'</div>'+
+    '<div class="sn-pending-btns">'+
+    '<button class="sn-yes" onclick="sanekConfirm(true)">✅ Да</button>'+
+    '<button class="sn-no" onclick="sanekConfirm(false)">❌ Нет</button>'+
+    '</div>';
+  msgs.appendChild(div);
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
+async function sanekConfirm(yes){
+  // Remove pending buttons
+  document.querySelectorAll('.sn-pending').forEach(el=>{
+    el.querySelectorAll('button').forEach(b=>b.disabled=true);
+  });
+  const text=yes?'Да':'Нет';
+  _snAddMsg('user',text);
+  await _snSendMessage(text);
+}
+
+async function sendToSanek(){
+  const input=$('sanekInput');
+  const text=input.value.trim();
+  if(!text||_snSending)return;
+  input.value='';
+  _snAddMsg('user',text);
+  await _snSendMessage(text);
+}
+
+async function _snSendMessage(text){
+  _snSending=true;
+  $('sanekSendBtn').disabled=true;
+  _snShowTyping();
+
+  try{
+    const body={message:text};
+    if(_snSid)body.session_id=_snSid;
+
+    const r=await api.post('/api/ai/chat',body);
+    _snHideTyping();
+
+    if(r.session_id)_snSid=r.session_id;
+
+    // Show tool actions if any
+    if(r.actions&&r.actions.length){
+      _snShowActions(r.actions);
+    }
+
+    // Show assistant message
+    if(r.message){
+      _snAddMsg('assistant',r.message);
+    }
+
+    // Show pending action if any
+    if(r.pending_action){
+      _snShowPending(r.pending_action);
+    }
+
+  }catch(e){
+    _snHideTyping();
+    _snAddMsg('assistant','❌ Ошибка: '+(e.message||'Не удалось связаться с сервером'));
+  }finally{
+    _snSending=false;
+    $('sanekSendBtn').disabled=false;
+  }
+}
 </script>
 <script src="/alarm_modal.js"></script>
 <!-- Power Limit Modal -->
@@ -3034,6 +3268,34 @@ catch(e){ae('❌ '+e.message)}}
 </div>
 <div style="position:relative;height:350px"><canvas id="pwCanvas"></canvas><button id="pwResetZoom" class="arc-zoom-btn" onclick="pwResetZoom()" style="display:none">↩ Сбросить зум</button></div>
 </div>
+</div>
+</div>
+<!-- Sanek Chat Button -->
+<button id="sanekBtn" onclick="toggleSanek()">🤖</button>
+<!-- Sanek Chat Panel -->
+<div id="sanekPanel">
+<div class="sn-hd">
+<span style="font-size:22px">🤖</span>
+<div style="flex:1"><div style="font-weight:700;font-size:14px">Санёк</div><div style="font-size:10px;color:var(--t3)">AI-ассистент СКАДА</div></div>
+<button onclick="sanekNewSession()" style="background:none;border:1px solid var(--bd);border-radius:6px;padding:4px 8px;color:var(--t2);cursor:pointer;font-size:11px" title="Новая сессия">🔄</button>
+<button onclick="toggleSanek()" style="background:none;border:none;color:var(--t2);cursor:pointer;font-size:18px;padding:4px 8px">&times;</button>
+</div>
+<div class="sn-msgs" id="sanekMessages">
+<div class="sn-welcome">
+<div class="sn-big">🤖</div>
+<h3>Привет! Я — Санёк</h3>
+<p>AI-ассистент вашей СКАДА-системы.<br>Спросите о состоянии генераторов, авариях,<br>ТО или дайте команду управления.</p>
+<div class="sn-hints">
+<button class="sn-hint" onclick="sanekHint(this)">📊 Какие объекты и устройства есть?</button>
+<button class="sn-hint" onclick="sanekHint(this)">⚡ Покажи текущую мощность генераторов</button>
+<button class="sn-hint" onclick="sanekHint(this)">🚨 Есть активные аварии?</button>
+<button class="sn-hint" onclick="sanekHint(this)">📋 Дай общую сводку по системе</button>
+</div>
+</div>
+</div>
+<div class="sn-input-row">
+<input id="sanekInput" placeholder="Спросите Санька..." onkeydown="if(event.key==='Enter'&&!event.shiftKey)sendToSanek()">
+<button id="sanekSendBtn" onclick="sendToSanek()">➤</button>
 </div>
 </div>
 </body></html>

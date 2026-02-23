@@ -12,6 +12,8 @@ from models.maintenance_alert import MaintenanceAlert, AlertSeverity, AlertStatu
 from models.metrics_data import MetricsData
 from models.alarm_event import AlarmEvent, AlarmSeverityEvent
 from models.bitrix24_task import Bitrix24Task
+from models.ai_provider import AiProviderConfig
+from models.ai_chat import AiChatMessage
 
 __all__ = [
     "Base",
@@ -34,4 +36,5 @@ __all__ = [
     "AlarmEvent",
     "AlarmSeverityEvent",
     "Bitrix24Task",
+    "AiProviderConfig",
 ]

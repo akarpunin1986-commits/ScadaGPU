@@ -42,6 +42,10 @@ async def lifespan(app: FastAPI):
     app.state.redis = redis
     logger.info("Redis connected: %s", settings.REDIS_URL)
 
+    # Load AI provider configs from DB into memory cache
+    from api.ai_parser import load_ai_configs_from_db
+    await load_ai_configs_from_db()
+
     # Poller (demo or production)
     if settings.DEMO_MODE:
         from services.demo_poller import DemoPoller
