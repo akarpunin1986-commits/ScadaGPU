@@ -2404,119 +2404,12 @@ function arcBucket(hours){
 if(hours<=1)return 0;if(hours<=6)return 60;if(hours<=24)return 300;if(hours<=168)return 1800;return 3600;
 }
 
-function _debounce(fn,ms){var t;return function(){clearTimeout(t);t=setTimeout(fn,ms)}}
-
-// --- Adaptive zoom reload state ---
-var _arcCurrentBucket=0,_arcZoomGrp=null;
-var _pwCurrentBucket=0;
-
-async function _arcReloadForRange(from,to,bucket){
-  if(!arcChart||!_arcZoomGrp)return;
-  var devId=arcGetDeviceId(arcState.slot);if(!devId)return;
-  var grp=_arcZoomGrp,url;
-  if(bucket>0)url='/api/history/metrics/'+devId+'/downsampled?start='+from+'&end='+to+'&bucket_seconds='+bucket+'&fields='+grp.fields;
-  else url='/api/history/metrics/'+devId+'?start='+from+'&end='+to+'&fields='+grp.fields+'&limit=5000';
-  try{
-    var data=await api.get(url);
-    if(!data||!data.length)return;
-    var fieldNames=grp.fields.split(',');
-    var timeKey=data[0].bucket!==undefined?'bucket':'timestamp';
-    var dsIdx=0;
-    fieldNames.forEach(function(f){
-      var pts=data.map(function(row){return{x:new Date(row[timeKey]),y:row[f]!=null?Number(row[f]):null}});
-      var hasData=pts.some(function(p){return p.y!=null});
-      if(hasData&&arcChart.data.datasets[dsIdx]){
-        arcChart.data.datasets[dsIdx].data=pts;
-        // Adaptive point radius
-        var showPts=pts.length<80;
-        arcChart.data.datasets[dsIdx].pointRadius=showPts?(pts.length<30?3:2):0;
-        dsIdx++;
-      }else if(hasData) dsIdx++;
-      else{/* skip null fields */}
-    });
-    // Update computed datasets
-    if(grp._computed){
-      grp._computed.forEach(function(comp){
-        var pts=data.map(function(row){return{x:new Date(row[timeKey]),y:comp.calc(row)}});
-        var hasData=pts.some(function(p){return p.y!=null&&p.y!==0});
-        if(hasData&&arcChart.data.datasets[dsIdx]){
-          arcChart.data.datasets[dsIdx].data=pts;
-          arcChart.data.datasets[dsIdx].pointRadius=pts.length<80?(pts.length<30?3:2):0;
-          dsIdx++;
-        }
-      });
-    }
-    arcChart.update('none');
-  }catch(e){console.warn('Zoom reload error:',e)}
-}
-
-var _arcZoomReload=_debounce(function(){
-  if(!arcChart)return;
-  var xS=arcChart.scales.x;
-  var visH=(xS.max-xS.min)/3600000;
-  var need=arcBucket(visH);
-  if(need===_arcCurrentBucket)return;
-  _arcCurrentBucket=need;
-  _arcReloadForRange(new Date(xS.min).toISOString(),new Date(xS.max).toISOString(),need);
-},500);
-
-async function _pwReloadForRange(from,to,bucket){
-  if(!pwChart)return;
-  var sprId=S[cur]?.spr?._deviceId;if(!sprId)return;
-  var fields=[];
-  if(pwMetrics.bus)fields.push('busbar_p');
-  if(pwMetrics.mains)fields.push('mains_total_p');
-  if(pwMetrics.load){
-    if(!fields.includes('busbar_p'))fields.push('busbar_p');
-    if(!fields.includes('mains_total_p'))fields.push('mains_total_p');
-  }
-  var url;
-  if(bucket>0)url='/api/history/metrics/'+sprId+'/downsampled?start='+from+'&end='+to+'&bucket_seconds='+bucket+'&fields='+fields.join(',');
-  else url='/api/history/metrics/'+sprId+'?start='+from+'&end='+to+'&fields='+fields.join(',')+'&limit=5000';
-  try{
-    var data=await api.get(url);
-    if(!data||!data.length)return;
-    var timeKey=data[0].bucket!==undefined?'bucket':'timestamp';
-    var dsIdx=0;
-    if(pwMetrics.bus&&pwChart.data.datasets[dsIdx]){
-      pwChart.data.datasets[dsIdx].data=data.map(function(r){return{x:new Date(r[timeKey]),y:r.busbar_p!=null?Number(r.busbar_p):null}});
-      pwChart.data.datasets[dsIdx].pointRadius=data.length<80?(data.length<30?3:2):0;
-      dsIdx++;
-    }
-    if(pwMetrics.mains&&pwChart.data.datasets[dsIdx]){
-      pwChart.data.datasets[dsIdx].data=data.map(function(r){return{x:new Date(r[timeKey]),y:r.mains_total_p!=null?Number(r.mains_total_p):null}});
-      pwChart.data.datasets[dsIdx].pointRadius=data.length<80?(data.length<30?3:2):0;
-      dsIdx++;
-    }
-    if(pwMetrics.load&&pwChart.data.datasets[dsIdx]){
-      pwChart.data.datasets[dsIdx].data=data.map(function(r){
-        var b=r.busbar_p!=null?Number(r.busbar_p):0;var m=r.mains_total_p!=null?Number(r.mains_total_p):0;
-        return{x:new Date(r[timeKey]),y:b+m};
-      });
-      pwChart.data.datasets[dsIdx].pointRadius=data.length<80?(data.length<30?3:2):0;
-      dsIdx++;
-    }
-    pwChart.update('none');
-  }catch(e){console.warn('PW zoom reload error:',e)}
-}
-
-var _pwZoomReload=_debounce(function(){
-  if(!pwChart)return;
-  var xS=pwChart.scales.x;
-  var visH=(xS.max-xS.min)/3600000;
-  var need=arcBucket(visH);
-  if(need===_pwCurrentBucket)return;
-  _pwCurrentBucket=need;
-  _pwReloadForRange(new Date(xS.min).toISOString(),new Date(xS.max).toISOString(),need);
-},500);
-
 async function arcLoadChart(){
 const devId=arcGetDeviceId(arcState.slot);
 if(!devId){arcRenderNoData('Устройство не настроено');return}
 const grp=arcGetGroups()[arcState.group],hours=arcState.hours;
 if(!grp){arcRenderNoData('Нет данных для этой вкладки');return}
 const bucket=hours?arcBucket(hours):0;
-_arcCurrentBucket=bucket;_arcZoomGrp=grp;
 let url;
 if(hours){
 if(bucket>0)url=`/api/history/metrics/${devId}/downsampled?last_hours=${hours}&bucket_seconds=${bucket}&fields=${grp.fields}`;
@@ -2625,10 +2518,10 @@ const sugMax=yMax+yPad;
 // Merge zoom callbacks into plugin options
 const zoomPluginOpts={...CHART_DEFAULTS.plugins.zoom,
   zoom:{...CHART_DEFAULTS.plugins.zoom?.zoom,
-    onZoom:function(){const b=$('arcResetZoom');if(b)b.style.display='';_arcZoomReload()},
+    onZoom:function(){const b=$('arcResetZoom');if(b)b.style.display=''},
   },
   pan:{...CHART_DEFAULTS.plugins.zoom?.pan,
-    onPan:function(){const b=$('arcResetZoom');if(b)b.style.display='';_arcZoomReload()},
+    onPan:function(){const b=$('arcResetZoom');if(b)b.style.display=''},
   }
 };
 
@@ -2656,13 +2549,7 @@ if(descEl)descEl.innerHTML=grp.desc?`<b>ℹ️ Пояснение:</b> ${grp.des
 }
 
 function arcResetZoom(){
-if(arcChart){
-  arcChart.resetZoom();
-  const b=$('arcResetZoom');if(b)b.style.display='none';
-  // Перезагрузить данные с исходным bucket если он менялся при зуме
-  const origBucket=arcState.hours?arcBucket(arcState.hours):0;
-  if(_arcCurrentBucket!==origBucket){_arcCurrentBucket=origBucket;arcLoadChart()}
-}
+if(arcChart){arcChart.resetZoom();const b=$('arcResetZoom');if(b)b.style.display='none'}
 }
 
 // === POWER CHART (clickable flow diagram labels) ===
@@ -2700,12 +2587,7 @@ btn.classList.add('on');pwHours=hours;pwLoadChart();
 }
 
 function pwResetZoom(){
-if(pwChart){
-  pwChart.resetZoom();
-  const b=$('pwResetZoom');if(b)b.style.display='none';
-  const origBucket=arcBucket(pwHours);
-  if(_pwCurrentBucket!==origBucket){_pwCurrentBucket=origBucket;pwLoadChart()}
-}
+if(pwChart){pwChart.resetZoom();const b=$('pwResetZoom');if(b)b.style.display='none'}
 }
 
 async function pwLoadChart(){
@@ -2720,7 +2602,6 @@ if(!fields.includes('busbar_p'))fields.push('busbar_p');
 if(!fields.includes('mains_total_p'))fields.push('mains_total_p');
 }
 const bucket=arcBucket(pwHours);
-_pwCurrentBucket=bucket;
 let url;
 if(bucket>0)url=`/api/history/metrics/${sprId}/downsampled?last_hours=${pwHours}&bucket_seconds=${bucket}&fields=${fields.join(',')}`;
 else url=`/api/history/metrics/${sprId}?last_hours=${pwHours}&fields=${fields.join(',')}&limit=5000`;
@@ -2772,8 +2653,8 @@ pointBorderColor:PW_COLORS.load,pointHitRadius:8,tension:0.25,fill:false,spanGap
 }
 if(!datasets.length){pwRenderNoData('Выберите хотя бы одну метрику');return}
 const zoomOpts={...CHART_DEFAULTS.plugins.zoom,
-zoom:{...CHART_DEFAULTS.plugins.zoom?.zoom,onZoom(){const b=$('pwResetZoom');if(b)b.style.display='';_pwZoomReload()}},
-pan:{...CHART_DEFAULTS.plugins.zoom?.pan,onPan(){const b=$('pwResetZoom');if(b)b.style.display='';_pwZoomReload()}}
+zoom:{...CHART_DEFAULTS.plugins.zoom?.zoom,onZoom(){const b=$('pwResetZoom');if(b)b.style.display=''}},
+pan:{...CHART_DEFAULTS.plugins.zoom?.pan,onPan(){const b=$('pwResetZoom');if(b)b.style.display=''}}
 };
 const c=getChartColors();
 pwChart=new Chart(canvas,{type:'line',data:{datasets},
