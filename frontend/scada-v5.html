@@ -131,7 +131,7 @@ body{background:var(--bg);color:var(--t);font-family:var(--u);height:100vh;overf
 .cv{display:flex;justify-content:center;padding:3px;color:var(--t4);transition:transform .3s}.cc.op .cv{transform:rotate(180deg)}
 .ce{max-height:0;overflow:hidden;transition:max-height .4s ease}.cc.op .ce{max-height:2500px}.ei{padding:0 10px 8px}
 .tbs{display:flex;gap:0;border-bottom:1px solid var(--bd);margin-bottom:8px;overflow-x:auto}
-.tb{padding:7px 12px;font-size:12px;font-weight:500;color:var(--t3);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;font-family:var(--u);white-space:nowrap;flex-shrink:0;transition:all .15s}.tb:hover{color:var(--t)}.tb.on{color:var(--g);border-bottom-color:var(--g)}
+.tb{padding:7px 12px;font-size:13px;font-weight:600;color:var(--t3);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;font-family:var(--u);white-space:nowrap;flex-shrink:0;transition:all .15s;letter-spacing:.01em}.tb:hover{color:var(--t)}.tb.on{color:var(--g);border-bottom-color:var(--g);font-weight:700}
 .tp{display:none}.tp.on{display:block}
 .mg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.mg4{grid-template-columns:repeat(4,1fr)}.mg2{grid-template-columns:repeat(2,1fr)}
 .mc{background:var(--ov);border:1px solid var(--bd);border-radius:8px;padding:10px}.ml{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;font-weight:500}.mv{font-family:var(--m);font-size:17px;font-weight:600}.ms2{font-size:10px;color:var(--t3);font-family:var(--m);margin-top:2px}.mu{font-size:11px;color:var(--t3);margin-left:2px}
@@ -278,6 +278,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .sb-sub-btn{display:block;width:100%;text-align:left;padding:5px 10px;font-size:11px;color:var(--t3);background:none;border:none;cursor:pointer;border-radius:4px;transition:background .15s}
 .sb-sub-btn:hover{background:var(--ov);color:var(--t)}
 .sb-sub-btn.on{color:var(--g);font-weight:600}
+.sb-eq-list{padding-left:14px;padding-bottom:2px}
+.sb-eq-row{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600;color:var(--t2);transition:background .15s}
+.sb-eq-row:hover{background:var(--ov);color:var(--t)}
+.sb-eq-row.open{color:var(--t);font-weight:700}
+.sb-eq-arrow{font-size:9px;width:12px;text-align:center;color:var(--t3);flex-shrink:0}
+.sb-eq-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.sb-eq-sub{padding-left:17px;padding-bottom:2px}
 .b24-task:hover{border-color:var(--b)!important;box-shadow:0 0 0 1px rgba(64,144,255,.2)}
 .b24-eq:hover{border-color:var(--g)!important;box-shadow:0 0 0 1px rgba(0,224,154,.2)}
 #b24StatOpen:hover,#b24StatClosed:hover,#b24StatMaint:hover,#b24StatAlarm:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,.15);transition:all .15s}
@@ -1235,15 +1242,18 @@ function showM(n){$('m-'+n).classList.add('sh')}function hideM(n){$('m-'+n).clas
 document.querySelectorAll('.mbg').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('sh')}));
 function R(a,b){return+(a+Math.random()*(b-a)).toFixed(1)}function RI(a,b){return Math.floor(a+Math.random()*(b-a))}
 function now(){return new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
-let curView='monitoring';
-function renderSB(){const k=Object.keys(S);$('sbSites').innerHTML=k.length?k.map(id=>{const s=S[id],active=id===cur;return`<div class="sb-tree${active?' open':''}"><div class="si${active?' on':''}" onclick="sel('${id}')"><span class="si-arrow">${active?'▼':'▶'}</span><span class="si-name">${esc(s.name)}</span><div class="si-acts"><button class="si-btn" onclick="event.stopPropagation();openEdit('${id}')">✏</button><button class="si-btn del" onclick="event.stopPropagation();openDel('${id}')">✕</button></div></div>${active?`<div class="sb-sub"><button class="sb-sub-btn${curView==='monitoring'?' on':''}" onclick="event.stopPropagation();curView='monitoring';renderDash();renderSB()">⚡ Мониторинг</button><button class="sb-sub-btn${curView==='alarms'?' on':''}" onclick="event.stopPropagation();curView='alarms';showAlarms();renderSB()">🚨 Аварии</button><button class="sb-sub-btn${curView==='archive'?' on':''}" onclick="event.stopPropagation();curView='archive';showArchive('${id}');renderSB()">📊 Архив</button><button class="sb-sub-btn${curView==='to'?' on':''}" onclick="event.stopPropagation();curView='to';openTOTemplates();renderSB()">📋 ТО</button></div>`:''}</div>`}).join(''):'<div style="padding:20px;text-align:center;font-size:11px;color:var(--t4)">Нет объектов. Нажмите «+ Объект»</div>'}
+let curView='monitoring';let curEq={};const sbExp=new Set();
+function renderSB(){const k=Object.keys(S);$('sbSites').innerHTML=k.length?k.map(id=>{const s=S[id],exp=sbExp.has(id),active=id===cur,gpuOpen=exp&&curEq[id]==='gpu';return`<div class="sb-tree${exp?' open':''}"><div class="si${active?' on':''}" onclick="togSite('${id}')"><span class="si-arrow">${exp?'▼':'▶'}</span><span class="si-name">${esc(s.name)}</span><div class="si-acts"><button class="si-btn" onclick="event.stopPropagation();openEdit('${id}')">✏</button><button class="si-btn del" onclick="event.stopPropagation();openDel('${id}')">✕</button></div></div>${exp?`<div class="sb-sub sb-eq-list"><div class="sb-eq-row${gpuOpen?' open':''}" onclick="event.stopPropagation();toggleEq('${id}','gpu')"><span class="sb-eq-arrow">${gpuOpen?'▼':'▶'}</span><span class="sb-eq-name">🔌 ГПУ «Кама Энерго»</span></div>${gpuOpen?`<div class="sb-sub sb-eq-sub"><button class="sb-sub-btn${active&&curView==='monitoring'?' on':''}" onclick="event.stopPropagation();selView('${id}','monitoring')">⚡ Мониторинг</button><button class="sb-sub-btn${active&&curView==='alarms'?' on':''}" onclick="event.stopPropagation();selView('${id}','alarms')">🚨 Аварии</button><button class="sb-sub-btn${active&&curView==='archive'?' on':''}" onclick="event.stopPropagation();selView('${id}','archive')">📊 Архив</button><button class="sb-sub-btn${active&&curView==='to'?' on':''}" onclick="event.stopPropagation();selView('${id}','to')">📋 ТО</button></div>`:''}</div>`:''}</div>`}).join(''):'<div style="padding:20px;text-align:center;font-size:11px;color:var(--t4)">Нет объектов. Нажмите «+ Объект»</div>'}
+function togSite(id){if(sbExp.has(id)){sbExp.delete(id);renderSB()}else{sbExp.add(id);curEq[id]=curEq[id]||'gpu';sel(id)}}
 function sel(id){archiveMode=false;curView='monitoring';cur=id;sv();renderSB();renderDash();if(_snOpen)_snUpdateCtxBadge()}
+function selView(id,view){cur=id;curView=view;archiveMode=view==='archive';sv();renderSB();if(view==='monitoring')renderDash();else if(view==='alarms')showAlarms();else if(view==='archive')showArchive(id);else if(view==='to')openTOTemplates();if(_snOpen)_snUpdateCtxBadge()}
+function toggleEq(siteId,eqId){curEq[siteId]=(curEq[siteId]===eqId?null:eqId);renderSB()}
 function openAddSite(){editId=null;$('smT').textContent='Новый объект';$('fN').value='';$('fC').value='';$('fC').disabled=false;$('fD').value='';populateRespSelect('');$('smA').innerHTML='<button class="bp" onclick="saveSite()">Создать</button>';showM('site')}
 function openEdit(id){editId=id;const s=S[id];$('smT').textContent='Редактировать: '+s.name;$('fN').value=s.name;$('fC').value=id;$('fC').disabled=true;$('fD').value=s.desc||'';populateRespSelect(s.responsible||'');$('smA').innerHTML=`<div style="display:flex;gap:8px"><button class="bp" style="flex:1" onclick="saveSite()">Сохранить</button><button class="bdn" style="flex:0;padding:10px 16px" onclick="hideM('site');openDel('${id}')">🗑</button></div>`;showM('site')}
 async function saveSite(){const n=$('fN').value.trim(),c=$('fC').value.trim().toLowerCase().replace(/[^a-z0-9_-]/g,''),d=$('fD').value.trim(),resp=$('fResp').value;if(!n||!c){ae('⚠ Укажите название и код');return}if(!editId&&S[c]){ae('⚠ Объект с кодом «'+c+'» уже существует');return}if(editId){S[editId].name=n;S[editId].desc=d;S[editId].responsible=resp;ae('✏ '+n);
 // API: update site
 if(apiAvailable&&siteApiIds[editId]){try{await api.patch('/api/sites/'+siteApiIds[editId],{name:n,description:d})}catch(e){console.warn('API update site error:',e)}}
-}else{S[c]={name:n,desc:d,responsible:resp,g1:{},g2:{},spr:{}};cur=c;ae('✅ '+n+' создан');
+}else{S[c]={name:n,desc:d,responsible:resp,g1:{},g2:{},spr:{}};cur=c;sbExp.add(c);curEq[c]='gpu';ae('✅ '+n+' создан');
 // API: create site
 if(apiAvailable){try{const s=await api.post('/api/sites',{name:n,code:c,network:'modbus',description:d});siteApiIds[c]=s.id;S[c]._apiId=s.id}catch(e){console.warn('API create site error:',e)}}
 }$('fC').disabled=false;sv();hideM('site');renderSB();renderDash()}
@@ -1749,7 +1759,7 @@ card.querySelector('.lo').className='lo '+(connOk?'lo-g':'lo-r');card.querySelec
 // Detailed tabs — use real WS data if available
 const ct=mx?.coolant_temp!=null?mx.coolant_temp:(status==='warning'?RI(93,99):(status==='alarm'?RI(100,108):RI(75,88)));
 const op=mx?.oil_pressure!=null?mx.oil_pressure:(status==='alarm'?RI(150,250):RI(350,450));
-const eT=$(sl+'e');if(eT&&on&&isOnline){const pp=mx?.power_total!=null?mx.power_total:(basePower||p);
+const eT=$(sl+'e');if(eT&&isOnline){const pp=mx?.power_total!=null?mx.power_total:(on?(basePower||p):0);
 const q=mx?.reactive_total!=null?mx.reactive_total:R(30,55);
 const pf=mx?.pf_avg!=null?mx.pf_avg:R(.97,.999);
 const uab=mx?.gen_uab!=null?mx.gen_uab:u;
@@ -1774,8 +1784,8 @@ const syVdC=sVd!=null?(syUok?'vg':Math.abs(sVd)<15?'vw':'va'):'vm';
 const syFdC=sFd!=null?(syFok?'vg':Math.abs(sFd)<0.5?'vw':'va'):'vm';
 const syPdC=sPd!=null?(syPok?'vg':Math.abs(sPd)<15?'vw':'va'):'vm';
 eT.innerHTML=`<div class="mg"><div class="mc"><div class="ml">P</div><div class="mv vg">${pp.toFixed?pp.toFixed(1):pp}<span class="mu">кВт</span></div></div><div class="mc"><div class="ml">Q</div><div class="mv vn">${typeof q==='number'?q.toFixed(1):q}<span class="mu">квар</span></div></div><div class="mc"><div class="ml">Cos φ</div><div class="mv vn">${typeof pf==='number'?pf.toFixed(3):pf}</div></div></div><table class="pt"><thead><tr><th>Фаза</th><th>U</th><th>I</th><th>P</th></tr></thead><tbody><tr><td class="ph">A-B</td><td>${typeof uab==='number'?uab.toFixed(0):uab}</td><td>${typeof ia==='number'?ia.toFixed(1):ia}</td><td>${typeof pa==='number'?pa.toFixed(1):pa}</td></tr><tr><td class="ph">B-C</td><td>${typeof ubc==='number'?ubc.toFixed(0):ubc}</td><td>${typeof ib==='number'?ib.toFixed(1):ib}</td><td>${typeof pb==='number'?pb.toFixed(1):pb}</td></tr><tr><td class="ph">C-A</td><td>${typeof uca==='number'?uca.toFixed(0):uca}</td><td>${typeof ic==='number'?ic.toFixed(1):ic}</td><td>${typeof pc==='number'?pc.toFixed(1):pc}</td></tr></tbody></table><div class="mg" style="margin-top:10px"><div class="mc"><div class="ml">АВР ген.</div><div class="mv ${gAtsC}">${gAtsTxt}</div></div><div class="mc"><div class="ml">АВР сети</div><div class="mv ${mAtsC}">${mAtsTxt}</div></div></div>${hasSy?`<div class="mg" style="margin-top:10px"><div class="mc"><div class="ml">${syUok?'✓':'✗'} ΔU</div><div class="mv ${syVdC}">${sVd!=null?(sVd>0?'+':'')+sVd.toFixed(1):'—'}<span class="mu">В</span></div></div><div class="mc"><div class="ml">${syFok?'✓':'✗'} ΔHz</div><div class="mv ${syFdC}">${sFd!=null?(sFd>0?'+':'')+sFd.toFixed(2):'—'}<span class="mu">Гц</span></div></div><div class="mc"><div class="ml">${syPok?'✓':'✗'} Δ°</div><div class="mv ${syPdC}">${sPd!=null?(sPd>0?'+':'')+sPd.toFixed(1):'—'}<span class="mu">°</span></div></div></div>`:''}<div class="mg mg4" style="margin-top:10px"><div class="mc"><div class="ml">Нагрузка</div><div class="mv vn">${ld}%</div></div><div class="mc"><div class="ml">Энергия</div><div class="mv vn">${ekwh}<span class="mu">кВт·ч</span></div></div><div class="mc"><div class="ml">Моточасы</div><div class="mv vn">${typeof rh==='number'?rh.toFixed(0):rh}<span class="mu">ч</span></div></div><div class="mc"><div class="ml">Пусков</div><div class="mv vn">${starts}</div></div></div>`}
-else if(eT&&(!on||!isOnline))eT.innerHTML=`<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">${connOk?'Остановлен':'Нет связи'}</div>`;
-const mT=$(sl+'m');if(mT&&on&&isOnline){
+else if(eT&&!isOnline)eT.innerHTML=`<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Нет связи</div>`;
+const mT=$(sl+'m');if(mT&&isOnline){
 const rpm=mx?.engine_speed!=null?mx.engine_speed:1500;
 const oilT=mx?.oil_temp!=null?mx.oil_temp:RI(70,85);
 const fuel=mx?.fuel_level!=null?mx.fuel_level:RI(30,90);
@@ -1786,7 +1796,7 @@ const ctC=(typeof ct==='number'&&ct>95)?'va':(typeof ct==='number'&&ct>88)?'vw':
 const opC=(typeof op==='number'&&op<300)?'va':'vn';
 const fuelC=(typeof fuel==='number'&&fuel<50)?'vw':'vn';
 mT.innerHTML=`<div class="mg"><div class="mc"><div class="ml">Обороты</div><div class="mv vn">${rpm}</div></div><div class="mc"><div class="ml">Темп.ОЖ</div><div class="mv ${ctC}">${ct}°C</div></div><div class="mc"><div class="ml">Давл.масла</div><div class="mv ${opC}">${op} кПа</div></div><div class="mc"><div class="ml">Темп.масла</div><div class="mv vn">${oilT}°C</div></div><div class="mc"><div class="ml">Топливо</div><div class="mv ${fuelC}">${fuel}%</div></div><div class="mc"><div class="ml">Расход</div><div class="mv vn">${typeof fc==='number'?fc.toFixed(1):fc} л/ч</div></div><div class="mc"><div class="ml">Турбо</div><div class="mv vn">${turbo} кПа</div></div><div class="mc"><div class="ml">Батарея</div><div class="mv vn">${typeof batt==='number'?batt.toFixed(1):batt}В</div></div></div>`}
-else if(mT&&(!on||!isOnline))mT.innerHTML=`<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">${connOk?'—':'Нет связи'}</div>`;
+else if(mT&&!isOnline)mT.innerHTML=`<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Нет связи</div>`;
 const aT=$(sl+'a-act');if(aT){let ah='';
 if(!connOk) ah+=`<div class="ai aa">🔴 <b style="color:var(--r)">CONN_LOST</b> Нет связи с HGM9520N<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
 if(mx?.alarm_common) ah+=`<div class="ai aa"${ah?' style="margin-top:2px"':''}>🔴 <b style="color:var(--r)">COMMON</b> Общая авария<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
@@ -3168,6 +3178,7 @@ else{st.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px 
             ae('🏭 МКЗ создан (localStorage)');
         }
     }
+    Object.keys(S).forEach(id=>{sbExp.add(id);curEq[id]='gpu'});
     renderSB();
     if (cur && S[cur]) renderDash();
     else { cur = Object.keys(S)[0] || null; renderDash(); }
