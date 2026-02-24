@@ -297,6 +297,177 @@ REGISTER_MAP_9520N: dict[str, dict] = {
     },
 }
 
+# RTU-friendly version: alarm_detail (105 regs) split into 5 smaller blocks
+# for reliable transfer over RS485 converters.
+REGISTER_MAP_9520N_RTU: dict[str, dict] = {
+    "status": {
+        "address": 0, "count": 1,
+        "fields": {
+            "mode_auto":      lambda regs: bool(regs[0] & (1 << 9)),
+            "mode_manual":    lambda regs: bool(regs[0] & (1 << 10)),
+            "mode_stop":      lambda regs: bool(regs[0] & (1 << 11)),
+            "mode_test":      lambda regs: bool(regs[0] & (1 << 8)),
+            "alarm_common":   lambda regs: bool(regs[0] & (1 << 0)),
+            "alarm_shutdown": lambda regs: bool(regs[0] & (1 << 1)),
+            "alarm_warning":  lambda regs: bool(regs[0] & (1 << 2)),
+            "alarm_block":    lambda regs: bool(regs[0] & (1 << 7)),
+        },
+    },
+    "breaker": {
+        "address": 114, "count": 1,
+        "fields": {
+            "mains_normal": lambda regs: bool(regs[0] & (1 << 0)),
+            "mains_load":   lambda regs: bool(regs[0] & (1 << 1)),
+            "gen_normal":   lambda regs: bool(regs[0] & (1 << 2)),
+            "gen_closed":   lambda regs: bool(regs[0] & (1 << 3)),
+        },
+    },
+    "mains_voltage": {
+        "address": 120, "count": 16,
+        "fields": {
+            "mains_uab":  lambda regs: (regs[1] * 65536 + regs[0]) * 0.1,
+            "mains_ubc":  lambda regs: (regs[3] * 65536 + regs[2]) * 0.1,
+            "mains_uca":  lambda regs: (regs[5] * 65536 + regs[4]) * 0.1,
+            "mains_freq": lambda regs: regs[15] * 0.01,
+        },
+    },
+    "gen_voltage": {
+        "address": 140, "count": 19,
+        "fields": {
+            "gen_uab":    lambda regs: (regs[1] * 65536 + regs[0]) * 0.1,
+            "gen_ubc":    lambda regs: (regs[3] * 65536 + regs[2]) * 0.1,
+            "gen_uca":    lambda regs: (regs[5] * 65536 + regs[4]) * 0.1,
+            "gen_freq":   lambda regs: regs[15] * 0.01,
+            "volt_diff":  lambda regs: _signed16(regs[16]) * 0.1,
+            "freq_diff":  lambda regs: _signed16(regs[17]) * 0.01,
+            "phase_diff": lambda regs: _signed16(regs[18]) * 0.1,
+        },
+    },
+    "power_limit": {
+        "address": 159, "count": 4,
+        "fields": {
+            "current_p_pct": lambda regs: _signed16(regs[0]) * 0.1,
+            "target_p_pct":  lambda regs: _signed16(regs[1]) * 0.1,
+            "current_q_pct": lambda regs: _signed16(regs[2]) * 0.1,
+            "target_q_pct":  lambda regs: _signed16(regs[3]) * 0.1,
+        },
+    },
+    "gen_current": {
+        "address": 166, "count": 8,
+        "fields": {
+            "current_a":     lambda regs: _no_data_or(regs[0], regs[0] * 0.1),
+            "current_b":     lambda regs: _no_data_or(regs[1], regs[1] * 0.1),
+            "current_c":     lambda regs: _no_data_or(regs[2], regs[2] * 0.1),
+            "current_earth": lambda regs: _no_data_or(regs[3], regs[3] * 0.1),
+        },
+    },
+    "power": {
+        "address": 174, "count": 28,
+        "fields": {
+            "power_a":        lambda regs: _signed32(regs[0], regs[1]) * 0.1,
+            "power_b":        lambda regs: _signed32(regs[2], regs[3]) * 0.1,
+            "power_c":        lambda regs: _signed32(regs[4], regs[5]) * 0.1,
+            "power_total":    lambda regs: _signed32(regs[6], regs[7]) * 0.1,
+            "reactive_a":     lambda regs: _signed32(regs[8], regs[9]) * 0.1,
+            "reactive_b":     lambda regs: _signed32(regs[10], regs[11]) * 0.1,
+            "reactive_c":     lambda regs: _signed32(regs[12], regs[13]) * 0.1,
+            "reactive_total": lambda regs: _signed32(regs[14], regs[15]) * 0.1,
+            "pf_a":           lambda regs: _signed16(regs[24]) * 0.001,
+            "pf_b":           lambda regs: _signed16(regs[25]) * 0.001,
+            "pf_c":           lambda regs: _signed16(regs[26]) * 0.001,
+            "pf_avg":         lambda regs: _signed16(regs[27]) * 0.001,
+        },
+    },
+    "engine": {
+        "address": 212, "count": 30,
+        "fields": {
+            "engine_speed":     lambda regs: None if regs[0] > 5000 or regs[0] == 32766 else regs[0],
+            "battery_volt":     lambda regs: _no_data_or(regs[1], regs[1] * 0.1),
+            "charger_volt":     lambda regs: _no_data_or(regs[2], regs[2] * 0.1),
+            "coolant_temp":     lambda regs: None if _is_bad_temp(regs[8]) else _signed16(regs[8]),
+            "oil_pressure":     lambda regs: None if regs[10] >= 10000 or regs[10] == 32766 else regs[10],
+            "fuel_level":       lambda regs: None if regs[12] > 100 or regs[12] == 32766 else regs[12],
+            "load_pct":         lambda regs: _safe_load(regs[20]),
+            "oil_temp":         lambda regs: None if _is_bad_temp(regs[22]) else _signed16(regs[22]),
+            "fuel_pressure":    lambda regs: None if regs[24] >= 10000 or regs[24] == 32766 else regs[24],
+            "turbo_pressure":   lambda regs: None if regs[28] >= 10000 or regs[28] == 32766 else regs[28],
+            "fuel_consumption": lambda regs: None if regs[29] > 10000 or regs[29] == 32766 else regs[29] * 0.1,
+        },
+    },
+    "accumulated": {
+        "address": 260, "count": 16,
+        "fields": {
+            "gen_status":  lambda regs: regs[0],
+            "run_hours":   lambda regs: regs[10],
+            "run_minutes": lambda regs: regs[11],
+            "start_count": lambda regs: regs[13],
+            "energy_kwh":  lambda regs: regs[15] * 65536 + regs[14],
+        },
+    },
+    "alarms": {
+        "address": 511, "count": 1,
+        "fields": {
+            "alarm_count": lambda regs: regs[0],
+        },
+    },
+    # Alarm detail split into 5 groups (15 regs each) for RS485 reliability
+    "alarm_sd": {
+        "address": 1, "count": 15,
+        "fields": {
+            "alarm_sd_0": lambda regs: regs[0],
+            "alarm_sd_1": lambda regs: regs[1],
+            "alarm_sd_2": lambda regs: regs[2],
+            "alarm_sd_3": lambda regs: regs[3],
+            "alarm_sd_4": lambda regs: regs[4],
+            "alarm_sd_5": lambda regs: regs[5],
+        },
+    },
+    "alarm_ts": {
+        "address": 16, "count": 15,
+        "fields": {
+            "alarm_ts_0": lambda regs: regs[0],
+            "alarm_ts_1": lambda regs: regs[1],
+            "alarm_ts_2": lambda regs: regs[2],
+            "alarm_ts_3": lambda regs: regs[3],
+            "alarm_ts_4": lambda regs: regs[4],
+            "alarm_ts_5": lambda regs: regs[5],
+        },
+    },
+    "alarm_tr": {
+        "address": 31, "count": 15,
+        "fields": {
+            "alarm_tr_0": lambda regs: regs[0],
+            "alarm_tr_1": lambda regs: regs[1],
+            "alarm_tr_2": lambda regs: regs[2],
+            "alarm_tr_3": lambda regs: regs[3],
+            "alarm_tr_4": lambda regs: regs[4],
+            "alarm_tr_5": lambda regs: regs[5],
+        },
+    },
+    "alarm_bk": {
+        "address": 76, "count": 15,
+        "fields": {
+            "alarm_bk_0": lambda regs: regs[0],
+            "alarm_bk_1": lambda regs: regs[1],
+            "alarm_bk_2": lambda regs: regs[2],
+            "alarm_bk_3": lambda regs: regs[3],
+            "alarm_bk_4": lambda regs: regs[4],
+            "alarm_bk_5": lambda regs: regs[5],
+        },
+    },
+    "alarm_wn": {
+        "address": 91, "count": 15,
+        "fields": {
+            "alarm_wn_0": lambda regs: regs[0],
+            "alarm_wn_1": lambda regs: regs[1],
+            "alarm_wn_2": lambda regs: regs[2],
+            "alarm_wn_3": lambda regs: regs[3],
+            "alarm_wn_4": lambda regs: regs[4],
+            "alarm_wn_5": lambda regs: regs[5],
+        },
+    },
+}
+
 GEN_STATUS_CODES = {
     0: "standby", 1: "preheat", 2: "fuel_on", 3: "cranking",
     4: "crank_rest", 5: "safety_run", 6: "idle", 7: "warming",
@@ -525,7 +696,8 @@ class BaseReader(ABC):
             await asyncio.wait_for(self._lock.acquire(), timeout=self.LOCK_TIMEOUT)
         except asyncio.TimeoutError:
             raise ConnectionError(
-                f"Device {self.device_id}: lock timeout on batch read"
+                f"Device {self.device_id}: lock timeout ({self.LOCK_TIMEOUT:.0f}s) on batch read"
+                f" — poll cycle may be in progress, try again shortly"
             )
         try:
             results = []
@@ -552,7 +724,8 @@ class BaseReader(ABC):
             await asyncio.wait_for(self._lock.acquire(), timeout=self.LOCK_TIMEOUT)
         except asyncio.TimeoutError:
             raise ConnectionError(
-                f"Device {self.device_id}: lock timeout on batch write"
+                f"Device {self.device_id}: lock timeout ({self.LOCK_TIMEOUT:.0f}s) on batch write"
+                f" — poll cycle may be in progress, try again shortly"
             )
         try:
             # Optional unlock (password) before config writes
@@ -769,6 +942,9 @@ class HGM9560Reader(BaseReader):
     INTER_BLOCK_DELAY = 0.35   # pause between block reads
     PRE_FLUSH_TIMEOUT = 0.25   # how long to wait for silence before sending
     MAX_RETRIES = 2            # retry each block up to 2 times on failure
+    # RTU polling cycle holds lock for ~15-30s (15 blocks × ~1-2s each).
+    # API calls (spr-config read/write) must wait for the full cycle.
+    LOCK_TIMEOUT = 35.0        # override BaseReader's 10s — enough for full poll cycle
 
     def __init__(self, device: Device, *, site_code: str = ""):
         super().__init__(device, site_code=site_code)
@@ -1093,13 +1269,119 @@ class HGM9560Reader(BaseReader):
 
 
 # ---------------------------------------------------------------------------
+# HGM9520N RTU Reader — HGM9520N register map over RTU-over-TCP transport
+# ---------------------------------------------------------------------------
+
+class HGM9520NRtuReader(HGM9560Reader):
+    """HGM9520N via RTU-over-TCP (raw asyncio socket + CRC16).
+
+    Reuses the full RTU transport from HGM9560Reader (connect, flush,
+    send_and_receive, frame extraction, FC05/FC06/FC03) but reads
+    HGM9520N register map and uses HGM9520N status codes.
+    """
+
+    async def connect(self) -> None:
+        self._reader, self._writer = await asyncio.wait_for(
+            asyncio.open_connection(self.ip, self.port),
+            timeout=self.timeout,
+        )
+        logger.info(
+            "HGM9520N-RTU connected: %s:%s slave=%s timeout=%.1fs",
+            self.ip, self.port, self.slave_id, self.timeout,
+        )
+
+    async def read_all(self) -> dict:
+        async with self._lock:
+            if self._writer is None or self._reader is None:
+                await self.connect()
+
+            result: dict = {}
+            errors = 0
+            total_blocks = len(REGISTER_MAP_9520N_RTU)
+            first_block = True
+
+            for block_name, block in REGISTER_MAP_9520N_RTU.items():
+                if not first_block:
+                    await asyncio.sleep(self.INTER_BLOCK_DELAY)
+                first_block = False
+
+                regs = None
+                for attempt in range(1, self.MAX_RETRIES + 1):
+                    try:
+                        regs = await self._send_and_receive(
+                            block["address"], block["count"],
+                        )
+                    except ConnectionError:
+                        break  # connection lost — skip retries
+
+                    if regs is not None:
+                        break  # success
+
+                    # Failed — wait, flush, retry
+                    if attempt < self.MAX_RETRIES:
+                        logger.debug(
+                            "HGM9520N-RTU block=%s attempt %d/%d failed, retrying",
+                            block_name, attempt, self.MAX_RETRIES,
+                        )
+                        await asyncio.sleep(1.0)
+                        await self._flush_stale(timeout=0.3)
+
+                if regs is None:
+                    logger.warning(
+                        "HGM9520N-RTU read error block=%s device=%s (after %d attempts)",
+                        block_name, self.device_id, self.MAX_RETRIES,
+                    )
+                    errors += 1
+                    # Aggressive flush before next block
+                    await asyncio.sleep(1.0)
+                    await self._flush_stale(timeout=0.3)
+                    continue
+
+                for field_name, parser in block["fields"].items():
+                    try:
+                        result[field_name] = parser(regs)
+                    except Exception as exc:
+                        logger.debug(
+                            "Parse error %s.%s: %s", block_name, field_name, exc,
+                        )
+                        result[field_name] = None
+
+            if errors == total_blocks:
+                await self.disconnect()
+                raise ConnectionError(
+                    f"HGM9520N-RTU device={self.device_id}: "
+                    f"all {total_blocks} blocks failed"
+                )
+
+            if errors > total_blocks // 2:
+                logger.warning(
+                    "HGM9520N-RTU device=%s: %d/%d blocks failed, data may be unreliable",
+                    self.device_id, errors, total_blocks,
+                )
+
+            # HGM9520N status postprocessing (same as HGM9520NReader)
+            if "gen_status" in result:
+                code = result["gen_status"]
+                result["gen_status_text"] = GEN_STATUS_CODES.get(
+                    code, f"unknown_{code}",
+                )
+
+            return result
+
+
+# ---------------------------------------------------------------------------
 # ModbusPoller — main polling orchestrator
 # ---------------------------------------------------------------------------
 
 def _make_reader(device: Device, *, site_code: str = "") -> BaseReader:
-    if device.protocol == ModbusProtocol.TCP:
+    from models.device import DeviceType
+
+    if device.device_type == DeviceType.GENERATOR:
+        if device.protocol == ModbusProtocol.RTU_OVER_TCP:
+            return HGM9520NRtuReader(device, site_code=site_code)
         return HGM9520NReader(device, site_code=site_code)
-    return HGM9560Reader(device, site_code=site_code)
+    else:  # ATS (HGM9560)
+        return HGM9560Reader(device, site_code=site_code)
 
 
 class ModbusPoller:
@@ -1224,11 +1506,13 @@ class ModbusPoller:
 
                 if (existing_reader.ip != dev.ip_address
                         or existing_reader.port != dev.port
-                        or existing_reader.slave_id != dev.slave_id):
+                        or existing_reader.slave_id != dev.slave_id
+                        or existing_reader.device.protocol != dev.protocol):
                     logger.info(
-                        "Device %s config changed (%s:%s -> %s:%s), reconnecting",
+                        "Device %s config changed (%s:%s/%s -> %s:%s/%s), reconnecting",
                         dev.id, existing_reader.ip, existing_reader.port,
-                        dev.ip_address, dev.port,
+                        existing_reader.device.protocol.value,
+                        dev.ip_address, dev.port, dev.protocol.value,
                     )
                     try:
                         await existing_reader.disconnect()

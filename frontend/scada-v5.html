@@ -700,6 +700,7 @@ async function loadFromAPI() {
                         ip: gens[0].ip_address,
                         port: gens[0].port,
                         slaveId: gens[0].slave_id,
+                        proto: gens[0].protocol || 'tcp',
                         runHours: 0,
                     };
                     deviceSlotIndex[gens[0].id] = {siteKey: key, slot: 'g1'};
@@ -710,6 +711,7 @@ async function loadFromAPI() {
                         ip: gens[1].ip_address,
                         port: gens[1].port,
                         slaveId: gens[1].slave_id,
+                        proto: gens[1].protocol || 'tcp',
                         runHours: 0,
                     };
                     deviceSlotIndex[gens[1].id] = {siteKey: key, slot: 'g2'};
@@ -1242,13 +1244,15 @@ function openSet(){if(!cur||!S[cur])return;const s=S[cur];
 $('setTitle').textContent='⚙ '+s.name+' — Настройки';
 $('setBody').innerHTML=`<div class="set-tabs"><button class="set-tab on" onclick="setTab(this,0)">Генератор 1</button><button class="set-tab" onclick="setTab(this,1)">Генератор 2</button><button class="set-tab" onclick="setTab(this,2)">ШПР</button><button class="set-tab" onclick="setTab(this,3)">Объект</button></div>
 <div class="set-panel on" id="sp0"><div class="cfs"><div class="cft"><span class="dot dot-g"></span>Генератор 1 — HGM9520N<span class="conn-test" onclick="testConn('g1')">🔌 Тест</span></div>
-<div class="fr2"><div class="fg"><label class="fl">IP-адрес <span class="req">*</span></label><input class="fi" id="cg1i" value="${esc(s.g1?.ip||'')}" placeholder="192.168.97.10"></div><div class="fg"><label class="fl">Порт Modbus TCP</label><input class="fi" id="cg1p" value="${s.g1?.port||502}" type="number"></div></div>
-<div class="fr2"><div class="fg"><label class="fl">Slave ID</label><input class="fi" id="cg1s" value="${s.g1?.slaveId||1}" type="number"></div><div class="fg"><label class="fl">Моточасы</label><input class="fi" id="cg1h" value="${s.g1?.runHours||0}" type="number"></div></div>
+<div class="fr2"><div class="fg"><label class="fl">Протокол</label><select class="fi" id="cg1proto" onchange="updGenProtoLabel('g1')"><option value="tcp"${(s.g1?.proto||'tcp')==='tcp'?' selected':''}>Modbus TCP (напрямую)</option><option value="rtu_over_tcp"${s.g1?.proto==='rtu_over_tcp'?' selected':''}>RTU через конвертер</option></select></div><div class="fg"><label class="fl">IP-адрес <span class="req">*</span></label><input class="fi" id="cg1i" value="${esc(s.g1?.ip||'')}" placeholder="192.168.97.10"></div></div>
+<div class="fr2"><div class="fg"><label class="fl" id="cg1plbl">${s.g1?.proto==='rtu_over_tcp'?'Порт конвертера':'Порт Modbus TCP'}</label><input class="fi" id="cg1p" value="${s.g1?.port||(s.g1?.proto==='rtu_over_tcp'?26:502)}" type="number"></div><div class="fg"><label class="fl">Slave ID</label><input class="fi" id="cg1s" value="${s.g1?.slaveId||1}" type="number"></div></div>
+<div class="fr2"><div class="fg"><label class="fl">Моточасы</label><input class="fi" id="cg1h" value="${s.g1?.runHours||0}" type="number"></div><div class="fg"></div></div>
 <div class="fr2"><div class="fg"><label class="fl">Последнее ТО</label><select class="fi" id="cg1lt"><option value="">Не указано</option>${getTpl().intervals.map(iv=>`<option value="${iv.id}"${(getTOData(cur,'g1').lastTOId===iv.id)?' selected':''}>${iv.name}</option>`).join('')}</select></div><div class="fg"><label class="fl">При моточасах</label><input class="fi" id="cg1lth" value="${getTOData(cur,'g1').hoursAtLastTO||0}" type="number" placeholder="0"></div></div>
 <button class="bp" style="margin-top:8px;width:100%;background:var(--bg4);border:1px solid var(--bd);color:var(--t2);font-size:12px;padding:8px 0" onclick="testConn('g1')">🔌 Проверить связь с контроллером</button><div id="g1test"></div></div></div>
 <div class="set-panel" id="sp1"><div class="cfs"><div class="cft"><span class="dot dot-g"></span>Генератор 2 — HGM9520N<span class="conn-test" onclick="testConn('g2')">🔌 Тест</span></div>
-<div class="fr2"><div class="fg"><label class="fl">IP-адрес <span class="req">*</span></label><input class="fi" id="cg2i" value="${esc(s.g2?.ip||'')}" placeholder="192.168.97.11"></div><div class="fg"><label class="fl">Порт Modbus TCP</label><input class="fi" id="cg2p" value="${s.g2?.port||502}" type="number"></div></div>
-<div class="fr2"><div class="fg"><label class="fl">Slave ID</label><input class="fi" id="cg2s" value="${s.g2?.slaveId||1}" type="number"></div><div class="fg"><label class="fl">Моточасы</label><input class="fi" id="cg2h" value="${s.g2?.runHours||0}" type="number"></div></div>
+<div class="fr2"><div class="fg"><label class="fl">Протокол</label><select class="fi" id="cg2proto" onchange="updGenProtoLabel('g2')"><option value="tcp"${(s.g2?.proto||'tcp')==='tcp'?' selected':''}>Modbus TCP (напрямую)</option><option value="rtu_over_tcp"${s.g2?.proto==='rtu_over_tcp'?' selected':''}>RTU через конвертер</option></select></div><div class="fg"><label class="fl">IP-адрес <span class="req">*</span></label><input class="fi" id="cg2i" value="${esc(s.g2?.ip||'')}" placeholder="192.168.97.11"></div></div>
+<div class="fr2"><div class="fg"><label class="fl" id="cg2plbl">${s.g2?.proto==='rtu_over_tcp'?'Порт конвертера':'Порт Modbus TCP'}</label><input class="fi" id="cg2p" value="${s.g2?.port||(s.g2?.proto==='rtu_over_tcp'?26:502)}" type="number"></div><div class="fg"><label class="fl">Slave ID</label><input class="fi" id="cg2s" value="${s.g2?.slaveId||1}" type="number"></div></div>
+<div class="fr2"><div class="fg"><label class="fl">Моточасы</label><input class="fi" id="cg2h" value="${s.g2?.runHours||0}" type="number"></div><div class="fg"></div></div>
 <div class="fr2"><div class="fg"><label class="fl">Последнее ТО</label><select class="fi" id="cg2lt"><option value="">Не указано</option>${getTpl().intervals.map(iv=>`<option value="${iv.id}"${(getTOData(cur,'g2').lastTOId===iv.id)?' selected':''}>${iv.name}</option>`).join('')}</select></div><div class="fg"><label class="fl">При моточасах</label><input class="fi" id="cg2lth" value="${getTOData(cur,'g2').hoursAtLastTO||0}" type="number" placeholder="0"></div></div>
 <button class="bp" style="margin-top:8px;width:100%;background:var(--bg4);border:1px solid var(--bd);color:var(--t2);font-size:12px;padding:8px 0" onclick="testConn('g2')">🔌 Проверить связь с контроллером</button><div id="g2test"></div></div></div>
 <div class="set-panel" id="sp2"><div class="cfs"><div class="cft"><span class="dot dot-p"></span>ШПР — HGM9560 (RS-485→Ethernet)<span class="conn-test" onclick="testConn('spr')">🔌 Тест</span></div>
@@ -1261,18 +1265,21 @@ $('setBody').innerHTML=`<div class="set-tabs"><button class="set-tab on" onclick
 <div class="fg"><label class="fl">👤 Ответственный за ТО</label><select class="fi" id="csResp" style="padding:8px 10px"></select></div></div></div>
 <button class="bp" style="margin-top:4px" onclick="saveSet()">💾 Сохранить</button>`;showM('settings');populateRespSelectById('csResp',s.responsible||'')}
 function setTab(btn,idx){btn.closest('.mbd').querySelectorAll('.set-tab').forEach(b=>b.classList.remove('on'));btn.closest('.mbd').querySelectorAll('.set-panel').forEach(p=>p.classList.remove('on'));btn.classList.add('on');$('sp'+idx)?.classList.add('on')}
+function updGenProtoLabel(sl){const sel=$('c'+sl+'proto');const lbl=$('c'+sl+'plbl');const pi=$('c'+sl+'p');if(!sel||!lbl)return;if(sel.value==='rtu_over_tcp'){lbl.textContent='Порт конвертера';if(pi&&+pi.value===502)pi.value=26}else{lbl.textContent='Порт Modbus TCP';if(pi&&+pi.value===26)pi.value=502}}
 async function testConn(dev){const el=$(dev+'test');el.innerHTML='<div style="padding:6px 10px;background:var(--yd);border:1px solid rgba(255,176,32,.2);border-radius:6px;font-size:11px;color:var(--y);font-family:var(--m);margin-top:6px">⏳ Тест подключения...</div>';
 const s=S[cur];if(!s)return;
 let ip='',port=502,slaveId=1,proto='tcp';
-if(dev==='g1'){ip=$('cg1i')?.value||s.g1?.ip||'';port=+($('cg1p')?.value)||502;slaveId=+($('cg1s')?.value)||1;proto='tcp'}
-else if(dev==='g2'){ip=$('cg2i')?.value||s.g2?.ip||'';port=+($('cg2p')?.value)||502;slaveId=+($('cg2s')?.value)||1;proto='tcp'}
+if(dev==='g1'){ip=$('cg1i')?.value||s.g1?.ip||'';port=+($('cg1p')?.value)||502;slaveId=+($('cg1s')?.value)||1;proto=$('cg1proto')?.value||s.g1?.proto||'tcp'}
+else if(dev==='g2'){ip=$('cg2i')?.value||s.g2?.ip||'';port=+($('cg2p')?.value)||502;slaveId=+($('cg2s')?.value)||1;proto=$('cg2proto')?.value||s.g2?.proto||'tcp'}
 else if(dev==='spr'){ip=$('csi')?.value||s.spr?.ip||'';port=+($('csp')?.value)||26;slaveId=+($('css')?.value)||1;proto='rtu_over_tcp'}
 if(!ip){el.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r);font-family:var(--m);margin-top:6px">Укажите IP-адрес</div>';return}
-try{const r=await api.post('/api/devices/test-connection',{ip_address:ip,port:port,slave_id:slaveId,protocol:proto});
+try{const ac=new AbortController();const tid=setTimeout(()=>ac.abort(),45000);
+el.innerHTML='<div style="padding:6px 10px;background:var(--yd);border:1px solid rgba(255,176,32,.2);border-radius:6px;font-size:11px;color:var(--y);font-family:var(--m);margin-top:6px">⏳ Тест подключения (ожидание до 45с)...</div>';
+let r;try{const resp=await fetch(API_BASE+'/api/devices/test-connection',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ip_address:ip,port:port,slave_id:slaveId,protocol:proto}),signal:ac.signal});clearTimeout(tid);if(!resp.ok)throw new Error('HTTP '+resp.status);r=await resp.json()}catch(fe){clearTimeout(tid);if(fe.name==='AbortError')throw new Error('Таймаут 45с — конвертер не отвечает');throw fe}
 if(r.success){el.innerHTML=`<div style="padding:6px 10px;background:var(--gd);border:1px solid rgba(0,224,154,.2);border-radius:6px;font-size:11px;color:var(--g);font-family:var(--m);margin-top:6px">✅ ${r.message}</div>`}
 else{el.innerHTML=`<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r);font-family:var(--m);margin-top:6px">❌ ${r.message}</div>`}
 }catch(e){el.innerHTML=`<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r);font-family:var(--m);margin-top:6px">❌ ${e.message}</div>`}}
-async function saveSet(){const s=S[cur];s.g1={...s.g1,ip:$('cg1i').value.trim(),port:+$('cg1p').value||502,slaveId:+$('cg1s').value||1,runHours:+$('cg1h').value||0};s.g2={...s.g2,ip:$('cg2i').value.trim(),port:+$('cg2p').value||502,slaveId:+$('cg2s').value||1,runHours:+$('cg2h').value||0};s.spr={...s.spr,ip:$('csi').value.trim(),port:+$('csp').value||26,slaveId:+$('css').value||1};s.name=$('csn')?.value.trim()||s.name;s.desc=$('csd')?.value.trim()||'';s.responsible=$('csResp')?.value||s.responsible||'';s.pollInterval=+$('csi2')?.value||2000;
+async function saveSet(){const s=S[cur];s.g1={...s.g1,ip:$('cg1i').value.trim(),port:+$('cg1p').value||502,slaveId:+$('cg1s').value||1,proto:$('cg1proto')?.value||s.g1?.proto||'tcp',runHours:+$('cg1h').value||0};s.g2={...s.g2,ip:$('cg2i').value.trim(),port:+$('cg2p').value||502,slaveId:+$('cg2s').value||1,proto:$('cg2proto')?.value||s.g2?.proto||'tcp',runHours:+$('cg2h').value||0};s.spr={...s.spr,ip:$('csi').value.trim(),port:+$('csp').value||26,slaveId:+$('css').value||1};s.name=$('csn')?.value.trim()||s.name;s.desc=$('csd')?.value.trim()||'';s.responsible=$('csResp')?.value||s.responsible||'';s.pollInterval=+$('csi2')?.value||2000;
 // Save last TO data for G1/G2
 for(const sl of['g1','g2']){const ltSel=$('c'+sl+'lt'),lthInp=$('c'+sl+'lth');if(ltSel){const td=getTOData(cur,sl);const newId=ltSel.value||null;const newH=+(lthInp?.value)||0;if(newId!==td.lastTOId||newH!==td.hoursAtLastTO){td.lastTOId=newId;td.hoursAtLastTO=newH;saveTOData(cur,sl,td)}}}
 sv();
@@ -1281,9 +1288,10 @@ if(apiAvailable&&siteApiIds[cur]){const siteId=siteApiIds[cur];try{
 // Update site name/desc
 await api.patch('/api/sites/'+siteId,{name:s.name,description:s.desc});
 // Sync each device slot
-for(const [slot,dtype,proto] of [['g1','generator','tcp'],['g2','generator','tcp'],['spr','ats','rtu_over_tcp']]){
+for(const [slot,dtype] of [['g1','generator'],['g2','generator'],['spr','ats']]){
 const d=s[slot];if(!d?.ip)continue;
-if(d._deviceId){await api.patch('/api/devices/'+d._deviceId,{ip_address:d.ip,port:d.port,slave_id:d.slaveId||1,name:slot==='spr'?'ШПР':('Генератор '+(slot==='g1'?'1':'2'))})}
+const proto=slot==='spr'?'rtu_over_tcp':(d.proto||'tcp');
+if(d._deviceId){await api.patch('/api/devices/'+d._deviceId,{ip_address:d.ip,port:d.port,slave_id:d.slaveId||1,protocol:proto,name:slot==='spr'?'ШПР':('Генератор '+(slot==='g1'?'1':'2'))})}
 else{const created=await api.post('/api/devices',{site_id:siteId,name:slot==='spr'?'ШПР':('Генератор '+(slot==='g1'?'1':'2')),device_type:dtype,ip_address:d.ip,port:d.port,slave_id:d.slaveId||1,protocol:proto});
 d._deviceId=created.id;deviceSlotIndex[created.id]={siteKey:cur,slot}}
 }}catch(e){console.warn('API sync devices error:',e)}}
@@ -1487,7 +1495,7 @@ function genCard(sl,nm,c){
 if(!c?.ip)return`<div class="cc s-stb"><div style="padding:24px;text-align:center;color:var(--t3);font-size:12px">${nm} — не настроен<br><span style="color:var(--g);cursor:pointer" onclick="openSet()">Настроить →</span></div></div>`;
 const rh=c.runHours||0,to=getNextTO(rh,cur,sl),tc=to.remain<0?'to-r':to.pct>85?'to-r':to.pct>65?'to-y':'to-g',bc=to.remain<0?'var(--r)':to.pct>85?'var(--r)':to.pct>65?'var(--y)':'var(--g)';
 return`<div class="cc s-stb" id="c${sl}"><div class="ch" onclick="tog('c${sl}')">
-<div class="cr1"><div class="cid"><div class="cdot cd-x"></div><div><div class="cn">${nm}</div><div class="csb">HGM9520N · ${esc(c.ip)}:${c.port||502} <span id="${sl}-rh" style="color:var(--t);font-weight:600;margin-left:6px">⏱ ${rh} ч</span></div></div></div><span class="bdg bdg-off" onclick="event.stopPropagation();openAlarms('c${sl}','${sl}a')" title="Нажми для просмотра аварий">ОЖИДАНИЕ</span></div>
+<div class="cr1"><div class="cid"><div class="cdot cd-x"></div><div><div class="cn">${nm}</div><div class="csb">HGM9520N${c.proto==='rtu_over_tcp'?' (RTU)':''} · ${esc(c.ip)}:${c.port||(c.proto==='rtu_over_tcp'?26:502)} <span id="${sl}-rh" style="color:var(--t);font-weight:600;margin-left:6px">⏱ ${rh} ч</span></div></div></div><span class="bdg bdg-off" onclick="event.stopPropagation();openAlarms('c${sl}','${sl}a')" title="Нажми для просмотра аварий">ОЖИДАНИЕ</span></div>
 <div class="kr"><div class="kp"><div class="kl">P</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">U</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">I</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">f</div><div class="kv vm">—</div></div></div>
 <div class="to-block" id="${sl}-to" onclick="event.stopPropagation();${to.unknown?'openSet()':'this.classList.toggle(&quot;exp&quot;)'}"><div class="to-head"><span class="to-name ${to.unknown?'to-y':tc}">${to.unknown?'⚠ Укажите последнее ТО':to.name+' → '+to.dueAt+'ч'}</span><span class="to-remain">${to.unknown?'<span style=&quot;color:var(--y);cursor:pointer&quot;>Настройки →</span>':(to.remain>0?to.remain+'ч ост.':(to.remain<0?'просроч. '+Math.abs(to.remain)+'ч':'сейчас'))+' · '+rh+'ч'}</span></div>${to.unknown?'':`<div class="to-bar"><div class="to-fill" style="width:${to.pct}%;background:${bc}"></div></div><div class="to-tasks">${to.tasks?.slice(0,5).map(t=>'• '+(t.c?'<b>':'')+t.text+(t.c?'</b>':'')).join('<br>')||''}</div><div class="to-hint">▼ работы · <span style="color:var(--g);cursor:pointer" onclick="event.stopPropagation();openTO('${sl}')">ТО</span></div>`}</div>
 <div class="mds"><span class="mdt">AUTO</span><span class="mdt">MAN</span><span class="mdt">TEST</span><span class="mdt">STOP</span></div>
@@ -1529,7 +1537,7 @@ return`<div class="cc s-stb" id="c${sl}"><div class="ch" onclick="tog('c${sl}')"
 <button class="cb2" onclick="event.stopPropagation();cmdConfirm('${nm}','Reset','🔄 Сброс','FC05 addr 0x0011 (17): Remote Alarm Reset')"><span class="ci2">🔄</span>Сброс</button>
 </div><div style="margin-top:8px"><button class="cb2 q-danger" style="width:100%;flex-direction:row;justify-content:center;gap:8px;padding:10px" onclick="event.stopPropagation();cmdConfirm('${nm}','FastStop','🛑 Экстренный стоп','FC05 addr 0x000F (15): Remote Diesel Engine Fast Stop')"><span>🛑</span>Экстренный стоп</button></div>
 </div></div></div>
-<div class="cf"><div class="li"><span class="lo lo-r"></span><span>ожидание</span></div><span>tcp:${c.port||502} · id:${c.slaveId||1}</span></div></div>`}
+<div class="cf"><div class="li"><span class="lo lo-r"></span><span>ожидание</span></div><span>${c.proto==='rtu_over_tcp'?'rtu':'tcp'}:${c.port||(c.proto==='rtu_over_tcp'?26:502)} · id:${c.slaveId||1}</span></div></div>`}
 function sprCard(c){return`<div class="sr2"><div class="cc s-stb" id="cspr"><div class="ch" onclick="tog('cspr')">
 <div class="cr1"><div class="cid"><div class="cdot cd-x"></div><div><div class="cn" style="color:var(--p)">ШПР</div><div class="csb">HGM9560 · ${esc(c.ip)}:${c.port||26} · RTU</div></div></div><span class="bdg bdg-off" onclick="event.stopPropagation();openAlarms('cspr','spra')" title="Нажми для просмотра аварий">ОЖИДАНИЕ</span></div>
 <div class="kr kr5"><div class="kp"><div class="kl">P шины</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">U</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">f</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">Сеть</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">Режим</div><div class="kv vm">—</div></div></div></div>
@@ -2032,11 +2040,11 @@ async function readSprConfig(){
         return;
     }
     sprCfgReading=true;
-    if(banner)banner.innerHTML='<span style="color:var(--y)">⏳ Считывание конфигурации с контроллера...</span>';
+    if(banner)banner.innerHTML='<span style="color:var(--y)">⏳ Считывание конфигурации с контроллера (ожидание опроса до 40с)...</span>';
     if(status)status.innerHTML='';
     try{
         const ac=new AbortController();
-        const tid=setTimeout(()=>ac.abort(),10000);
+        const tid=setTimeout(()=>ac.abort(),40000);
         let cfg;
         try{
             const r=await fetch(API_BASE+'/api/commands/spr-config/'+devId,{signal:ac.signal});
@@ -2045,7 +2053,7 @@ async function readSprConfig(){
             cfg=await r.json();
         }catch(fe){
             clearTimeout(tid);
-            if(fe.name==='AbortError')throw new Error('Таймаут 10с — контроллер не ответил');
+            if(fe.name==='AbortError')throw new Error('Таймаут 40с — контроллер не ответил (идёт опрос)');
             throw fe;
         }
         if(!cfg.success)throw new Error(cfg.message);

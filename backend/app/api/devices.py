@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from pydantic import BaseModel as PydanticBaseModel
@@ -5,6 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import Device, DeviceType, ModbusProtocol, Site, get_session
+
+logger = logging.getLogger("scada.devices")
 
 router = APIRouter(prefix="/api/devices", tags=["devices"])
 
@@ -138,13 +142,51 @@ class ConnectionTestResponse(PydanticBaseModel):
     data: dict | None = None
 
 
+def _find_active_reader(request: Request, ip: str, port: int, slave_id: int):
+    """Find an existing poller reader for the given IP:port:slave.
+
+    RS485 converters typically support only one TCP connection at a time,
+    so we must reuse the poller's connection instead of opening a competing one.
+    """
+    poller = getattr(request.app.state, "poller", None)
+    if poller is None:
+        return None
+    readers = getattr(poller, "_readers", {})
+    for reader in readers.values():
+        if reader.ip == ip and reader.port == port and reader.slave_id == slave_id:
+            return reader
+    return None
+
+
 @router.post("/test-connection", response_model=ConnectionTestResponse)
-async def test_connection(req: ConnectionTestRequest):
-    """Test connection to a controller: connect and read status register."""
+async def test_connection(req: ConnectionTestRequest, request: Request):
+    """Test connection to a controller: connect and read status register.
+
+    For RTU-over-TCP: reuses existing poller reader if available (RS485 converters
+    typically support only one TCP connection at a time).
+    """
     import asyncio
 
     try:
         if req.protocol == ModbusProtocol.TCP:
+            # --- Modbus TCP: try existing reader first, fallback to new connection ---
+            existing = _find_active_reader(request, req.ip_address, req.port, req.slave_id)
+            if existing:
+                logger.info(
+                    "test-connection reusing active TCP reader for %s:%s slave=%s",
+                    req.ip_address, req.port, req.slave_id,
+                )
+                try:
+                    regs = await existing.read_registers_batch([(0, 1)])
+                    status_word = regs[0][0]
+                    return ConnectionTestResponse(
+                        success=True,
+                        message=f"HGM9520N OK (via poller). Status: 0x{status_word:04X}",
+                        data={"status_register": status_word, "via_poller": True},
+                    )
+                except Exception as e:
+                    logger.warning("test-connection via existing TCP reader failed: %s, fallback", e)
+
             from pymodbus.client import AsyncModbusTcpClient
             client = AsyncModbusTcpClient(
                 host=req.ip_address,
@@ -176,6 +218,29 @@ async def test_connection(req: ConnectionTestRequest):
                 client.close()
 
         else:
+            # --- RTU-over-TCP: MUST reuse existing reader (RS485 = 1 connection only) ---
+            existing = _find_active_reader(request, req.ip_address, req.port, req.slave_id)
+            if existing:
+                logger.info(
+                    "test-connection reusing active RTU reader for %s:%s slave=%s",
+                    req.ip_address, req.port, req.slave_id,
+                )
+                try:
+                    regs = await existing.read_registers_batch([(0, 1)])
+                    status = regs[0]
+                    return ConnectionTestResponse(
+                        success=True,
+                        message=f"RTU OK (via poller). Status: 0x{status[0]:04X}",
+                        data={"status_register": status[0], "registers_count": len(status), "via_poller": True},
+                    )
+                except Exception as e:
+                    logger.warning("test-connection via existing RTU reader failed: %s, fallback to new conn", e)
+
+            # Fallback: open new connection (device not in poller yet)
+            logger.info(
+                "test-connection opening new RTU connection to %s:%s slave=%s",
+                req.ip_address, req.port, req.slave_id,
+            )
             from services.modbus_poller import build_read_registers, parse_read_registers_response
 
             try:
@@ -192,14 +257,14 @@ async def test_connection(req: ConnectionTestRequest):
             try:
                 await asyncio.sleep(0.05)
 
-                frame = build_read_registers(req.slave_id, 0, 3)
+                frame = build_read_registers(req.slave_id, 0, 1)
                 writer.write(frame)
                 await writer.drain()
 
                 await asyncio.sleep(0.15)
 
                 response = b""
-                expected = 3 + 3 * 2 + 2
+                expected = 3 + 1 * 2 + 2
                 deadline = asyncio.get_event_loop().time() + 3
 
                 while asyncio.get_event_loop().time() < deadline:
@@ -229,7 +294,7 @@ async def test_connection(req: ConnectionTestRequest):
                     )
                 return ConnectionTestResponse(
                     success=True,
-                    message=f"HGM9560 connected OK. Status: 0x{regs[0]:04X}",
+                    message=f"RTU connected OK. Status: 0x{regs[0]:04X}",
                     data={"status_register": regs[0], "registers_count": len(regs)},
                 )
             finally:
