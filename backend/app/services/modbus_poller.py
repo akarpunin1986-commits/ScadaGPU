@@ -410,62 +410,9 @@ REGISTER_MAP_9520N_RTU: dict[str, dict] = {
             "alarm_count": lambda regs: regs[0],
         },
     },
-    # Alarm detail split into 5 groups (15 regs each) for RS485 reliability
-    "alarm_sd": {
-        "address": 1, "count": 15,
-        "fields": {
-            "alarm_sd_0": lambda regs: regs[0],
-            "alarm_sd_1": lambda regs: regs[1],
-            "alarm_sd_2": lambda regs: regs[2],
-            "alarm_sd_3": lambda regs: regs[3],
-            "alarm_sd_4": lambda regs: regs[4],
-            "alarm_sd_5": lambda regs: regs[5],
-        },
-    },
-    "alarm_ts": {
-        "address": 16, "count": 15,
-        "fields": {
-            "alarm_ts_0": lambda regs: regs[0],
-            "alarm_ts_1": lambda regs: regs[1],
-            "alarm_ts_2": lambda regs: regs[2],
-            "alarm_ts_3": lambda regs: regs[3],
-            "alarm_ts_4": lambda regs: regs[4],
-            "alarm_ts_5": lambda regs: regs[5],
-        },
-    },
-    "alarm_tr": {
-        "address": 31, "count": 15,
-        "fields": {
-            "alarm_tr_0": lambda regs: regs[0],
-            "alarm_tr_1": lambda regs: regs[1],
-            "alarm_tr_2": lambda regs: regs[2],
-            "alarm_tr_3": lambda regs: regs[3],
-            "alarm_tr_4": lambda regs: regs[4],
-            "alarm_tr_5": lambda regs: regs[5],
-        },
-    },
-    "alarm_bk": {
-        "address": 76, "count": 15,
-        "fields": {
-            "alarm_bk_0": lambda regs: regs[0],
-            "alarm_bk_1": lambda regs: regs[1],
-            "alarm_bk_2": lambda regs: regs[2],
-            "alarm_bk_3": lambda regs: regs[3],
-            "alarm_bk_4": lambda regs: regs[4],
-            "alarm_bk_5": lambda regs: regs[5],
-        },
-    },
-    "alarm_wn": {
-        "address": 91, "count": 15,
-        "fields": {
-            "alarm_wn_0": lambda regs: regs[0],
-            "alarm_wn_1": lambda regs: regs[1],
-            "alarm_wn_2": lambda regs: regs[2],
-            "alarm_wn_3": lambda regs: regs[3],
-            "alarm_wn_4": lambda regs: regs[4],
-            "alarm_wn_5": lambda regs: regs[5],
-        },
-    },
+    # Alarm detail blocks removed from fast RTU polling.
+    # Alarm flags (alarm_common/shutdown/warning/block) are in 'status' reg 0.
+    # Detailed alarm registers are read on-demand via spr-config / API.
 }
 
 GEN_STATUS_CODES = {
@@ -635,6 +582,51 @@ SWITCH_STATUS = {
 MAINS_STATUS = {
     0: "normal", 1: "normal_delay", 2: "abnormal", 3: "abnormal_delay",
 }
+
+
+# ---------------------------------------------------------------------------
+# Adaptive Polling — tiered block sets + standby skip
+# ---------------------------------------------------------------------------
+
+_SLOW_POLL_EVERY = 5  # read slow blocks every 5th cycle
+
+# HGM9520N-RTU: slow blocks are read only every Nth cycle
+_9520N_RTU_SLOW_BLOCKS = frozenset({
+    "breaker", "mains_voltage", "power_limit", "accumulated", "alarms",
+})
+# Fast (every cycle): status, gen_voltage, gen_current, power, engine
+
+# HGM9560: slow blocks
+_9560_SLOW_BLOCKS = frozenset({
+    "indicators", "running", "alarm_detail_a", "alarm_detail_b",
+})
+
+# Blocks to skip when generator is in standby (gen_status == 0)
+_9520N_STANDBY_SKIP = frozenset({
+    "gen_voltage", "gen_current", "power", "engine", "mains_voltage", "power_limit",
+})
+
+
+# ---------------------------------------------------------------------------
+# Opportunistic Sniffing — byte_count → block_name lookup tables
+# ---------------------------------------------------------------------------
+
+def _build_bytecount_map(reg_map: dict[str, dict]) -> dict[int, str]:
+    """Build mapping from unique byte_count to block_name for sniffer."""
+    temp: dict[int, str | None] = {}
+    for block_name, block_def in reg_map.items():
+        bc = block_def["count"] * 2
+        if bc in temp:
+            temp[bc] = None  # ambiguous — multiple blocks with same byte_count
+        else:
+            temp[bc] = block_name
+    return {k: v for k, v in temp.items() if v is not None}
+
+
+_9520N_RTU_BYTECOUNT_MAP = _build_bytecount_map(REGISTER_MAP_9520N_RTU)
+# Expected: {38: "gen_voltage", 8: "power_limit", 16: "gen_current", 56: "power", 60: "engine"}
+
+_9560_BYTECOUNT_MAP = _build_bytecount_map(REGISTER_MAP_9560)
 
 
 # ---------------------------------------------------------------------------
@@ -935,39 +927,72 @@ class HGM9520NReader(BaseReader):
 # HGM9560 Reader — RTU over TCP (raw socket + CRC16)
 # ---------------------------------------------------------------------------
 
+# Shared TCP connections for RS485 converters.
+# Multiple RTU devices on the same bus (ip:port) must share one TCP socket.
+_rtu_connections: dict[str, tuple[asyncio.StreamReader, asyncio.StreamWriter]] = {}
+
+# Opportunistic sniffing: cache frames from other slaves found in the buffer.
+# Structure: bus_key → slave_id → byte_count → (timestamp, register_values)
+_bus_sniffed: dict[str, dict[int, dict[int, tuple[float, list[int]]]]] = {}
+_SNIFF_TTL = 3.0  # seconds — cached sniffed data is valid for this long
+
+
 class HGM9560Reader(BaseReader):
     """Modbus RTU over TCP via raw asyncio socket."""
 
-    INTER_FRAME_DELAY = 0.40   # wait after sending before reading response
-    INTER_BLOCK_DELAY = 0.35   # pause between block reads
-    PRE_FLUSH_TIMEOUT = 0.25   # how long to wait for silence before sending
+    INTER_FRAME_DELAY = 0.05   # wait after sending before reading response
+    INTER_BLOCK_DELAY = 0.03   # pause between block reads
+    PRE_FLUSH_TIMEOUT = 0.02   # how long to wait for silence before sending
     MAX_RETRIES = 2            # retry each block up to 2 times on failure
-    # RTU polling cycle holds lock for ~15-30s (15 blocks × ~1-2s each).
-    # API calls (spr-config read/write) must wait for the full cycle.
-    LOCK_TIMEOUT = 35.0        # override BaseReader's 10s — enough for full poll cycle
+    LOCK_TIMEOUT = 20.0        # override BaseReader's 10s — enough for full poll cycle
 
     def __init__(self, device: Device, *, site_code: str = ""):
         super().__init__(device, site_code=site_code)
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
-        # RS485 converter needs longer timeout than Modbus TCP
-        if self.timeout < 3.0:
-            self.timeout = 3.0
+        # RS485 converter needs enough timeout for response
+        if self.timeout < 1.5:
+            self.timeout = 1.5
+        # Adaptive polling state
+        self._adaptive_poll_count: int = 0
+        self._last_result: dict = {}  # cached result from previous cycle
 
     async def connect(self) -> None:
+        bus_key = f"{self.ip}:{self.port}"
+        # Reuse shared connection for the same converter
+        if bus_key in _rtu_connections:
+            r, w = _rtu_connections[bus_key]
+            if w and not w.is_closing():
+                self._reader, self._writer = r, w
+                logger.info(
+                    "HGM9560 reusing connection: %s slave=%s timeout=%.1fs",
+                    bus_key, self.slave_id, self.timeout,
+                )
+                return
+            else:
+                # Stale connection — remove and reconnect
+                del _rtu_connections[bus_key]
+
         self._reader, self._writer = await asyncio.wait_for(
             asyncio.open_connection(self.ip, self.port),
             timeout=self.timeout,
         )
-        logger.info("HGM9560 connected: %s:%s slave=%s timeout=%.1fs", self.ip, self.port, self.slave_id, self.timeout)
+        _rtu_connections[bus_key] = (self._reader, self._writer)
+        logger.info("HGM9560 connected: %s slave=%s timeout=%.1fs", bus_key, self.slave_id, self.timeout)
 
     async def disconnect(self) -> None:
+        bus_key = f"{self.ip}:{self.port}"
         if self._writer:
-            try:
-                self._writer.close()
-                await self._writer.wait_closed()
-            except Exception:
-                pass
+            shared = _rtu_connections.get(bus_key)
+            if shared and shared[1] is self._writer:
+                # Shared connection — close socket and remove from registry.
+                # Other readers on this bus will reconnect on next poll.
+                try:
+                    self._writer.close()
+                    await self._writer.wait_closed()
+                except Exception:
+                    pass
+                _rtu_connections.pop(bus_key, None)
             self._writer = None
             self._reader = None
 
@@ -999,6 +1024,23 @@ class HGM9560Reader(BaseReader):
             logger.debug("HGM9560: flushed %d stale bytes total", total)
         return total
 
+    def _save_bonus_frames(self, bonus_frames: list[tuple[int, int, bytes]]) -> None:
+        """Save bonus frames from other slaves into the shared bus cache."""
+        if not bonus_frames:
+            return
+        bus_key = f"{self.ip}:{self.port}"
+        now = _time.monotonic()
+        for bonus_slave, bonus_bc, bonus_frame_data in bonus_frames:
+            regs = parse_read_registers_response(bonus_frame_data)
+            if regs is not None:
+                _bus_sniffed.setdefault(bus_key, {}).setdefault(
+                    bonus_slave, {},
+                )[bonus_bc] = (now, regs)
+                logger.debug(
+                    "Sniffed %d regs from slave %d (bc=%d) on bus %s",
+                    len(regs), bonus_slave, bonus_bc, bus_key,
+                )
+
     async def _send_and_receive(self, start: int, count: int) -> list[int] | None:
         if self._writer is None or self._reader is None:
             raise ConnectionError("HGM9560: not connected")
@@ -1016,6 +1058,7 @@ class HGM9560Reader(BaseReader):
         await asyncio.sleep(self.INTER_FRAME_DELAY)
 
         response = b""
+        got_foreign = False          # True once we received a frame from another slave
         loop = asyncio.get_event_loop()
         deadline = loop.time() + self.timeout
 
@@ -1023,19 +1066,25 @@ class HGM9560Reader(BaseReader):
             remaining_time = deadline - loop.time()
             if remaining_time <= 0:
                 break
+            # After receiving foreign data, use shorter read timeout:
+            # our response is likely right behind the foreign frame.
+            read_timeout = 0.25 if got_foreign else min(remaining_time, 0.5)
             try:
                 chunk = await asyncio.wait_for(
                     self._reader.read(512),
-                    timeout=min(remaining_time, 0.8),
+                    timeout=min(remaining_time, read_timeout),
                 )
                 if not chunk:
                     raise ConnectionError("HGM9560: connection closed by peer")
                 response += chunk
 
-                # Try to find a valid frame starting with our slave_id
-                frame_data = self._extract_frame(response, count)
-                if frame_data is not None:
-                    return parse_read_registers_response(frame_data)
+                # Try to find our frame + collect bonus frames from other slaves
+                our_frame, bonus_frames = self._extract_all_frames(response, count)
+                self._save_bonus_frames(bonus_frames)
+                if bonus_frames:
+                    got_foreign = True
+                if our_frame is not None:
+                    return parse_read_registers_response(our_frame)
 
             except asyncio.TimeoutError:
                 if response:
@@ -1044,87 +1093,169 @@ class HGM9560Reader(BaseReader):
 
         # Last attempt: maybe we have enough data but need to search for frame
         if response:
-            frame_data = self._extract_frame(response, count)
-            if frame_data is not None:
-                return parse_read_registers_response(frame_data)
+            our_frame, bonus_frames = self._extract_all_frames(response, count)
+            self._save_bonus_frames(bonus_frames)
+            if our_frame is not None:
+                return parse_read_registers_response(our_frame)
 
             logger.warning(
-                "HGM9560 bad response for block @%d: got %d bytes: %s",
-                start, len(response), response[:32].hex(),
+                "RTU bad response for block @%d slave=%d: got %d bytes: %s",
+                start, self.slave_id, len(response), response[:32].hex(),
             )
         else:
             logger.warning(
-                "HGM9560 no response for block @%d", start,
+                "RTU no response for block @%d slave=%d", start, self.slave_id,
             )
         return None
 
-    def _extract_frame(self, data: bytes, expected_count: int) -> bytes | None:
-        """Search for a valid Modbus RTU response frame in the byte buffer.
+    def _extract_all_frames(
+        self, data: bytes, expected_count: int,
+    ) -> tuple[bytes | None, list[tuple[int, int, bytes]]]:
+        """Search for ALL valid Modbus RTU response frames in the byte buffer.
+
+        Returns:
+            (our_frame, bonus_frames) where:
+            - our_frame: bytes of the frame matching self.slave_id + expected_count, or None
+            - bonus_frames: list of (slave_id, byte_count, frame_bytes) for other slaves
 
         The converter may prepend stale bytes from a previous response.
-        We scan for our slave_id + FC03 + correct byte-count, then verify CRC.
+        We scan for any slave_id + FC03 + byte-count, verify CRC, and collect all.
         """
-        expected_data_bytes = expected_count * 2
-        frame_len = 3 + expected_data_bytes + 2  # slave + fc + bytecount + data + crc
+        our_expected_bytes = expected_count * 2
+        our_frame: bytes | None = None
+        bonus_frames: list[tuple[int, int, bytes]] = []
 
-        for offset in range(len(data) - 4):  # need at least 5 bytes
-            if data[offset] != self.slave_id:
+        offset = 0
+        while offset < len(data) - 4:  # need at least 5 bytes for a frame header
+            # Check for FC03 response at this offset
+            candidate_slave = data[offset]
+            fc = data[offset + 1]
+
+            # Exception response (FC | 0x80)
+            if fc == (0x03 | 0x80) and candidate_slave == self.slave_id:
+                if offset + 5 <= len(data):
+                    our_frame = data[offset:offset + 5]
+                    offset += 5
+                    continue
+                break
+
+            if fc != 0x03:
+                offset += 1
                 continue
-            if data[offset + 1] != 0x03:
-                # Check for exception response (FC | 0x80)
-                if data[offset + 1] == 0x83 and offset + 5 <= len(data):
-                    return data[offset:offset + 5]
+
+            byte_count = data[offset + 2]
+            if byte_count == 0 or byte_count > 250 or byte_count % 2 != 0:
+                offset += 1
                 continue
-            if data[offset + 2] != expected_data_bytes:
-                continue
-            # Found candidate: slave=ours, fc=0x03, bytecount matches
+
+            frame_len = 3 + byte_count + 2
             if offset + frame_len > len(data):
-                return None  # not enough data yet — keep reading
+                # Not enough data — if it's our frame, signal incomplete
+                if candidate_slave == self.slave_id and byte_count == our_expected_bytes:
+                    break  # our_frame stays None — caller will keep reading
+                offset += 1
+                continue
+
             candidate = data[offset:offset + frame_len]
-            # Verify CRC
             crc_calc = crc16_modbus(candidate[:-2])
             crc_recv = candidate[-2] | (candidate[-1] << 8)
-            if crc_calc == crc_recv:
+
+            if crc_calc != crc_recv:
+                offset += 1
+                continue
+
+            # Valid CRC — this is a real frame
+            if candidate_slave == self.slave_id and byte_count == our_expected_bytes:
+                our_frame = candidate
                 if offset > 0:
                     logger.debug(
-                        "HGM9560: skipped %d garbage bytes before valid frame", offset,
+                        "RTU: skipped %d bytes before our frame (slave=%d)",
+                        offset, self.slave_id,
                     )
-                return candidate
-        return None
+            elif candidate_slave != self.slave_id:
+                bonus_frames.append((candidate_slave, byte_count, candidate))
+
+            offset += frame_len  # skip past this frame
+
+        return our_frame, bonus_frames
+
+    # Backward-compatible wrapper (used in _send_and_receive before sniffing)
+    def _extract_frame(self, data: bytes, expected_count: int) -> bytes | None:
+        our_frame, _ = self._extract_all_frames(data, expected_count)
+        return our_frame
+
+    def _try_sniffed(self, block_name: str, block: dict, bytecount_map: dict[int, str]) -> list[int] | None:
+        """Check bus sniffer cache for a usable frame for this block."""
+        bus_key = f"{self.ip}:{self.port}"
+        byte_count = block["count"] * 2
+        cache = _bus_sniffed.get(bus_key, {}).get(self.slave_id, {})
+        entry = cache.get(byte_count)
+        if entry is None:
+            return None
+        ts, cached_regs = entry
+        if _time.monotonic() - ts > _SNIFF_TTL:
+            return None  # expired
+        if len(cached_regs) != block["count"]:
+            return None
+        # Only use if byte_count uniquely identifies this block
+        expected_block = bytecount_map.get(byte_count)
+        if expected_block != block_name:
+            return None
+        # Consume from cache (use once)
+        del cache[byte_count]
+        logger.debug(
+            "Used sniffed data for %s slave=%d device=%s",
+            block_name, self.slave_id, self.device_id,
+        )
+        return cached_regs
 
     async def read_all(self) -> dict:
         async with self._lock:
             if self._writer is None or self._reader is None:
                 await self.connect()
 
+            self._adaptive_poll_count += 1
+            is_full_cycle = (self._adaptive_poll_count % _SLOW_POLL_EVERY == 0)
+
             result: dict = {}
             errors = 0
             total_blocks = len(REGISTER_MAP_9560)
             first_block = True
+            skipped_names: list[str] = []
+            blocks_read = 0
 
             for block_name, block in REGISTER_MAP_9560.items():
+                # --- Adaptive: skip slow blocks on non-full cycles ---
+                if not is_full_cycle and block_name in _9560_SLOW_BLOCKS:
+                    skipped_names.append(block_name)
+                    continue
+
                 if not first_block:
                     await asyncio.sleep(self.INTER_BLOCK_DELAY)
                 first_block = False
 
-                regs = None
-                for attempt in range(1, self.MAX_RETRIES + 1):
-                    try:
-                        regs = await self._send_and_receive(block["address"], block["count"])
-                    except ConnectionError:
-                        break  # connection lost — skip retries
+                # --- Opportunistic sniffing: try cached data first ---
+                regs = self._try_sniffed(block_name, block, _9560_BYTECOUNT_MAP)
 
-                    if regs is not None:
-                        break  # success
+                if regs is None:
+                    # Normal read with retries
+                    for attempt in range(1, self.MAX_RETRIES + 1):
+                        try:
+                            regs = await self._send_and_receive(block["address"], block["count"])
+                        except ConnectionError:
+                            break  # connection lost — skip retries
 
-                    # Failed — wait for late response to arrive, flush everything, retry
-                    if attempt < self.MAX_RETRIES:
-                        logger.debug(
-                            "HGM9560 block=%s attempt %d/%d failed, retrying",
-                            block_name, attempt, self.MAX_RETRIES,
-                        )
-                        await asyncio.sleep(1.0)
-                        await self._flush_stale(timeout=0.3)
+                        if regs is not None:
+                            break  # success
+
+                        # Failed — wait for late response to arrive, flush everything, retry
+                        if attempt < self.MAX_RETRIES:
+                            logger.debug(
+                                "HGM9560 block=%s attempt %d/%d failed, retrying",
+                                block_name, attempt, self.MAX_RETRIES,
+                            )
+                            await asyncio.sleep(0.15)
+                            await self._flush_stale(timeout=0.10)
 
                 if regs is None:
                     logger.warning(
@@ -1132,11 +1263,12 @@ class HGM9560Reader(BaseReader):
                         block_name, self.device_id, self.MAX_RETRIES,
                     )
                     errors += 1
-                    # Aggressive flush before next block — wait for all late data
-                    await asyncio.sleep(1.0)
-                    await self._flush_stale(timeout=0.3)
+                    # Flush before next block
+                    await asyncio.sleep(0.15)
+                    await self._flush_stale(timeout=0.10)
                     continue
 
+                blocks_read += 1
                 for field_name, parser in block["fields"].items():
                     try:
                         result[field_name] = parser(regs)
@@ -1166,7 +1298,16 @@ class HGM9560Reader(BaseReader):
             if "mains_switch" in result:
                 result["mains_switch_text"] = SWITCH_STATUS.get(result["mains_switch"], "unknown")
 
-            return result
+            # Merge with cached result: skipped blocks retain previous values
+            self._last_result.update(result)
+
+            logger.debug(
+                "Adaptive: device=%s cycle=%d, read %d/%d blocks (skipped: %s)",
+                self.device_id, self._adaptive_poll_count,
+                blocks_read, total_blocks, ", ".join(skipped_names) or "none",
+            )
+
+            return self._last_result.copy()
 
     async def write_coil(self, address: int, value: bool) -> None:
         """FC05 — Write Single Coil via raw RTU frame."""
@@ -1280,51 +1421,72 @@ class HGM9520NRtuReader(HGM9560Reader):
     HGM9520N register map and uses HGM9520N status codes.
     """
 
-    async def connect(self) -> None:
-        self._reader, self._writer = await asyncio.wait_for(
-            asyncio.open_connection(self.ip, self.port),
-            timeout=self.timeout,
-        )
-        logger.info(
-            "HGM9520N-RTU connected: %s:%s slave=%s timeout=%.1fs",
-            self.ip, self.port, self.slave_id, self.timeout,
-        )
+    def __init__(self, device: Device, *, site_code: str = ""):
+        super().__init__(device, site_code=site_code)
+        # Override adaptive polling for HGM9520N-specific standby detection
+        self._last_gen_status: int | None = None
+
+    # connect() inherited from HGM9560Reader — uses shared _rtu_connections
 
     async def read_all(self) -> dict:
         async with self._lock:
             if self._writer is None or self._reader is None:
                 await self.connect()
 
+            self._adaptive_poll_count += 1
+            is_full_cycle = (self._adaptive_poll_count % _SLOW_POLL_EVERY == 0)
+
+            # Build skip set based on standby + tiered polling
+            skip_set: set[str] = set()
+            if self._last_gen_status == 0:  # standby — skip live data blocks
+                skip_set |= _9520N_STANDBY_SKIP
+            if not is_full_cycle:
+                skip_set |= _9520N_RTU_SLOW_BLOCKS
+            # 'status' and 'accumulated' are NEVER skipped (always need gen_status)
+            skip_set.discard("status")
+            skip_set.discard("accumulated")
+
             result: dict = {}
             errors = 0
             total_blocks = len(REGISTER_MAP_9520N_RTU)
             first_block = True
+            skipped_names: list[str] = []
+            blocks_read = 0
 
             for block_name, block in REGISTER_MAP_9520N_RTU.items():
+                # --- Adaptive: skip blocks based on standby + tiered ---
+                if block_name in skip_set:
+                    skipped_names.append(block_name)
+                    continue
+
                 if not first_block:
                     await asyncio.sleep(self.INTER_BLOCK_DELAY)
                 first_block = False
 
-                regs = None
-                for attempt in range(1, self.MAX_RETRIES + 1):
-                    try:
-                        regs = await self._send_and_receive(
-                            block["address"], block["count"],
-                        )
-                    except ConnectionError:
-                        break  # connection lost — skip retries
+                # --- Opportunistic sniffing: try cached data first ---
+                regs = self._try_sniffed(block_name, block, _9520N_RTU_BYTECOUNT_MAP)
 
-                    if regs is not None:
-                        break  # success
+                if regs is None:
+                    # Normal read with retries
+                    for attempt in range(1, self.MAX_RETRIES + 1):
+                        try:
+                            regs = await self._send_and_receive(
+                                block["address"], block["count"],
+                            )
+                        except ConnectionError:
+                            break  # connection lost — skip retries
 
-                    # Failed — wait, flush, retry
-                    if attempt < self.MAX_RETRIES:
-                        logger.debug(
-                            "HGM9520N-RTU block=%s attempt %d/%d failed, retrying",
-                            block_name, attempt, self.MAX_RETRIES,
-                        )
-                        await asyncio.sleep(1.0)
-                        await self._flush_stale(timeout=0.3)
+                        if regs is not None:
+                            break  # success
+
+                        # Failed — wait, flush, retry
+                        if attempt < self.MAX_RETRIES:
+                            logger.debug(
+                                "HGM9520N-RTU block=%s attempt %d/%d failed, retrying",
+                                block_name, attempt, self.MAX_RETRIES,
+                            )
+                            await asyncio.sleep(0.15)
+                            await self._flush_stale(timeout=0.10)
 
                 if regs is None:
                     logger.warning(
@@ -1332,11 +1494,12 @@ class HGM9520NRtuReader(HGM9560Reader):
                         block_name, self.device_id, self.MAX_RETRIES,
                     )
                     errors += 1
-                    # Aggressive flush before next block
-                    await asyncio.sleep(1.0)
-                    await self._flush_stale(timeout=0.3)
+                    # Flush before next block
+                    await asyncio.sleep(0.15)
+                    await self._flush_stale(timeout=0.10)
                     continue
 
+                blocks_read += 1
                 for field_name, parser in block["fields"].items():
                     try:
                         result[field_name] = parser(regs)
@@ -1345,6 +1508,10 @@ class HGM9520NRtuReader(HGM9560Reader):
                             "Parse error %s.%s: %s", block_name, field_name, exc,
                         )
                         result[field_name] = None
+
+                # Update standby detection after parsing 'accumulated' block
+                if block_name == "accumulated" and "gen_status" in result:
+                    self._last_gen_status = result["gen_status"]
 
             if errors == total_blocks:
                 await self.disconnect()
@@ -1366,7 +1533,18 @@ class HGM9520NRtuReader(HGM9560Reader):
                     code, f"unknown_{code}",
                 )
 
-            return result
+            # Merge with cached result: skipped blocks retain previous values
+            self._last_result.update(result)
+
+            logger.debug(
+                "Adaptive: device=%s cycle=%d, read %d/%d blocks (skipped: %s, gen_status=%s)",
+                self.device_id, self._adaptive_poll_count,
+                blocks_read, total_blocks,
+                ", ".join(skipped_names) or "none",
+                self._last_gen_status,
+            )
+
+            return self._last_result.copy()
 
 
 # ---------------------------------------------------------------------------
@@ -1556,15 +1734,44 @@ class ModbusPoller:
 
     async def _poll_cycle(self) -> None:
         now = _time.monotonic()
-        tasks = []
+
+        # Group RTU devices by converter (ip:port) — they share one RS485 bus
+        # and MUST be polled sequentially through a single TCP connection.
+        # TCP devices can be polled in parallel as before.
+        rtu_groups: dict[str, list[tuple[int, BaseReader]]] = {}
+        tcp_tasks = []
+
         for device_id, reader in self._readers.items():
             interval = self._poll_intervals.get(device_id, settings.POLL_INTERVAL)
             last = self._last_poll.get(device_id, 0)
-            if now - last >= interval:
-                self._last_poll[device_id] = now
-                tasks.append(self._poll_device(device_id, reader))
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            if now - last < interval:
+                continue
+            self._last_poll[device_id] = now
+
+            if isinstance(reader, (HGM9560Reader, HGM9520NRtuReader)):
+                bus_key = f"{reader.ip}:{reader.port}"
+                rtu_groups.setdefault(bus_key, []).append((device_id, reader))
+            else:
+                tcp_tasks.append(self._poll_device(device_id, reader))
+
+        # Each RTU bus group runs as one sequential task
+        async def _poll_rtu_bus(group: list[tuple[int, BaseReader]]) -> None:
+            for i, (device_id, reader) in enumerate(group):
+                if i > 0 and hasattr(reader, '_flush_stale'):
+                    # Flush stale bytes from previous device before switching slave
+                    await asyncio.sleep(0.08)
+                    await reader._flush_stale(timeout=0.10)
+                await self._poll_device(device_id, reader)
+
+        all_tasks = list(tcp_tasks)
+        for bus_key, group in rtu_groups.items():
+            all_tasks.append(_poll_rtu_bus(group))
+
+        if all_tasks:
+            t0 = _time.monotonic()
+            await asyncio.gather(*all_tasks, return_exceptions=True)
+            elapsed = _time.monotonic() - t0
+            logger.info("Poll cycle: %d tasks, %.1fs", len(all_tasks), elapsed)
 
     async def _poll_device(self, device_id: int, reader: BaseReader) -> None:
         try:
@@ -1610,8 +1817,9 @@ class ModbusPoller:
         json_str = json.dumps(payload, default=str)
         redis_key = f"device:{device_id}:metrics"
 
-        # TTL 30s — stale metrics auto-expire if poller stops
-        await self.redis.set(redis_key, json_str, ex=30)
+        # TTL 300s — long enough for RTU buses with 3+ devices
+        # (sequential poll of 3 devices × 15 blocks can take 2-3 minutes)
+        await self.redis.set(redis_key, json_str, ex=300)
         await self.redis.publish("metrics:updates", json_str)
 
         if online:
