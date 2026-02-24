@@ -240,11 +240,13 @@ REGISTER_MAP_9520N: dict[str, dict] = {
     "accumulated": {
         "address": 260, "count": 16,
         "fields": {
-            "gen_status":  lambda regs: regs[0],
-            "run_hours":   lambda regs: regs[10],
-            "run_minutes": lambda regs: regs[11],
-            "start_count": lambda regs: regs[13],
-            "energy_kwh":  lambda regs: regs[15] * 65536 + regs[14],
+            "gen_status":       lambda regs: regs[0],
+            "gen_ats_status":   lambda regs: regs[4],   # reg 264: Gen ATS Status
+            "mains_ats_status": lambda regs: regs[8],   # reg 268: Mains ATS Status
+            "run_hours":        lambda regs: regs[10],
+            "run_minutes":      lambda regs: regs[11],
+            "start_count":      lambda regs: regs[13],
+            "energy_kwh":       lambda regs: regs[15] * 65536 + regs[14],
         },
     },
     "alarms": {
@@ -397,11 +399,13 @@ REGISTER_MAP_9520N_RTU: dict[str, dict] = {
     "accumulated": {
         "address": 260, "count": 16,
         "fields": {
-            "gen_status":  lambda regs: regs[0],
-            "run_hours":   lambda regs: regs[10],
-            "run_minutes": lambda regs: regs[11],
-            "start_count": lambda regs: regs[13],
-            "energy_kwh":  lambda regs: regs[15] * 65536 + regs[14],
+            "gen_status":       lambda regs: regs[0],
+            "gen_ats_status":   lambda regs: regs[4],   # reg 264: Gen ATS Status
+            "mains_ats_status": lambda regs: regs[8],   # reg 268: Mains ATS Status
+            "run_hours":        lambda regs: regs[10],
+            "run_minutes":      lambda regs: regs[11],
+            "start_count":      lambda regs: regs[13],
+            "energy_kwh":       lambda regs: regs[15] * 65536 + regs[14],
         },
     },
     "alarms": {
@@ -527,6 +531,13 @@ REGISTER_MAP_9560: dict[str, dict] = {
             "maint_hours": lambda regs: regs[8],
         },
     },
+    # Multi-set Total Active Power — total generator power from MSC communication
+    "multiset_power": {
+        "address": 235, "count": 2,
+        "fields": {
+            "multiset_total_p": lambda regs: _signed32(regs[0], regs[1]) * 0.1,
+        },
+    },
     "running": {
         "address": 270, "count": 4,
         "fields": {
@@ -583,6 +594,10 @@ MAINS_STATUS = {
     0: "normal", 1: "normal_delay", 2: "abnormal", 3: "abnormal_delay",
 }
 
+# ATS Status Table (HGM9520N: Gen ATS Status reg 264, Mains ATS Status reg 268)
+# Same codes as SWITCH_STATUS but used specifically for generator ATS
+ATS_STATUS_CODES = SWITCH_STATUS  # 0=synchronizing ... 3=closed ... 7=opened
+
 
 # ---------------------------------------------------------------------------
 # Adaptive Polling — tiered block sets + standby skip
@@ -592,13 +607,14 @@ _SLOW_POLL_EVERY = 5  # read slow blocks every 5th cycle
 
 # HGM9520N-RTU: slow blocks are read only every Nth cycle
 _9520N_RTU_SLOW_BLOCKS = frozenset({
-    "breaker", "mains_voltage", "power_limit", "accumulated", "alarms",
+    "breaker", "mains_voltage", "power_limit", "alarms",
 })
-# Fast (every cycle): status, gen_voltage, gen_current, power, engine
+# "accumulated" moved to FAST — contains gen_status + gen_ats_status (needed every cycle)
+# Fast (every cycle): status, accumulated, gen_voltage, gen_current, power, engine
 
 # HGM9560: slow blocks
 _9560_SLOW_BLOCKS = frozenset({
-    "indicators", "running", "alarm_detail_a", "alarm_detail_b",
+    "indicators", "running", "alarm_detail_a", "alarm_detail_b", "multiset_power",
 })
 
 # Blocks to skip when generator is in standby (gen_status == 0)
@@ -846,6 +862,23 @@ class HGM9520NReader(BaseReader):
             if "gen_status" in result:
                 code = result["gen_status"]
                 result["gen_status_text"] = GEN_STATUS_CODES.get(code, f"unknown_{code}")
+            if "gen_ats_status" in result:
+                code = result["gen_ats_status"]
+                result["gen_ats_status_text"] = ATS_STATUS_CODES.get(code, f"unknown_{code}")
+            if "mains_ats_status" in result:
+                code = result["mains_ats_status"]
+                result["mains_ats_status_text"] = ATS_STATUS_CODES.get(code, f"unknown_{code}")
+
+            # Normalize sync parameters
+            if "phase_diff" in result and result["phase_diff"] is not None:
+                pd = result["phase_diff"]
+                if pd > 180:
+                    result["phase_diff"] = pd - 360  # 359.8° → -0.2°
+                elif pd < -180:
+                    result["phase_diff"] = pd + 360
+                # Filter garbage values from stopped generators
+                if abs(result["phase_diff"]) > 180:
+                    result["phase_diff"] = None
 
             return result
 
@@ -1532,6 +1565,26 @@ class HGM9520NRtuReader(HGM9560Reader):
                 result["gen_status_text"] = GEN_STATUS_CODES.get(
                     code, f"unknown_{code}",
                 )
+            if "gen_ats_status" in result:
+                code = result["gen_ats_status"]
+                result["gen_ats_status_text"] = ATS_STATUS_CODES.get(
+                    code, f"unknown_{code}",
+                )
+            if "mains_ats_status" in result:
+                code = result["mains_ats_status"]
+                result["mains_ats_status_text"] = ATS_STATUS_CODES.get(
+                    code, f"unknown_{code}",
+                )
+
+            # Normalize sync parameters
+            if "phase_diff" in result and result["phase_diff"] is not None:
+                pd = result["phase_diff"]
+                if pd > 180:
+                    result["phase_diff"] = pd - 360
+                elif pd < -180:
+                    result["phase_diff"] = pd + 360
+                if abs(result["phase_diff"]) > 180:
+                    result["phase_diff"] = None
 
             # Merge with cached result: skipped blocks retain previous values
             self._last_result.update(result)

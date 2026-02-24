@@ -219,4 +219,6 @@ class MetricsWriter:
             "run_hours": p.get("run_hours") or p.get("running_hours_a"),
             "energy_kwh": p.get("energy_kwh") or p.get("accum_kwh"),
             "gen_status": p.get("gen_status"),
+            "gen_ats_status": p.get("gen_ats_status"),
+            "mains_ats_status": p.get("mains_ats_status"),
         }

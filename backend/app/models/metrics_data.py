@@ -86,3 +86,5 @@ class MetricsData(Base):
     run_hours: Mapped[float | None] = mapped_column(Float, default=None)
     energy_kwh: Mapped[float | None] = mapped_column(Float, default=None)
     gen_status: Mapped[int | None] = mapped_column(Integer, default=None)
+    gen_ats_status: Mapped[int | None] = mapped_column(Integer, default=None)
+    mains_ats_status: Mapped[int | None] = mapped_column(Integer, default=None)
