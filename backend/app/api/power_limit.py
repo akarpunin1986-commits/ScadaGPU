@@ -19,6 +19,11 @@ logger = logging.getLogger("scada.power_limit")
 LOAD_MODE_TEXT = {0: "Gen Control", 1: "Mains Control", 2: "Load Reception"}
 
 
+def _signed16(val: int) -> int:
+    """Convert unsigned 16-bit to signed (matches poller's _signed16)."""
+    return val - 65536 if val > 32767 else val
+
+
 # --- Models ---
 
 class PowerLimitResponse(BaseModel):
@@ -111,23 +116,38 @@ async def get_power_limit(device_id: int, request: Request):
     mx = await _get_redis_metrics(request, device_id)
 
     if device_type == "generator":
-        # HGM9520N: live data from Redis (regs 159-162), config from regs 4368+4370
-        current_p = mx.get("current_p_pct")
-        target_p = mx.get("target_p_pct")
-        current_q = mx.get("current_q_pct")
-        target_q = mx.get("target_q_pct")
-
+        # HGM9520N: read regs 159-162 directly from controller via FC03.
+        # Regs: 159=current_p, 160=target_p, 161=current_q, 162=target_q
+        # These are always readable (unlike config regs 4368/4370 which are write-only).
+        # Direct read works even in standby (when poller skips gen_volt_plimit).
+        current_p = None
+        target_p = None
+        current_q = None
+        target_q = None
         config_p_raw = None
         config_q_raw = None
+
         try:
-            batch = await reader.read_registers_batch([
-                (4368, 1),  # Config P%
-                (4370, 1),  # Config Q%
-            ])
-            config_p_raw = batch[0][0]
-            config_q_raw = batch[1][0]
+            batch = await reader.read_registers_batch([(159, 4)])
+            regs = batch[0]
+            current_p = round(_signed16(regs[0]) * 0.1, 1)
+            target_p = round(_signed16(regs[1]) * 0.1, 1)
+            current_q = round(_signed16(regs[2]) * 0.1, 1)
+            target_q = round(_signed16(regs[3]) * 0.1, 1)
+            # Config raw = target value × 10 (the setpoint controller is configured to)
+            config_p_raw = _signed16(regs[1])
+            config_q_raw = _signed16(regs[3])
         except Exception as exc:
-            logger.warning("Power limit config read failed device=%d: %s", device_id, exc)
+            logger.warning("Power limit direct read failed device=%d: %s, using Redis", device_id, exc)
+            # Fallback to Redis cached data
+            current_p = mx.get("current_p_pct")
+            target_p = mx.get("target_p_pct")
+            current_q = mx.get("current_q_pct")
+            target_q = mx.get("target_q_pct")
+            if target_p is not None:
+                config_p_raw = round(target_p * 10)
+            if target_q is not None:
+                config_q_raw = round(target_q * 10)
 
         return PowerLimitResponse(
             success=True,

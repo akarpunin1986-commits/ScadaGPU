@@ -125,6 +125,26 @@
             text-align: center; padding: 40px; color: #f87171;
             font-size: 13px;
         }
+        .alm-llm-btn {
+            width: 100%; padding: 12px 20px; border: 1px solid rgba(96,165,250,0.3);
+            border-radius: 8px; background: rgba(96,165,250,0.08); color: #93c5fd;
+            font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .alm-llm-btn:hover { background: rgba(96,165,250,0.15); border-color: rgba(96,165,250,0.5); }
+        .alm-llm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .alm-llm-result {
+            margin-top: 12px; padding: 16px; background: rgba(96,165,250,0.04);
+            border-radius: 8px; border: 1px solid rgba(96,165,250,0.1);
+            font-size: 13px; line-height: 1.7; color: var(--t, #e0e6ed);
+            white-space: pre-wrap;
+        }
+        .alm-llm-spinner {
+            display: inline-block; width: 16px; height: 16px;
+            border: 2px solid rgba(147,197,253,0.3); border-top-color: #93c5fd;
+            border-radius: 50%; animation: almSpin 0.8s linear infinite;
+        }
+        @keyframes almSpin { to { transform: rotate(360deg); } }
     `;
     document.head.appendChild(style);
 
@@ -343,12 +363,23 @@
                 ${ev.cleared_at ? `<div class="alm-meta" style="margin-top:4px"><span>Снята: ${fmtDt(ev.cleared_at)}</span></div>` : ''}
             </div>`;
 
-        // Section: Description
+        // Section: Description — use analysis.manual_description or description_ru from alarmDefs
         const analysis = ev.analysis_result || {};
-        if (analysis.manual_description) {
+        let descText = analysis.manual_description || '';
+        if (!descText && typeof window.alarmDefs !== 'undefined') {
+            // Lookup description_ru from definitions loaded in scada-v5.html
+            const regField = ev.alarm_register !== undefined ? Object.keys(window.alarmDefs).find(f => {
+                const bits = window.alarmDefs[f] || {};
+                return bits[ev.alarm_bit] && bits[ev.alarm_bit].code === ev.alarm_code;
+            }) : null;
+            if (regField && window.alarmDefs[regField] && window.alarmDefs[regField][ev.alarm_bit]) {
+                descText = window.alarmDefs[regField][ev.alarm_bit].description_ru || '';
+            }
+        }
+        if (descText) {
             html += `<div class="alm-section">
                 <div class="alm-section-title">\u{1F4D6} Описание</div>
-                <div class="alm-desc">${analysis.manual_description}</div>
+                <div class="alm-desc">${descText}</div>
                 ${analysis.manual_danger ? `<div class="alm-danger">\u26A0\uFE0F <b>Опасность:</b> ${analysis.manual_danger}</div>` : ''}
             </div>`;
         }
@@ -363,6 +394,15 @@
         html += `<div class="alm-section">
             <div class="alm-section-title">\u{1F50D} Анализ причины</div>
             ${renderAnalysis(analysis)}
+        </div>`;
+
+        // Section: LLM (Sanek) — Ask AI for detailed analysis
+        const _devType = ev.device_type || 'generator';
+        html += `<div class="alm-section">
+            <button class="alm-llm-btn" id="alm-llm-btn" onclick="window._almAskLLM('${ev.alarm_code}', ${ev.device_id || 0}, '${_devType}')">
+                \u{1F916} Спросить Санька — подробный анализ
+            </button>
+            <div id="alm-llm-result"></div>
         </div>`;
 
         showModal(html);
@@ -427,10 +467,11 @@
                 '</div>' +
             '</div>';
 
-            // Description section
+            // Description section — show description_ru if available, else title
+            const descRu = defn ? (defn.description_ru || '') : '';
             html += '<div class="alm-section">' +
                 '<div class="alm-section-title">\uD83D\uDCD6 \u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435</div>' +
-                '<div class="alm-desc">' + title + '</div>' +
+                '<div class="alm-desc">' + (descRu || title) + '</div>' +
                 (engName && engName !== title ? '<div class="alm-desc" style="margin-top:4px;color:var(--t3,#6c7a8d);font-size:12px">' + engName + '</div>' : '') +
             '</div>';
 
@@ -453,6 +494,14 @@
                 '<div class="alm-desc" style="margin-top:10px;font-size:12px;color:var(--t3,#6c7a8d)">' +
                     '\u0414\u0435\u0442\u0430\u043B\u044C\u043D\u044B\u0439 \u0441\u043D\u0438\u043C\u043E\u043A \u043C\u0435\u0442\u0440\u0438\u043A \u0431\u0443\u0434\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D \u043F\u0440\u0438 \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0435\u043C \u0441\u0440\u0430\u0431\u0430\u0442\u044B\u0432\u0430\u043D\u0438\u0438 \u043C\u043E\u0434\u0443\u043B\u044F \u0430\u043D\u0430\u043B\u0438\u0442\u0438\u043A\u0438.' +
                 '</div>' +
+            '</div>';
+
+            // LLM button
+            const _dType = defn ? (defn.register_field.startsWith('alarm_reg') ? 'ats' : 'generator') : 'generator';
+            html += '<div class="alm-section">' +
+                '<button class="alm-llm-btn" id="alm-llm-btn" onclick="window._almAskLLM(\'' + alarmCode + '\',' + (deviceId || 0) + ',\'' + _dType + '\')">' +
+                '\uD83E\uDD16 \u0421\u043F\u0440\u043E\u0441\u0438\u0442\u044C \u0421\u0430\u043D\u044C\u043A\u0430 \u2014 \u043F\u043E\u0434\u0440\u043E\u0431\u043D\u044B\u0439 \u0430\u043D\u0430\u043B\u0438\u0437</button>' +
+                '<div id="alm-llm-result"></div>' +
             '</div>';
 
             showModal(html);
@@ -500,7 +549,9 @@
 
     function handleAlarmClick(e) {
         const el = e.currentTarget;
-        const code = extractAlarmCode(el);
+
+        // Prefer data attributes (set by decodeAlarms in scada-v5.html)
+        let code = el.dataset.alarmCode || extractAlarmCode(el);
         if (!code) return;
 
         // Skip CONN_LOST — handled by base AlarmDetector, not alarm_analytics
@@ -510,12 +561,12 @@
         // show list of active alarms for the device
         const summaryFlags = ['COMMON', 'SHUTDOWN', 'WARNING', 'BLOCK', 'TRIP_STOP'];
         if (summaryFlags.includes(code)) {
-            const deviceId = extractDeviceId(el);
+            const deviceId = el.dataset.deviceId ? parseInt(el.dataset.deviceId, 10) : extractDeviceId(el);
             showSummaryFlagModal(code, deviceId);
             return;
         }
 
-        const deviceId = extractDeviceId(el);
+        const deviceId = el.dataset.deviceId ? parseInt(el.dataset.deviceId, 10) : extractDeviceId(el);
         fetchAndShowByCode(code, deviceId);
     }
 
@@ -666,6 +717,47 @@
 
     // Initial attachment
     attachHandlers();
+
+    // LLM explain function (calls POST /api/alarm-analytics/explain)
+    window._almAskLLM = async function(alarmCode, deviceId, deviceType) {
+        const btn = document.getElementById('alm-llm-btn');
+        const resultDiv = document.getElementById('alm-llm-result');
+        if (!btn || !resultDiv) return;
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="alm-llm-spinner"></span> Санёк анализирует...';
+        resultDiv.innerHTML = '';
+
+        try {
+            const resp = await fetch('/api/alarm-analytics/explain', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    alarm_code: alarmCode,
+                    device_id: deviceId || 0,
+                    device_type: deviceType || 'generator',
+                }),
+            });
+            const data = await resp.json();
+            if (data.success && data.explanation) {
+                resultDiv.innerHTML = '<div class="alm-llm-result">' +
+                    '<div style="font-size:11px;color:var(--t3);margin-bottom:8px;display:flex;align-items:center;gap:6px">' +
+                    '\uD83E\uDD16 <b>\u0421\u0430\u043D\u0451\u043A</b> \u2014 AI-\u0430\u043D\u0430\u043B\u0438\u0437</div>' +
+                    data.explanation.replace(/\n/g, '<br>') +
+                '</div>';
+                btn.innerHTML = '\u2705 \u0410\u043D\u0430\u043B\u0438\u0437 \u043F\u043E\u043B\u0443\u0447\u0435\u043D';
+            } else {
+                resultDiv.innerHTML = '<div style="color:#f87171;font-size:12px;margin-top:8px">\u2717 ' +
+                    (data.error || '\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u0430\u043D\u0430\u043B\u0438\u0437') + '</div>';
+                btn.disabled = false;
+                btn.innerHTML = '\uD83E\uDD16 \u041F\u043E\u043F\u0440\u043E\u0431\u043E\u0432\u0430\u0442\u044C \u0441\u043D\u043E\u0432\u0430';
+            }
+        } catch (err) {
+            resultDiv.innerHTML = '<div style="color:#f87171;font-size:12px;margin-top:8px">\u2717 \u041E\u0448\u0438\u0431\u043A\u0430: ' + err.message + '</div>';
+            btn.disabled = false;
+            btn.innerHTML = '\uD83E\uDD16 \u041F\u043E\u043F\u0440\u043E\u0431\u043E\u0432\u0430\u0442\u044C \u0441\u043D\u043E\u0432\u0430';
+        }
+    };
 
     // Export for external use
     window.almShowEvent = fetchAndShowEvent;

@@ -25,6 +25,7 @@ from services.disk_manager import DiskSpaceManager
 from api.power_limit import router as power_limit_router
 from alarm_analytics.router import router as alarm_analytics_router
 from alarm_analytics.detector import AlarmAnalyticsDetector
+from api.knowledge import router as knowledge_router
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
@@ -167,6 +168,7 @@ app.include_router(history_router)
 app.include_router(ws_router)
 app.include_router(power_limit_router)
 app.include_router(alarm_analytics_router)
+app.include_router(knowledge_router)
 
 # Bitrix24 module router (conditional)
 if settings.BITRIX24_ENABLED:

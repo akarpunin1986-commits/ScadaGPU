@@ -235,6 +235,8 @@ REGISTER_MAP_9520N: dict[str, dict] = {
             "fuel_pressure":    lambda regs: None if regs[24] >= 10000 or regs[24] == 32766 else regs[24],
             "turbo_pressure":   lambda regs: None if regs[28] >= 10000 or regs[28] == 32766 else regs[28],
             "fuel_consumption": lambda regs: None if regs[29] > 10000 or regs[29] == 32766 else regs[29] * 0.1,
+            # Note: regs[13-19] (addresses 225-231) are NOT RTC for HGM9520N —
+            # they return sentinel values 65535/32767/0. RTC only available on HGM9560.
         },
     },
     "accumulated": {
@@ -333,9 +335,11 @@ REGISTER_MAP_9520N_RTU: dict[str, dict] = {
             "mains_freq": lambda regs: regs[15] * 0.01,
         },
     },
-    "gen_voltage": {
-        "address": 140, "count": 19,
+    # gen_voltage(140,19) + power_limit(159,4) merged → addr 140, count 23
+    "gen_volt_plimit": {
+        "address": 140, "count": 23,
         "fields": {
+            # gen_voltage fields (offsets 0-18)
             "gen_uab":    lambda regs: (regs[1] * 65536 + regs[0]) * 0.1,
             "gen_ubc":    lambda regs: (regs[3] * 65536 + regs[2]) * 0.1,
             "gen_uca":    lambda regs: (regs[5] * 65536 + regs[4]) * 0.1,
@@ -343,41 +347,35 @@ REGISTER_MAP_9520N_RTU: dict[str, dict] = {
             "volt_diff":  lambda regs: _signed16(regs[16]) * 0.1,
             "freq_diff":  lambda regs: _signed16(regs[17]) * 0.01,
             "phase_diff": lambda regs: _signed16(regs[18]) * 0.1,
+            # power_limit fields (offsets 19-22, were addr 159-162)
+            "current_p_pct": lambda regs: _signed16(regs[19]) * 0.1,
+            "target_p_pct":  lambda regs: _signed16(regs[20]) * 0.1,
+            "current_q_pct": lambda regs: _signed16(regs[21]) * 0.1,
+            "target_q_pct":  lambda regs: _signed16(regs[22]) * 0.1,
         },
     },
-    "power_limit": {
-        "address": 159, "count": 4,
+    # gen_current(166,8) + power(174,28) merged → addr 166, count 36
+    "gen_current_power": {
+        "address": 166, "count": 36,
         "fields": {
-            "current_p_pct": lambda regs: _signed16(regs[0]) * 0.1,
-            "target_p_pct":  lambda regs: _signed16(regs[1]) * 0.1,
-            "current_q_pct": lambda regs: _signed16(regs[2]) * 0.1,
-            "target_q_pct":  lambda regs: _signed16(regs[3]) * 0.1,
-        },
-    },
-    "gen_current": {
-        "address": 166, "count": 8,
-        "fields": {
+            # gen_current fields (offsets 0-3)
             "current_a":     lambda regs: _no_data_or(regs[0], regs[0] * 0.1),
             "current_b":     lambda regs: _no_data_or(regs[1], regs[1] * 0.1),
             "current_c":     lambda regs: _no_data_or(regs[2], regs[2] * 0.1),
             "current_earth": lambda regs: _no_data_or(regs[3], regs[3] * 0.1),
-        },
-    },
-    "power": {
-        "address": 174, "count": 28,
-        "fields": {
-            "power_a":        lambda regs: _signed32(regs[0], regs[1]) * 0.1,
-            "power_b":        lambda regs: _signed32(regs[2], regs[3]) * 0.1,
-            "power_c":        lambda regs: _signed32(regs[4], regs[5]) * 0.1,
-            "power_total":    lambda regs: _signed32(regs[6], regs[7]) * 0.1,
-            "reactive_a":     lambda regs: _signed32(regs[8], regs[9]) * 0.1,
-            "reactive_b":     lambda regs: _signed32(regs[10], regs[11]) * 0.1,
-            "reactive_c":     lambda regs: _signed32(regs[12], regs[13]) * 0.1,
-            "reactive_total": lambda regs: _signed32(regs[14], regs[15]) * 0.1,
-            "pf_a":           lambda regs: _signed16(regs[24]) * 0.001,
-            "pf_b":           lambda regs: _signed16(regs[25]) * 0.001,
-            "pf_c":           lambda regs: _signed16(regs[26]) * 0.001,
-            "pf_avg":         lambda regs: _signed16(regs[27]) * 0.001,
+            # power fields (offsets 8-35, were addr 174-201)
+            "power_a":        lambda regs: _signed32(regs[8], regs[9]) * 0.1,
+            "power_b":        lambda regs: _signed32(regs[10], regs[11]) * 0.1,
+            "power_c":        lambda regs: _signed32(regs[12], regs[13]) * 0.1,
+            "power_total":    lambda regs: _signed32(regs[14], regs[15]) * 0.1,
+            "reactive_a":     lambda regs: _signed32(regs[16], regs[17]) * 0.1,
+            "reactive_b":     lambda regs: _signed32(regs[18], regs[19]) * 0.1,
+            "reactive_c":     lambda regs: _signed32(regs[20], regs[21]) * 0.1,
+            "reactive_total": lambda regs: _signed32(regs[22], regs[23]) * 0.1,
+            "pf_a":           lambda regs: _signed16(regs[32]) * 0.001,
+            "pf_b":           lambda regs: _signed16(regs[33]) * 0.001,
+            "pf_c":           lambda regs: _signed16(regs[34]) * 0.001,
+            "pf_avg":         lambda regs: _signed16(regs[35]) * 0.001,
         },
     },
     "engine": {
@@ -394,6 +392,8 @@ REGISTER_MAP_9520N_RTU: dict[str, dict] = {
             "fuel_pressure":    lambda regs: None if regs[24] >= 10000 or regs[24] == 32766 else regs[24],
             "turbo_pressure":   lambda regs: None if regs[28] >= 10000 or regs[28] == 32766 else regs[28],
             "fuel_consumption": lambda regs: None if regs[29] > 10000 or regs[29] == 32766 else regs[29] * 0.1,
+            # Note: regs[13-19] (addresses 225-231) are NOT RTC for HGM9520N —
+            # they return sentinel values 65535/32767/0. RTC only available on HGM9560.
         },
     },
     "accumulated": {
@@ -414,9 +414,63 @@ REGISTER_MAP_9520N_RTU: dict[str, dict] = {
             "alarm_count": lambda regs: regs[0],
         },
     },
-    # Alarm detail blocks removed from fast RTU polling.
-    # Alarm flags (alarm_common/shutdown/warning/block) are in 'status' reg 0.
-    # Detailed alarm registers are read on-demand via spr-config / API.
+    # Alarm detail: original 105-reg block split into 5 × 6-reg reads
+    # for reliable transfer over RS485 converters.
+    "alarm_sd": {
+        "address": 1, "count": 6,
+        "fields": {
+            "alarm_sd_0": lambda regs: regs[0],
+            "alarm_sd_1": lambda regs: regs[1],
+            "alarm_sd_2": lambda regs: regs[2],
+            "alarm_sd_3": lambda regs: regs[3],
+            "alarm_sd_4": lambda regs: regs[4],
+            "alarm_sd_5": lambda regs: regs[5],
+        },
+    },
+    "alarm_ts": {
+        "address": 16, "count": 6,
+        "fields": {
+            "alarm_ts_0": lambda regs: regs[0],
+            "alarm_ts_1": lambda regs: regs[1],
+            "alarm_ts_2": lambda regs: regs[2],
+            "alarm_ts_3": lambda regs: regs[3],
+            "alarm_ts_4": lambda regs: regs[4],
+            "alarm_ts_5": lambda regs: regs[5],
+        },
+    },
+    "alarm_tr": {
+        "address": 31, "count": 6,
+        "fields": {
+            "alarm_tr_0": lambda regs: regs[0],
+            "alarm_tr_1": lambda regs: regs[1],
+            "alarm_tr_2": lambda regs: regs[2],
+            "alarm_tr_3": lambda regs: regs[3],
+            "alarm_tr_4": lambda regs: regs[4],
+            "alarm_tr_5": lambda regs: regs[5],
+        },
+    },
+    "alarm_bk": {
+        "address": 76, "count": 6,
+        "fields": {
+            "alarm_bk_0": lambda regs: regs[0],
+            "alarm_bk_1": lambda regs: regs[1],
+            "alarm_bk_2": lambda regs: regs[2],
+            "alarm_bk_3": lambda regs: regs[3],
+            "alarm_bk_4": lambda regs: regs[4],
+            "alarm_bk_5": lambda regs: regs[5],
+        },
+    },
+    "alarm_wn": {
+        "address": 91, "count": 6,
+        "fields": {
+            "alarm_wn_0": lambda regs: regs[0],
+            "alarm_wn_1": lambda regs: regs[1],
+            "alarm_wn_2": lambda regs: regs[2],
+            "alarm_wn_3": lambda regs: regs[3],
+            "alarm_wn_4": lambda regs: regs[4],
+            "alarm_wn_5": lambda regs: regs[5],
+        },
+    },
 }
 
 GEN_STATUS_CODES = {
@@ -440,77 +494,61 @@ REGISTER_MAP_9560: dict[str, dict] = {
             "alarm_trip_stop": lambda regs: bool(regs[0] & (1 << 3)),
         },
     },
-    "genset_status": {
-        "address": 40, "count": 3,
+    # genset_status(40,3) + indicators(43,1) merged → addr 40, count 4
+    "genset_indicators": {
+        "address": 40, "count": 4,
         "fields": {
             "genset_status": lambda regs: regs[0],
+            "indicators":    lambda regs: regs[3],  # was addr 43, now offset 3
         },
     },
-    "indicators": {
-        "address": 43, "count": 1,
+    # mains_voltage(55,10) + gap(65-74) + busbar_voltage(75,10) → merged
+    "mains_busbar_voltage": {
+        "address": 55, "count": 30,
         "fields": {
-            "indicators": lambda regs: regs[0],
+            "mains_uab":  lambda regs: regs[0],       # addr 55
+            "mains_ubc":  lambda regs: regs[1],       # addr 56
+            "mains_uca":  lambda regs: regs[2],       # addr 57
+            "mains_ua":   lambda regs: regs[3],       # addr 58
+            "mains_ub":   lambda regs: regs[4],       # addr 59
+            "mains_uc":   lambda regs: regs[5],       # addr 60
+            "mains_freq": lambda regs: regs[9] * 0.01,  # addr 64
+            "busbar_uab":  lambda regs: regs[20],     # addr 75 (offset 75-55=20)
+            "busbar_ubc":  lambda regs: regs[21],     # addr 76
+            "busbar_uca":  lambda regs: regs[22],     # addr 77
+            "busbar_ua":   lambda regs: regs[23],     # addr 78
+            "busbar_ub":   lambda regs: regs[24],     # addr 79
+            "busbar_uc":   lambda regs: regs[25],     # addr 80
+            "busbar_freq": lambda regs: regs[29] * 0.01,  # addr 84 (offset 29)
         },
     },
-    "mains_voltage": {
-        "address": 55, "count": 10,
+    # mains_current(95,3) + gap(98-102) + mains_power(103,16) → merged
+    "mains_current_power": {
+        "address": 95, "count": 24,
         "fields": {
-            "mains_uab":  lambda regs: regs[0],
-            "mains_ubc":  lambda regs: regs[1],
-            "mains_uca":  lambda regs: regs[2],
-            "mains_ua":   lambda regs: regs[3],
-            "mains_ub":   lambda regs: regs[4],
-            "mains_uc":   lambda regs: regs[5],
-            "mains_freq": lambda regs: regs[9] * 0.01,
+            "mains_ia":      lambda regs: regs[0] * 0.1,   # addr 95
+            "mains_ib":      lambda regs: regs[1] * 0.1,   # addr 96
+            "mains_ic":      lambda regs: regs[2] * 0.1,   # addr 97
+            "mains_p_a":     lambda regs: _signed32(regs[8], regs[9]) * 0.1,    # addr 103 (offset 8)
+            "mains_p_b":     lambda regs: _signed32(regs[10], regs[11]) * 0.1,  # addr 105
+            "mains_p_c":     lambda regs: _signed32(regs[12], regs[13]) * 0.1,  # addr 107
+            "mains_total_p": lambda regs: _signed32(regs[14], regs[15]) * 0.1,  # addr 109
+            "mains_q_a":     lambda regs: _signed32(regs[16], regs[17]) * 0.1,  # addr 111
+            "mains_q_b":     lambda regs: _signed32(regs[18], regs[19]) * 0.1,  # addr 113
+            "mains_q_c":     lambda regs: _signed32(regs[20], regs[21]) * 0.1,  # addr 115
+            "mains_total_q": lambda regs: _signed32(regs[22], regs[23]) * 0.1,  # addr 117
         },
     },
-    "busbar_voltage": {
-        "address": 75, "count": 10,
+    # mains_pf(127,4) + gap(131-133) + busbar_misc(134,12) → merged
+    "mains_pf_busbar": {
+        "address": 127, "count": 19,
         "fields": {
-            "busbar_uab":  lambda regs: regs[0],
-            "busbar_ubc":  lambda regs: regs[1],
-            "busbar_uca":  lambda regs: regs[2],
-            "busbar_ua":   lambda regs: regs[3],
-            "busbar_ub":   lambda regs: regs[4],
-            "busbar_uc":   lambda regs: regs[5],
-            "busbar_freq": lambda regs: regs[9] * 0.01,
-        },
-    },
-    "mains_current": {
-        "address": 95, "count": 3,
-        "fields": {
-            "mains_ia": lambda regs: regs[0] * 0.1,
-            "mains_ib": lambda regs: regs[1] * 0.1,
-            "mains_ic": lambda regs: regs[2] * 0.1,
-        },
-    },
-    "mains_power": {
-        "address": 103, "count": 16,
-        "fields": {
-            "mains_p_a":    lambda regs: _signed32(regs[0], regs[1]) * 0.1,
-            "mains_p_b":    lambda regs: _signed32(regs[2], regs[3]) * 0.1,
-            "mains_p_c":    lambda regs: _signed32(regs[4], regs[5]) * 0.1,
-            "mains_total_p": lambda regs: _signed32(regs[6], regs[7]) * 0.1,
-            "mains_q_a":    lambda regs: _signed32(regs[8], regs[9]) * 0.1,
-            "mains_q_b":    lambda regs: _signed32(regs[10], regs[11]) * 0.1,
-            "mains_q_c":    lambda regs: _signed32(regs[12], regs[13]) * 0.1,
-            "mains_total_q": lambda regs: _signed32(regs[14], regs[15]) * 0.1,
-        },
-    },
-    "mains_pf": {
-        "address": 127, "count": 4,
-        "fields": {
-            "mains_pf_a":   lambda regs: _signed16(regs[0]) * 0.01,
-            "mains_pf_b":   lambda regs: _signed16(regs[1]) * 0.01,
-            "mains_pf_c":   lambda regs: _signed16(regs[2]) * 0.01,
-            "mains_pf_avg": lambda regs: _signed16(regs[3]) * 0.01,
-        },
-    },
-    "busbar_misc": {
-        "address": 134, "count": 12,
-        "fields": {
-            "busbar_current": lambda regs: regs[0] * 0.1,
-            "battery_volt":   lambda regs: regs[8] * 0.1,
+            "mains_pf_a":     lambda regs: _signed16(regs[0]) * 0.01,  # addr 127
+            "mains_pf_b":     lambda regs: _signed16(regs[1]) * 0.01,  # addr 128
+            "mains_pf_c":     lambda regs: _signed16(regs[2]) * 0.01,  # addr 129
+            "mains_pf_avg":   lambda regs: _signed16(regs[3]) * 0.01,  # addr 130
+            "busbar_current": lambda regs: regs[7] * 0.1,    # addr 134 (offset 7)
+            "battery_volt":   lambda regs: regs[15] * 0.1,   # addr 142 (offset 15)
         },
     },
     "busbar_power": {
@@ -574,6 +612,19 @@ REGISTER_MAP_9560: dict[str, dict] = {
             "power_limit_trip": lambda regs: bool(regs[0] & (1 << 10)),
         },
     },
+    # Controller RTC — registers 225-231 (sec, min, hour, day, month, year, weekday)
+    "rtc": {
+        "address": 225, "count": 7,
+        "fields": {
+            "rtc_sec":     lambda regs: regs[0],
+            "rtc_min":     lambda regs: regs[1],
+            "rtc_hour":    lambda regs: regs[2],
+            "rtc_day":     lambda regs: regs[3],
+            "rtc_month":   lambda regs: regs[4],
+            "rtc_year":    lambda regs: regs[5],
+            "rtc_weekday": lambda regs: regs[6],
+        },
+    },
 }
 
 GENSET_STATUS_9560 = {
@@ -603,23 +654,31 @@ ATS_STATUS_CODES = SWITCH_STATUS  # 0=synchronizing ... 3=closed ... 7=opened
 # Adaptive Polling — tiered block sets + standby skip
 # ---------------------------------------------------------------------------
 
-_SLOW_POLL_EVERY = 5  # read slow blocks every 5th cycle
+_SLOW_POLL_EVERY = 5  # slow block rotation period (each slot read every Nth cycle)
 
-# HGM9520N-RTU: slow blocks are read only every Nth cycle
-_9520N_RTU_SLOW_BLOCKS = frozenset({
-    "breaker", "mains_voltage", "power_limit", "alarms",
-})
-# "accumulated" moved to FAST — contains gen_status + gen_ats_status (needed every cycle)
-# Fast (every cycle): status, accumulated, gen_voltage, gen_current, power, engine
+# HGM9520N-RTU: slow blocks spread across slots 1-4 (max 2 per cycle)
+# Slot 0 = fast-only cycle (no extra slow blocks)
+_9520N_RTU_SLOW_SLOTS: dict[str, int] = {
+    "breaker": 1,       "mains_voltage": 1,
+    "alarms": 2,        "alarm_sd": 2,
+    "alarm_ts": 3,      "alarm_tr": 3,
+    "alarm_bk": 4,      "alarm_wn": 4,
+}
+_9520N_RTU_SLOW_BLOCKS = frozenset(_9520N_RTU_SLOW_SLOTS.keys())
+# "accumulated" is FAST — contains gen_status + gen_ats_status (needed every cycle)
+# Fast (every cycle): status, accumulated, gen_volt_plimit, gen_current_power, engine
 
-# HGM9560: slow blocks
-_9560_SLOW_BLOCKS = frozenset({
-    "indicators", "running", "alarm_detail_a", "alarm_detail_b", "multiset_power",
-})
+# HGM9560: slow blocks spread across slots 1-4 (max 2 per cycle)
+_9560_SLOW_SLOTS: dict[str, int] = {
+    "running": 1,        "multiset_power": 1,
+    "alarm_detail_a": 2, "alarm_detail_b": 2,
+    "rtc": 3,
+}
+_9560_SLOW_BLOCKS = frozenset(_9560_SLOW_SLOTS.keys())
 
 # Blocks to skip when generator is in standby (gen_status == 0)
 _9520N_STANDBY_SKIP = frozenset({
-    "gen_voltage", "gen_current", "power", "engine", "mains_voltage", "power_limit",
+    "gen_volt_plimit", "gen_current_power", "engine", "mains_voltage",
 })
 
 
@@ -640,7 +699,8 @@ def _build_bytecount_map(reg_map: dict[str, dict]) -> dict[int, str]:
 
 
 _9520N_RTU_BYTECOUNT_MAP = _build_bytecount_map(REGISTER_MAP_9520N_RTU)
-# Expected: {38: "gen_voltage", 8: "power_limit", 16: "gen_current", 56: "power", 60: "engine"}
+# Expected: {46: "gen_volt_plimit", 72: "gen_current_power", 60: "engine", 32: "accumulated"}
+# Note: alarm_sd/ts/tr/bk/wn all have count=6 (12 bytes) — ambiguous, excluded from sniffing
 
 _9560_BYTECOUNT_MAP = _build_bytecount_map(REGISTER_MAP_9560)
 
@@ -672,7 +732,7 @@ class BaseReader(ABC):
     async def disconnect(self) -> None: ...
 
     @abstractmethod
-    async def read_all(self) -> dict: ...
+    async def read_all(self, *, skip_bus_wait: bool = False) -> dict: ...
 
     @abstractmethod
     async def write_coil(self, address: int, value: bool) -> None: ...
@@ -737,13 +797,17 @@ class BaseReader(ABC):
             )
         try:
             # Optional unlock (password) before config writes
+            # First write gets full bus-wait + retry; subsequent are quick
             if unlock_register is not None and unlock_value is not None:
-                await self._write_register_unlocked(unlock_register, unlock_value)
+                await self._write_register_unlocked(unlock_register, unlock_value, use_retry=True)
                 await asyncio.sleep(0.1)
 
             # Write all registers
-            for address, value in requests:
-                await self._write_register_unlocked(address, value)
+            for i, (address, value) in enumerate(requests):
+                await self._write_register_unlocked(
+                    address, value,
+                    use_retry=(i == 0 and unlock_register is None),
+                )
                 await asyncio.sleep(0.05)  # Small inter-write delay
 
             # Verify: read back all written registers
@@ -752,7 +816,7 @@ class BaseReader(ABC):
             verify_results = []
             mismatches = []
             for address, value in requests:
-                regs = await self._read_registers_unlocked(address, 1)
+                regs = await self._read_registers_unlocked(address, 1, skip_flush=True)
                 read_back = regs[0]
                 verify_results.append(read_back)
                 if read_back != (value & 0xFFFF):
@@ -805,7 +869,7 @@ class HGM9520NReader(BaseReader):
             self._client.close()
             self._client = None
 
-    async def read_all(self) -> dict:
+    async def read_all(self, *, skip_bus_wait: bool = False) -> dict:
         async with self._lock:
             self._poll_count += 1
 
@@ -984,6 +1048,18 @@ class HGM9520NReader(BaseReader):
 # Multiple RTU devices on the same bus (ip:port) must share one TCP socket.
 _rtu_connections: dict[str, tuple[asyncio.StreamReader, asyncio.StreamWriter]] = {}
 
+# Shared bus-level locks: all readers on the same ip:port MUST use the same lock
+# to prevent concurrent read() on a shared StreamReader.
+_rtu_bus_locks: dict[str, asyncio.Lock] = {}
+
+
+def _get_bus_lock(bus_key: str) -> asyncio.Lock:
+    """Get or create a shared asyncio.Lock for the given bus (ip:port)."""
+    if bus_key not in _rtu_bus_locks:
+        _rtu_bus_locks[bus_key] = asyncio.Lock()
+    return _rtu_bus_locks[bus_key]
+
+
 # Opportunistic sniffing: cache frames from other slaves found in the buffer.
 # Structure: bus_key → slave_id → byte_count → (timestamp, register_values)
 _bus_sniffed: dict[str, dict[int, dict[int, tuple[float, list[int]]]]] = {}
@@ -993,19 +1069,31 @@ _SNIFF_TTL = 3.0  # seconds — cached sniffed data is valid for this long
 class HGM9560Reader(BaseReader):
     """Modbus RTU over TCP via raw asyncio socket."""
 
-    INTER_FRAME_DELAY = 0.05   # wait after sending before reading response
-    INTER_BLOCK_DELAY = 0.03   # pause between block reads
-    PRE_FLUSH_TIMEOUT = 0.02   # how long to wait for silence before sending
-    MAX_RETRIES = 2            # retry each block up to 2 times on failure
-    LOCK_TIMEOUT = 20.0        # override BaseReader's 10s — enough for full poll cycle
+    INTER_FRAME_DELAY = 0.03   # wait after sending before reading response
+    INTER_BLOCK_DELAY = 0.10   # pause between block reads when switching slaves
+    INTER_BLOCK_DELAY_FAST = 0.03  # pause between blocks of the same slave (rapid-fire)
+    BUS_SILENCE_REQUIRED = 0.40  # 400ms silence = real MSC quiet window (inter-frame gaps are 170-300ms)
+    BUS_LISTEN_MAX = 5.0       # MSC cycle is 4-5s; wait up to one full cycle
+    MAX_RETRIES = 2            # retry critical blocks (status, accumulated) up to 2 times
+    MAX_RETRIES_FAST = 1       # retry non-critical blocks only once — save time
+    LOCK_TIMEOUT = 25.0        # enough for full poll cycle with longer pauses
+    FOREIGN_FRAME_CAP = 0.25   # max remaining time after detecting foreign frame
+    # Blocks that deserve extra retries (status/mode flags are critical)
+    _CRITICAL_BLOCKS = frozenset({"status", "accumulated"})
 
     def __init__(self, device: Device, *, site_code: str = ""):
         super().__init__(device, site_code=site_code)
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
-        # RS485 converter needs enough timeout for response
-        if self.timeout < 1.5:
-            self.timeout = 1.5
+        # Override per-device lock with shared bus lock:
+        # all RTU readers on the same ip:port share one TCP socket,
+        # so they MUST serialize all socket I/O through one lock.
+        bus_key = f"{self.ip}:{self.port}"
+        self._lock = _get_bus_lock(bus_key)
+        # RS485 converter: at 9600 8N1 + packtime=50ms, typical response ~140-230ms
+        # 600ms is enough with margin; faster failure = less wasted bus time
+        if self.timeout < 0.6:
+            self.timeout = 0.6
         # Adaptive polling state
         self._adaptive_poll_count: int = 0
         self._last_result: dict = {}  # cached result from previous cycle
@@ -1059,11 +1147,13 @@ class HGM9560Reader(BaseReader):
         if self._reader is None:
             return 0
         total = 0
+        buf = b""
         while True:
             try:
                 chunk = await asyncio.wait_for(self._reader.read(4096), timeout=timeout)
                 if chunk:
                     total += len(chunk)
+                    buf += chunk
                     continue  # more data may follow
                 else:
                     # EOF — peer closed
@@ -1073,9 +1163,96 @@ class HGM9560Reader(BaseReader):
                     return total
             except asyncio.TimeoutError:
                 break
-        if total:
+        if buf:
+            # Parse flushed MSC traffic for sniff cache
+            self._sniff_raw_buffer(buf)
             logger.debug("HGM9560: flushed %d stale bytes total", total)
         return total
+
+    async def _wait_bus_silence(self) -> None:
+        """Carrier-sense: wait for bus silence before transmitting.
+
+        Listens to the RS485 bus (via TCP converter) until we observe
+        BUS_SILENCE_REQUIRED ms of quiet, meaning we're in the MSC gap.
+        Any data received is parsed for sniff cache.
+        Uses adaptive silence threshold: starts strict (400ms) and
+        progressively relaxes after 3s to avoid timing out entirely.
+        """
+        if self._reader is None:
+            return
+        loop = asyncio.get_event_loop()
+        t_start = loop.time()
+        deadline = t_start + self.BUS_LISTEN_MAX
+        buf = b""
+        while loop.time() < deadline:
+            remaining = deadline - loop.time()
+            elapsed = loop.time() - t_start
+            # Adaptive: relax silence threshold as time passes to avoid
+            # timing out entirely (which causes cascade of failures)
+            if elapsed < 3.0:
+                silence_goal = self.BUS_SILENCE_REQUIRED  # 400ms
+            elif elapsed < 4.0:
+                silence_goal = 0.30  # 300ms fallback
+            else:
+                silence_goal = 0.25  # 250ms emergency
+            silence_timeout = min(silence_goal, remaining)
+            if silence_timeout <= 0:
+                break
+            try:
+                chunk = await asyncio.wait_for(
+                    self._reader.read(4096), timeout=silence_timeout,
+                )
+                if chunk:
+                    buf += chunk
+                    continue  # bus is active — keep listening
+                else:
+                    # EOF — peer closed
+                    logger.warning("HGM9560: EOF on bus-wait, reconnecting")
+                    await self.disconnect()
+                    await self.connect()
+                    break
+            except asyncio.TimeoutError:
+                # Silence achieved!
+                break
+        if buf:
+            self._sniff_raw_buffer(buf)
+            logger.debug(
+                "Bus-wait: flushed %d bytes in %.1fs before silence",
+                len(buf), loop.time() - t_start,
+            )
+
+    def _sniff_raw_buffer(self, data: bytes) -> None:
+        """Parse raw bytes for valid Modbus RTU frames and cache them."""
+        if len(data) < 5:
+            return
+        offset = 0
+        bus_key = f"{self.ip}:{self.port}"
+        now = _time.monotonic()
+        while offset < len(data) - 4:
+            fc = data[offset + 1] if offset + 1 < len(data) else 0
+            if fc != 0x03:
+                offset += 1
+                continue
+            byte_count = data[offset + 2] if offset + 2 < len(data) else 0
+            if byte_count == 0 or byte_count > 250 or byte_count % 2 != 0:
+                offset += 1
+                continue
+            frame_len = 3 + byte_count + 2
+            if offset + frame_len > len(data):
+                break
+            candidate = data[offset:offset + frame_len]
+            crc_calc = crc16_modbus(candidate[:-2])
+            crc_recv = candidate[-2] | (candidate[-1] << 8)
+            if crc_calc != crc_recv:
+                offset += 1
+                continue
+            # Valid frame — cache it
+            slave_id = data[offset]
+            _bus_sniffed.setdefault(bus_key, {}).setdefault(
+                slave_id, {},
+            )[byte_count] = (now, parse_read_registers_response(candidate) or [])
+            offset += frame_len
+        # No logging here — caller logs
 
     def _save_bonus_frames(self, bonus_frames: list[tuple[int, int, bytes]]) -> None:
         """Save bonus frames from other slaves into the shared bus cache."""
@@ -1094,12 +1271,114 @@ class HGM9560Reader(BaseReader):
                     len(regs), bonus_slave, bonus_bc, bus_key,
                 )
 
-    async def _send_and_receive(self, start: int, count: int) -> list[int] | None:
+    # --- Write with retry (carrier-sense + retry on MSC collision) ----------
+
+    WRITE_MAX_TIME = 10.0  # total deadline for write retries (avoid UI hang)
+    WRITE_MAX_ATTEMPTS = 4  # max attempts (bus-wait + send + validate each)
+
+    async def _write_frame_with_retry(
+        self, frame: bytes, fc_name: str,
+    ) -> None:
+        """Send a write frame (FC05/FC06) with carrier-sense and retry.
+
+        Each attempt: bus-wait → send → read echo → validate.
+        On validation failure (MSC collision / foreign frame): quick flush → retry.
+        Raises ConnectionError after WRITE_MAX_TIME or WRITE_MAX_ATTEMPTS.
+        """
+        if self._writer is None or self._reader is None:
+            await self.connect()
+
+        loop = asyncio.get_event_loop()
+        t_start = loop.time()
+        deadline = t_start + self.WRITE_MAX_TIME
+        last_err: str = ""
+
+        for attempt in range(1, self.WRITE_MAX_ATTEMPTS + 1):
+            if loop.time() >= deadline:
+                break
+
+            # --- Carrier-sense: wait for bus silence before transmitting ---
+            if attempt == 1:
+                await self._wait_bus_silence()
+            else:
+                # After a failed attempt: quick drain then bus-wait
+                await self._flush_stale(timeout=0.15)
+                remaining = deadline - loop.time()
+                if remaining > 0.5:
+                    await self._wait_bus_silence()
+                # else: almost out of time, just try immediately
+
+            if self._writer is None or self._reader is None:
+                await self.connect()
+
+            # --- Send frame ---
+            self._writer.write(frame)
+            await self._writer.drain()
+            await asyncio.sleep(self.INTER_FRAME_DELAY)
+
+            # --- Read echo response ---
+            read_timeout = min(self.timeout, max(deadline - loop.time(), 0.5))
+            try:
+                response = await asyncio.wait_for(
+                    self._reader.read(256), timeout=read_timeout,
+                )
+            except asyncio.TimeoutError:
+                last_err = f"{fc_name} timeout (attempt {attempt})"
+                logger.warning(
+                    "%s: device=%s attempt=%d/%d — timeout, %.1fs elapsed",
+                    fc_name, self.device_id, attempt, self.WRITE_MAX_ATTEMPTS,
+                    loop.time() - t_start,
+                )
+                continue
+
+            # --- Validate echo ---
+            try:
+                _validate_write_echo(frame, response, fc_name)
+            except ConnectionError as exc:
+                last_err = str(exc)
+                # Sniff any MSC data we received instead
+                if response:
+                    self._sniff_raw_buffer(response)
+                logger.warning(
+                    "%s: device=%s attempt=%d/%d — %s, %.1fs elapsed",
+                    fc_name, self.device_id, attempt, self.WRITE_MAX_ATTEMPTS,
+                    exc, loop.time() - t_start,
+                )
+                continue
+
+            # --- Success ---
+            elapsed = loop.time() - t_start
+            if attempt > 1:
+                logger.info(
+                    "%s OK: device=%s addr=0x%04X after %d attempts (%.1fs)",
+                    fc_name, self.device_id,
+                    struct.unpack(">H", frame[2:4])[0],
+                    attempt, elapsed,
+                )
+            return  # success
+
+        # All attempts exhausted
+        elapsed = loop.time() - t_start
+        raise ConnectionError(
+            f"{fc_name} failed after {self.WRITE_MAX_ATTEMPTS} attempts "
+            f"({elapsed:.1f}s): {last_err}"
+        )
+
+    async def _send_and_receive(
+        self, start: int, count: int, *,
+        skip_flush: bool = False,
+        quick_flush: bool = False,
+    ) -> list[int] | None:
         if self._writer is None or self._reader is None:
             raise ConnectionError("HGM9560: not connected")
 
-        # Aggressively flush until silence — ensures no stale data from previous request
-        await self._flush_stale(timeout=self.PRE_FLUSH_TIMEOUT)
+        if not skip_flush:
+            if quick_flush:
+                # Quick drain after error: clear stale data without full bus-wait
+                await self._flush_stale(timeout=0.15)
+            else:
+                # Full bus-wait: listen until silence (carrier sense for MSC gap)
+                await self._wait_bus_silence()
 
         frame = build_read_registers(self.slave_id, start, count)
         expected_bytes = 3 + count * 2 + 2  # slave + fc + bytecount + data + crc
@@ -1119,9 +1398,22 @@ class HGM9560Reader(BaseReader):
             remaining_time = deadline - loop.time()
             if remaining_time <= 0:
                 break
+
+            # ── Foreign frame cap: once we see a foreign response, cap total
+            # remaining time — our slave likely won't respond anymore, the
+            # foreign data came from a *previous* request's late reply.
+            if got_foreign and remaining_time > self.FOREIGN_FRAME_CAP:
+                deadline = loop.time() + self.FOREIGN_FRAME_CAP
+                remaining_time = self.FOREIGN_FRAME_CAP
+                logger.debug(
+                    "RTU: foreign frame detected for slave=%d block @%d, "
+                    "capping remaining to %.2fs",
+                    self.slave_id, start, self.FOREIGN_FRAME_CAP,
+                )
+
             # After receiving foreign data, use shorter read timeout:
             # our response is likely right behind the foreign frame.
-            read_timeout = 0.25 if got_foreign else min(remaining_time, 0.5)
+            read_timeout = 0.20 if got_foreign else min(remaining_time, 0.5)
             try:
                 chunk = await asyncio.wait_for(
                     self._reader.read(512),
@@ -1237,8 +1529,15 @@ class HGM9560Reader(BaseReader):
         our_frame, _ = self._extract_all_frames(data, expected_count)
         return our_frame
 
+    # Blocks that must NEVER use sniffed data — MSC frames can have matching
+    # byte_count but contain protocol data, not register values.  Using MSC
+    # data as status/accumulated produces phantom alarms and wrong gen_status.
+    _NO_SNIFF_BLOCKS = frozenset({"status", "accumulated"})
+
     def _try_sniffed(self, block_name: str, block: dict, bytecount_map: dict[int, str]) -> list[int] | None:
         """Check bus sniffer cache for a usable frame for this block."""
+        if block_name in self._NO_SNIFF_BLOCKS:
+            return None  # critical blocks — only direct reads
         bus_key = f"{self.ip}:{self.port}"
         byte_count = block["count"] * 2
         cache = _bus_sniffed.get(bus_key, {}).get(self.slave_id, {})
@@ -1262,63 +1561,87 @@ class HGM9560Reader(BaseReader):
         )
         return cached_regs
 
-    async def read_all(self) -> dict:
+    async def read_all(self, *, skip_bus_wait: bool = False) -> dict:
         async with self._lock:
             if self._writer is None or self._reader is None:
                 await self.connect()
 
             self._adaptive_poll_count += 1
-            is_full_cycle = (self._adaptive_poll_count % _SLOW_POLL_EVERY == 0)
+            slow_slot = self._adaptive_poll_count % _SLOW_POLL_EVERY
 
             result: dict = {}
             errors = 0
             total_blocks = len(REGISTER_MAP_9560)
             first_block = True
+            # If previous slave on same bus just finished → bus is likely
+            # still in MSC quiet window; skip initial bus-wait to save time
+            need_bus_wait = not skip_bus_wait  # full bus-wait only at start
+            need_quick_flush = False  # quick drain after errors
+            consec_fails = 0  # consecutive read failures (MSC collision detector)
             skipped_names: list[str] = []
             blocks_read = 0
 
             for block_name, block in REGISTER_MAP_9560.items():
-                # --- Adaptive: skip slow blocks on non-full cycles ---
-                if not is_full_cycle and block_name in _9560_SLOW_BLOCKS:
+                # --- Adaptive: slow blocks spread across slots (max 2 per cycle) ---
+                block_slot = _9560_SLOW_SLOTS.get(block_name)
+                if block_slot is not None and block_slot != slow_slot:
                     skipped_names.append(block_name)
                     continue
 
+                # --- MSC collision abort: bus is clearly busy ---
+                if consec_fails >= 3 and block_name not in self._CRITICAL_BLOCKS:
+                    skipped_names.append(block_name + "(abort)")
+                    continue
+
                 if not first_block:
-                    await asyncio.sleep(self.INTER_BLOCK_DELAY)
+                    # Rapid-fire: short delay between blocks of the same slave
+                    await asyncio.sleep(self.INTER_BLOCK_DELAY_FAST)
                 first_block = False
 
                 # --- Opportunistic sniffing: try cached data first ---
                 regs = self._try_sniffed(block_name, block, _9560_BYTECOUNT_MAP)
 
-                if regs is None:
-                    # Normal read with retries
-                    for attempt in range(1, self.MAX_RETRIES + 1):
+                if regs is not None:
+                    consec_fails = 0  # sniffed data counts as success
+                else:
+                    # Critical blocks get full retries, others get fast (1) retry
+                    max_att = self.MAX_RETRIES if block_name in self._CRITICAL_BLOCKS else self.MAX_RETRIES_FAST
+                    for attempt in range(1, max_att + 1):
                         try:
-                            regs = await self._send_and_receive(block["address"], block["count"])
+                            regs = await self._send_and_receive(
+                                block["address"], block["count"],
+                                skip_flush=not (need_bus_wait or need_quick_flush),
+                                quick_flush=need_quick_flush and not need_bus_wait,
+                            )
                         except ConnectionError:
                             break  # connection lost — skip retries
 
                         if regs is not None:
+                            need_bus_wait = False
+                            need_quick_flush = False
+                            consec_fails = 0
                             break  # success
 
-                        # Failed — wait for late response to arrive, flush everything, retry
-                        if attempt < self.MAX_RETRIES:
+                        # Failed — wait for late response, flush, retry
+                        if attempt < max_att:
                             logger.debug(
                                 "HGM9560 block=%s attempt %d/%d failed, retrying",
-                                block_name, attempt, self.MAX_RETRIES,
+                                block_name, attempt, max_att,
                             )
                             await asyncio.sleep(0.15)
                             await self._flush_stale(timeout=0.10)
+                            need_bus_wait = False
+                            need_quick_flush = False
 
                 if regs is None:
                     logger.warning(
-                        "HGM9560 read error block=%s device=%s (after %d attempts)",
-                        block_name, self.device_id, self.MAX_RETRIES,
+                        "HGM9560 read error block=%s device=%s (after retries)",
+                        block_name, self.device_id,
                     )
                     errors += 1
-                    # Flush before next block
-                    await asyncio.sleep(0.15)
-                    await self._flush_stale(timeout=0.10)
+                    consec_fails += 1
+                    # After error: quick drain before next block (not full bus-wait)
+                    need_quick_flush = True
                     continue
 
                 blocks_read += 1
@@ -1351,6 +1674,17 @@ class HGM9560Reader(BaseReader):
             if "mains_switch" in result:
                 result["mains_switch_text"] = SWITCH_STATUS.get(result["mains_switch"], "unknown")
 
+            # ── Status-field protection (HGM9560 / ШПР) ──
+            # If status block failed, preserve previous mode flags AND alarms to
+            # prevent button/alarm flickering on the frontend.
+            _STATUS_KEYS_9560 = ("mode_auto", "mode_manual", "mode_stop",
+                                 "mode_test", "alarm_common", "alarm_shutdown",
+                                 "alarm_warning", "alarm_trip_stop")
+            if not any(k in result for k in _STATUS_KEYS_9560) and self._last_result:
+                for k in _STATUS_KEYS_9560:
+                    if k in self._last_result:
+                        result[k] = self._last_result[k]
+
             # Merge with cached result: skipped blocks retain previous values
             self._last_result.update(result)
 
@@ -1363,32 +1697,14 @@ class HGM9560Reader(BaseReader):
             return self._last_result.copy()
 
     async def write_coil(self, address: int, value: bool) -> None:
-        """FC05 — Write Single Coil via raw RTU frame."""
+        """FC05 — Write Single Coil via raw RTU frame with carrier-sense retry."""
         try:
             await asyncio.wait_for(self._lock.acquire(), timeout=self.LOCK_TIMEOUT)
         except asyncio.TimeoutError:
             raise ConnectionError(f"Device {self.device_id}: lock timeout on FC05")
         try:
-            if self._writer is None or self._reader is None:
-                await self.connect()
-
-            await self._flush_stale()
-
             frame = build_write_coil(self.slave_id, address, value)
-
-            self._writer.write(frame)
-            await self._writer.drain()
-
-            await asyncio.sleep(self.INTER_FRAME_DELAY)
-
-            # Read echo response (8 bytes)
-            try:
-                response = await asyncio.wait_for(self._reader.read(256), timeout=self.timeout)
-            except asyncio.TimeoutError:
-                raise ConnectionError("FC05 timeout: no response from HGM9560")
-
-            _validate_write_echo(frame, response, "FC05")
-
+            await self._write_frame_with_retry(frame, "FC05")
             logger.info("FC05 OK: device=%s addr=0x%04X value=%s", self.device_id, address, value)
         finally:
             self._lock.release()
@@ -1404,38 +1720,40 @@ class HGM9560Reader(BaseReader):
         finally:
             self._lock.release()
 
-    async def _write_register_unlocked(self, address: int, value: int) -> None:
-        """FC06 inner logic — no lock, called from locked context."""
+    async def _write_register_unlocked(
+        self, address: int, value: int, *, use_retry: bool = True,
+    ) -> None:
+        """FC06 inner logic — no lock, called from locked context.
+
+        use_retry=True (default): full carrier-sense retry loop (for single writes / first in batch).
+        use_retry=False: single-attempt with quick flush only (for subsequent writes in batch).
+        """
+        frame = build_write_register(self.slave_id, address, value)
+
+        if use_retry:
+            await self._write_frame_with_retry(frame, "FC06")
+            logger.info(
+                "FC06 OK: device=%s addr=0x%04X value=%d",
+                self.device_id, address, value,
+            )
+            return
+
+        # Single-attempt mode (batch writes — bus already acquired)
         if self._writer is None or self._reader is None:
             await self.connect()
 
-        await self._flush_stale()
-
-        frame = build_write_register(self.slave_id, address, value)
-
-        logger.info(
-            "FC06 SEND: device=%s addr=0x%04X value=%d frame=%s",
-            self.device_id, address, value, frame.hex(),
-        )
+        await self._flush_stale(timeout=0.10)
 
         self._writer.write(frame)
         await self._writer.drain()
-
         await asyncio.sleep(self.INTER_FRAME_DELAY)
 
-        # Read echo response (8 bytes)
         try:
             response = await asyncio.wait_for(self._reader.read(256), timeout=self.timeout)
         except asyncio.TimeoutError:
             raise ConnectionError("FC06 timeout: no response from HGM9560")
 
-        logger.info(
-            "FC06 RECV: device=%s response=%s (%d bytes)",
-            self.device_id, response.hex(), len(response),
-        )
-
         _validate_write_echo(frame, response, "FC06")
-
         logger.info(
             "FC06 OK: device=%s addr=0x%04X value=%d",
             self.device_id, address, value,
@@ -1452,11 +1770,13 @@ class HGM9560Reader(BaseReader):
         finally:
             self._lock.release()
 
-    async def _read_registers_unlocked(self, address: int, count: int) -> list[int]:
+    async def _read_registers_unlocked(
+        self, address: int, count: int, *, skip_flush: bool = False,
+    ) -> list[int]:
         """FC03 inner logic — no lock, called from locked context."""
         if self._writer is None or self._reader is None:
             await self.connect()
-        regs = await self._send_and_receive(address, count)
+        regs = await self._send_and_receive(address, count, skip_flush=skip_flush)
         if regs is None:
             raise ConnectionError(f"FC03 read failed: addr=0x{address:04X} count={count}")
         return regs
@@ -1482,20 +1802,22 @@ class HGM9520NRtuReader(HGM9560Reader):
 
     # connect() inherited from HGM9560Reader — uses shared _rtu_connections
 
-    async def read_all(self) -> dict:
+    async def read_all(self, *, skip_bus_wait: bool = False) -> dict:
         async with self._lock:
             if self._writer is None or self._reader is None:
                 await self.connect()
 
             self._adaptive_poll_count += 1
-            is_full_cycle = (self._adaptive_poll_count % _SLOW_POLL_EVERY == 0)
+            slow_slot = self._adaptive_poll_count % _SLOW_POLL_EVERY
 
-            # Build skip set based on standby + tiered polling
+            # Build skip set based on standby + slot-based slow block rotation
             skip_set: set[str] = set()
             if self._last_gen_status == 0:  # standby — skip live data blocks
                 skip_set |= _9520N_STANDBY_SKIP
-            if not is_full_cycle:
-                skip_set |= _9520N_RTU_SLOW_BLOCKS
+            # Slow blocks: only read blocks whose slot matches this cycle
+            for bname, slot in _9520N_RTU_SLOW_SLOTS.items():
+                if slot != slow_slot:
+                    skip_set.add(bname)
             # 'status' and 'accumulated' are NEVER skipped (always need gen_status)
             skip_set.discard("status")
             skip_set.discard("accumulated")
@@ -1504,6 +1826,9 @@ class HGM9520NRtuReader(HGM9560Reader):
             errors = 0
             total_blocks = len(REGISTER_MAP_9520N_RTU)
             first_block = True
+            need_bus_wait = not skip_bus_wait  # full bus-wait only at start
+            need_quick_flush = False  # quick drain after errors
+            consec_fails = 0  # consecutive read failures (MSC collision detector)
             skipped_names: list[str] = []
             blocks_read = 0
 
@@ -1513,44 +1838,60 @@ class HGM9520NRtuReader(HGM9560Reader):
                     skipped_names.append(block_name)
                     continue
 
+                # --- MSC collision abort: bus is clearly busy ---
+                if consec_fails >= 3 and block_name not in self._CRITICAL_BLOCKS:
+                    skipped_names.append(block_name + "(abort)")
+                    continue
+
                 if not first_block:
-                    await asyncio.sleep(self.INTER_BLOCK_DELAY)
+                    # Rapid-fire: short delay between blocks of the same slave
+                    await asyncio.sleep(self.INTER_BLOCK_DELAY_FAST)
                 first_block = False
 
                 # --- Opportunistic sniffing: try cached data first ---
                 regs = self._try_sniffed(block_name, block, _9520N_RTU_BYTECOUNT_MAP)
 
-                if regs is None:
-                    # Normal read with retries
-                    for attempt in range(1, self.MAX_RETRIES + 1):
+                if regs is not None:
+                    consec_fails = 0  # sniffed data counts as success
+                else:
+                    # Critical blocks get full retries, others get fast (1) retry
+                    max_att = self.MAX_RETRIES if block_name in self._CRITICAL_BLOCKS else self.MAX_RETRIES_FAST
+                    for attempt in range(1, max_att + 1):
                         try:
                             regs = await self._send_and_receive(
                                 block["address"], block["count"],
+                                skip_flush=not (need_bus_wait or need_quick_flush),
+                                quick_flush=need_quick_flush and not need_bus_wait,
                             )
                         except ConnectionError:
                             break  # connection lost — skip retries
 
                         if regs is not None:
+                            need_bus_wait = False
+                            need_quick_flush = False
+                            consec_fails = 0
                             break  # success
 
                         # Failed — wait, flush, retry
-                        if attempt < self.MAX_RETRIES:
+                        if attempt < max_att:
                             logger.debug(
                                 "HGM9520N-RTU block=%s attempt %d/%d failed, retrying",
-                                block_name, attempt, self.MAX_RETRIES,
+                                block_name, attempt, max_att,
                             )
                             await asyncio.sleep(0.15)
                             await self._flush_stale(timeout=0.10)
+                            need_bus_wait = False
+                            need_quick_flush = False
 
                 if regs is None:
                     logger.warning(
-                        "HGM9520N-RTU read error block=%s device=%s (after %d attempts)",
-                        block_name, self.device_id, self.MAX_RETRIES,
+                        "HGM9520N-RTU read error block=%s device=%s (after retries)",
+                        block_name, self.device_id,
                     )
                     errors += 1
-                    # Flush before next block
-                    await asyncio.sleep(0.15)
-                    await self._flush_stale(timeout=0.10)
+                    consec_fails += 1
+                    # After error: quick drain before next block (not full bus-wait)
+                    need_quick_flush = True
                     continue
 
                 blocks_read += 1
@@ -1567,11 +1908,11 @@ class HGM9520NRtuReader(HGM9560Reader):
                 if block_name == "accumulated" and "gen_status" in result:
                     self._last_gen_status = result["gen_status"]
                 # Log raw power registers once for diagnostics
-                if block_name == "power" and not self._power_logged:
+                if block_name == "gen_current_power" and not self._power_logged:
                     self._power_logged = True
                     logger.info(
-                        "Device %s power RAW regs[174-181]=%s → power_total=%.1f kW (RTU)",
-                        self.device_id, regs[:8], result.get("power_total", 0),
+                        "Device %s power RAW regs[166-181]=%s → power_total=%.1f kW (RTU)",
+                        self.device_id, regs[:16], result.get("power_total", 0),
                     )
 
             if errors == total_blocks:
@@ -1613,6 +1954,17 @@ class HGM9520NRtuReader(HGM9560Reader):
                     result["phase_diff"] = pd + 360
                 if abs(result["phase_diff"]) > 180:
                     result["phase_diff"] = None
+
+            # ── Status-field protection ──
+            # If status block failed to read this cycle, preserve previous
+            # mode flags AND alarms from cache to prevent flickering.
+            _STATUS_KEYS = ("mode_auto", "mode_manual", "mode_stop",
+                            "mode_test", "mode_off", "alarm_common",
+                            "alarm_shutdown", "alarm_warning", "alarm_block")
+            if not any(k in result for k in _STATUS_KEYS) and self._last_result:
+                for k in _STATUS_KEYS:
+                    if k in self._last_result:
+                        result[k] = self._last_result[k]
 
             # Merge with cached result: skipped blocks retain previous values
             self._last_result.update(result)
@@ -1840,12 +2192,19 @@ class ModbusPoller:
 
         # Each RTU bus group runs as one sequential task
         async def _poll_rtu_bus(group: list[tuple[int, BaseReader]]) -> None:
-            for i, (device_id, reader) in enumerate(group):
-                if i > 0 and hasattr(reader, '_flush_stale'):
-                    # Flush stale bytes from previous device before switching slave
-                    await asyncio.sleep(0.15)
-                    await reader._flush_stale(timeout=0.10)
-                await self._poll_device(device_id, reader)
+            # Sort: HGM9520N generators first (slave 1,2), then HGM9560 ATS.
+            # One bus-wait at the start finds the MSC quiet window (~1.5-2.3s).
+            # All devices polled back-to-back in a single burst to maximize
+            # use of the quiet window.  Each device's _send_and_receive
+            # handles stale MSC data in its TCP buffer via _extract_all_frames.
+            group_sorted = sorted(
+                group,
+                key=lambda pair: (0 if isinstance(pair[1], HGM9520NRtuReader) else 1, pair[0]),
+            )
+            for i, (device_id, reader) in enumerate(group_sorted):
+                # Only first device does full bus-wait; rest poll immediately
+                skip = i > 0
+                await self._poll_device(device_id, reader, skip_bus_wait=skip)
 
         all_tasks = list(tcp_tasks)
         for bus_key, group in rtu_groups.items():
@@ -1857,14 +2216,21 @@ class ModbusPoller:
             elapsed = _time.monotonic() - t0
             logger.info("Poll cycle: %d tasks, %.1fs", len(all_tasks), elapsed)
 
-    async def _poll_device(self, device_id: int, reader: BaseReader) -> None:
+    def _get_cached_data(self, reader: BaseReader) -> dict:
+        """Return cached _last_result data from reader, if available."""
+        return getattr(reader, '_last_result', {}).copy()
+
+    async def _poll_device(self, device_id: int, reader: BaseReader, *, skip_bus_wait: bool = False) -> None:
         try:
-            data = await reader.read_all()
+            data = await reader.read_all(skip_bus_wait=skip_bus_wait)
             if not data:
                 logger.warning("Device %s: read_all returned empty data", device_id)
                 self._fail_counts[device_id] = self._fail_counts.get(device_id, 0) + 1
                 if self._fail_counts[device_id] >= self.OFFLINE_THRESHOLD:
-                    await self._publish(device_id, reader, {}, online=False, error="no data received")
+                    # Publish cached data with online=false so frontend keeps
+                    # previously known values (modes, alarms) in disabled state
+                    cached = self._get_cached_data(reader)
+                    await self._publish(device_id, reader, cached, online=False, error="no data received")
                     logger.warning("Device %s offline: %d consecutive failures", device_id, self._fail_counts[device_id])
                 await reader.disconnect()
             else:
@@ -1880,7 +2246,8 @@ class ModbusPoller:
                 self._fail_counts[device_id], self.OFFLINE_THRESHOLD,
             )
             if self._fail_counts[device_id] >= self.OFFLINE_THRESHOLD:
-                await self._publish(device_id, reader, {}, online=False, error=str(exc))
+                cached = self._get_cached_data(reader)
+                await self._publish(device_id, reader, cached, online=False, error=str(exc))
             try:
                 await reader.disconnect()
             except Exception:
@@ -1906,6 +2273,24 @@ class ModbusPoller:
             "error": error,
             **data,
         }
+
+        # Build controller_time from RTC registers (225-231) if available (HGM9560 only)
+        _rsec = data.get("rtc_sec")
+        _rmin = data.get("rtc_min")
+        _rhour = data.get("rtc_hour")
+        _rday = data.get("rtc_day")
+        _rmonth = data.get("rtc_month")
+        _ryear = data.get("rtc_year")
+        if all(v is not None for v in (_rsec, _rmin, _rhour, _rday, _rmonth, _ryear)):
+            s, mi, h, d, mo, y = int(_rsec), int(_rmin), int(_rhour), int(_rday), int(_rmonth), int(_ryear)
+            # Range validation before constructing datetime
+            if 0 <= s <= 59 and 0 <= mi <= 59 and 0 <= h <= 23 and 1 <= d <= 31 and 1 <= mo <= 12 and y > 0:
+                try:
+                    yr = y if y > 2000 else y + 2000
+                    ct = datetime(yr, mo, d, h, mi, s)
+                    payload["controller_time"] = ct.isoformat()
+                except (ValueError, OverflowError, TypeError):
+                    pass
 
         json_str = json.dumps(payload, default=str)
         redis_key = f"device:{device_id}:metrics"

@@ -14,6 +14,7 @@ from models.alarm_event import AlarmEvent, AlarmSeverityEvent
 from models.bitrix24_task import Bitrix24Task
 from models.ai_provider import AiProviderConfig
 from models.ai_chat import AiChatMessage
+from models.ai_knowledge import AiKnowledgeChunk
 
 __all__ = [
     "Base",
@@ -37,4 +38,5 @@ __all__ = [
     "AlarmSeverityEvent",
     "Bitrix24Task",
     "AiProviderConfig",
+    "AiKnowledgeChunk",
 ]

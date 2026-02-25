@@ -224,6 +224,7 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name_ru": "Пониженное напряжение батареи",
         "severity": "warning",
         "analysis_key": "battery_undervoltage_warning",
+        "description_ru": "Напряжение аккумуляторной батареи ниже уставки. При полной разрядке контроллер потеряет питание и не сможет запустить генератор.",
     },
     ("alarm_reg_20", 1): {
         "code": "M_WN_20_1",
@@ -287,6 +288,7 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name_ru": "Ошибка синхронизации",
         "severity": "warning",
         "analysis_key": "sync_failure_warning",
+        "description_ru": "Не удалось синхронизировать генератор с сетью в отведённое время. Без синхронизации возможен мощный бросок тока.",
     },
     ("alarm_reg_21", 6): {
         "code": "M_WN_21_6",
@@ -370,6 +372,7 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name_ru": "Перегрузка по току сети 1 — Mains Trip",
         "severity": "mains_trip",
         "analysis_key": "mains_overcurrent_trip",
+        "description_ru": "Ток сети превысил уставку. Сработал Trip автомата сети. Перегрузка сетевого ввода, возможен перегрев кабелей.",
     },
     ("alarm_reg_30", 9): {
         "code": "M_MT_30_9",
@@ -377,6 +380,7 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name_ru": "Перегрузка по току сети 2 — Mains Trip",
         "severity": "mains_trip",
         "analysis_key": "mains_overcurrent_trip",
+        "description_ru": "Ток сети превысил уставку. Сработал Trip автомата сети. Перегрузка сетевого ввода, возможен перегрев кабелей.",
     },
     ("alarm_reg_30", 10): {
         "code": "M_MT_30_10",
@@ -398,6 +402,7 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name_ru": "Перенапряжение сети",
         "severity": "warning",
         "analysis_key": "mains_overvoltage",
+        "description_ru": "Напряжение сети превысило уставку. Перенапряжение может повредить чувствительное оборудование, электронику, конденсаторы.",
     },
     ("alarm_reg_44", 2): {
         "code": "M003",
@@ -405,6 +410,7 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name_ru": "Пониженное напряжение сети",
         "severity": "warning",
         "analysis_key": "mains_undervoltage",
+        "description_ru": "Напряжение сети упало ниже уставки. При пониженном напряжении растут токи, перегреваются кабели и оборудование.",
     },
     ("alarm_reg_44", 3): {
         "code": "M004",
@@ -412,6 +418,7 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name_ru": "Повышенная частота сети",
         "severity": "warning",
         "analysis_key": "mains_overfrequency",
+        "description_ru": "Частота сети превысила уставку (обычно >51 Гц). Повышенная частота ускоряет вращение двигателей, нарушает работу электроники.",
     },
     ("alarm_reg_44", 4): {
         "code": "M005",
@@ -419,6 +426,7 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name_ru": "Пониженная частота сети",
         "severity": "warning",
         "analysis_key": "mains_underfrequency",
+        "description_ru": "Частота сети упала ниже уставки (обычно <49 Гц). Пониженная частота указывает на перегрузку энергосистемы.",
     },
     ("alarm_reg_44", 5): {
         "code": "M006",
@@ -426,6 +434,7 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name_ru": "Потеря фазы сети",
         "severity": "warning",
         "analysis_key": "mains_loss_phase",
+        "description_ru": "Потеря одной или нескольких фаз сетевого напряжения. КРИТИЧНО: работа на двух фазах приводит к перегреву и выходу из строя двигателей.",
     },
     ("alarm_reg_44", 6): {
         "code": "M007",
@@ -433,6 +442,7 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name_ru": "Обратная последовательность фаз сети",
         "severity": "warning",
         "analysis_key": "mains_reverse_phase",
+        "description_ru": "Обратная последовательность фаз сетевого напряжения. Трёхфазные двигатели будут вращаться в обратном направлении.",
     },
     ("alarm_reg_44", 7): {
         "code": "M008",
@@ -440,6 +450,7 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name_ru": "Полное отключение сети (блэкаут)",
         "severity": "warning",
         "analysis_key": "mains_blackout",
+        "description_ru": "Полное отключение сетевого напряжения (все три фазы = 0). КРИТИЧНО: нагрузка переходит полностью на генератор.",
     },
 }
 
@@ -461,6 +472,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "severity": "shutdown",
         "group": "shutdown",
         "analysis_key": "emergency_stop",
+        "description_ru": "Нажата кнопка аварийного останова. Двигатель экстренно остановлен, генератор не запустится до деблокировки.",
     },
     ("alarm_sd_0", 1): {
         "code": "G_SD_0_1",
@@ -469,6 +481,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "severity": "shutdown",
         "group": "shutdown",
         "analysis_key": "overspeed",
+        "description_ru": "Обороты двигателя превысили уставку (обычно >1650 об/мин при номинале 1500). КРИТИЧНО: разнос двигателя может привести к механическому разрушению.",
     },
     ("alarm_sd_0", 2): {
         "code": "G_SD_0_2",
@@ -490,6 +503,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Повышенная частота генератора",
         "severity": "shutdown",
         "group": "shutdown",
+        "analysis_key": "gen_overfrequency",
     },
     ("alarm_sd_0", 5): {
         "code": "G_SD_0_5",
@@ -497,6 +511,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Пониженная частота генератора",
         "severity": "shutdown",
         "group": "shutdown",
+        "analysis_key": "gen_underfrequency",
     },
     ("alarm_sd_0", 6): {
         "code": "G_SD_0_6",
@@ -505,6 +520,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "severity": "shutdown",
         "group": "shutdown",
         "analysis_key": "gen_overvoltage",
+        "description_ru": "Напряжение генератора превысило уставку. Перенапряжение может повредить обмотки генератора и подключённое оборудование.",
     },
     ("alarm_sd_0", 7): {
         "code": "G_SD_0_7",
@@ -513,6 +529,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "severity": "shutdown",
         "group": "shutdown",
         "analysis_key": "gen_undervoltage",
+        "description_ru": "Напряжение генератора ниже уставки. Пониженное напряжение приводит к росту токов и перегреву нагрузки.",
     },
     ("alarm_sd_0", 8): {
         "code": "G_SD_0_8",
@@ -521,6 +538,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "severity": "shutdown",
         "group": "shutdown",
         "analysis_key": "crank_failure",
+        "description_ru": "Двигатель не запустился после заданного количества попыток прокрутки. Нагрузка остаётся без резервного питания.",
     },
     ("alarm_sd_0", 9): {
         "code": "G_SD_0_9",
@@ -529,6 +547,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "severity": "shutdown",
         "group": "shutdown",
         "analysis_key": "gen_overcurrent",
+        "description_ru": "Ток генератора превысил уставку. Перегрузка может повредить обмотки генератора и привести к возгоранию.",
     },
     ("alarm_sd_0", 10): {
         "code": "G_SD_0_10",
@@ -537,6 +556,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "severity": "shutdown",
         "group": "shutdown",
         "analysis_key": "current_imbalance",
+        "description_ru": "Разница токов между фазами превышает уставку. Дисбаланс вызывает дополнительный нагрев обмоток статора.",
     },
     ("alarm_sd_0", 11): {
         "code": "G_SD_0_11",
@@ -552,6 +572,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "severity": "shutdown",
         "group": "shutdown",
         "analysis_key": "reverse_power",
+        "description_ru": "Генератор потребляет мощность из сети вместо отдачи (обратная мощность). Двигатель переходит в моторный режим, что чревато повреждением.",
     },
     ("alarm_sd_0", 13): {
         "code": "G_SD_0_13",
@@ -559,6 +580,8 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Перегрузка по мощности",
         "severity": "shutdown",
         "group": "shutdown",
+        "analysis_key": "over_power",
+        "description_ru": "Активная мощность генератора превысила допустимый порог (уставка Over Power). Контроллер выполнил аварийную остановку для защиты обмоток и двигателя. Причины: подключение слишком большой нагрузки, КЗ в сети потребителей, неисправность системы распределения нагрузки. КРИТИЧНО: не запускать до устранения перегрузки.",
     },
     ("alarm_sd_0", 14): {
         "code": "G_SD_0_14",
@@ -567,6 +590,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "severity": "shutdown",
         "group": "shutdown",
         "analysis_key": "loss_of_excitation",
+        "description_ru": "Потеря возбуждения генератора — напряжение резко упало. Генератор не способен поддерживать напряжение, нагрузка может остаться без питания.",
     },
     ("alarm_sd_0", 15): {
         "code": "G_SD_0_15",
@@ -598,6 +622,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "severity": "shutdown",
         "group": "shutdown",
         "analysis_key": "low_oil_pressure",
+        "description_ru": "Давление масла двигателя ниже уставки. КРИТИЧНО: работа без смазки приводит к задиру подшипников и заклиниванию.",
     },
     ("alarm_sd_1", 3): {
         "code": "G_SD_1_3",
@@ -641,6 +666,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "severity": "shutdown",
         "group": "shutdown",
         "analysis_key": "high_engine_temp",
+        "description_ru": "Температура двигателя превысила уставку. КРИТИЧНО: перегрев может привести к заклиниванию и разрушению двигателя.",
     },
     ("alarm_sd_1", 9): {
         "code": "G_SD_1_9",
@@ -677,6 +703,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "severity": "shutdown",
         "group": "shutdown",
         "analysis_key": "low_oil_pressure",
+        "description_ru": "Давление масла двигателя ниже уставки. КРИТИЧНО: работа без смазки приводит к задиру подшипников и заклиниванию.",
     },
     ("alarm_sd_1", 14): {
         "code": "G_SD_1_14",
@@ -707,6 +734,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Низкий уровень топлива",
         "severity": "shutdown",
         "group": "shutdown",
+        "analysis_key": "low_fuel_level",
     },
     ("alarm_sd_2", 2): {
         "code": "G_SD_2_2",
@@ -764,6 +792,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "severity": "shutdown",
         "group": "shutdown",
         "analysis_key": "charging_failure",
+        "description_ru": "Напряжение зарядки аккумулятора отсутствует или ниже нормы при работающем двигателе. Без зарядки батарея разрядится.",
     },
     ("alarm_sd_2", 13): {
         "code": "G_SD_2_13",
@@ -1015,36 +1044,36 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
     # Same bit layout as shutdown, but severity = "warning"
 
     # Offset 0 (alarm_wn_0)
-    ("alarm_wn_0", 0): {"code": "G_WN_0_0", "name": "Emergency Stop Warning", "name_ru": "Аварийный останов — предупреждение", "severity": "warning", "group": "warning"},
-    ("alarm_wn_0", 1): {"code": "G_WN_0_1", "name": "Overspeed Warning", "name_ru": "Превышение оборотов — предупреждение", "severity": "warning", "group": "warning"},
+    ("alarm_wn_0", 0): {"code": "G_WN_0_0", "name": "Emergency Stop Warning", "name_ru": "Аварийный останов — предупреждение", "severity": "warning", "group": "warning", "analysis_key": "emergency_stop"},
+    ("alarm_wn_0", 1): {"code": "G_WN_0_1", "name": "Overspeed Warning", "name_ru": "Превышение оборотов — предупреждение", "severity": "warning", "group": "warning", "analysis_key": "overspeed"},
     ("alarm_wn_0", 2): {"code": "G_WN_0_2", "name": "Underspeed Warning", "name_ru": "Пониженные обороты — предупреждение", "severity": "warning", "group": "warning"},
     ("alarm_wn_0", 3): {"code": "G_WN_0_3", "name": "Speed Signal Loss Warning", "name_ru": "Потеря сигнала скорости — предупреждение", "severity": "warning", "group": "warning"},
-    ("alarm_wn_0", 4): {"code": "G_WN_0_4", "name": "Gen Overfrequency Warning", "name_ru": "Повышенная частота генератора — предупреждение", "severity": "warning", "group": "warning"},
-    ("alarm_wn_0", 5): {"code": "G_WN_0_5", "name": "Gen Underfrequency Warning", "name_ru": "Пониженная частота генератора — предупреждение", "severity": "warning", "group": "warning"},
-    ("alarm_wn_0", 6): {"code": "G_WN_0_6", "name": "Gen Overvoltage Warning", "name_ru": "Перенапряжение генератора — предупреждение", "severity": "warning", "group": "warning"},
-    ("alarm_wn_0", 7): {"code": "G_WN_0_7", "name": "Gen Undervoltage Warning", "name_ru": "Пониженное напряжение генератора — предупреждение", "severity": "warning", "group": "warning"},
-    ("alarm_wn_0", 8): {"code": "G_WN_0_8", "name": "Crank Failure Warning", "name_ru": "Отказ запуска — предупреждение", "severity": "warning", "group": "warning"},
-    ("alarm_wn_0", 9): {"code": "G_WN_0_9", "name": "Gen Overcurrent Warning", "name_ru": "Перегрузка по току — предупреждение", "severity": "warning", "group": "warning"},
-    ("alarm_wn_0", 10): {"code": "G_WN_0_10", "name": "Current Imbalance Warning", "name_ru": "Дисбаланс токов — предупреждение", "severity": "warning", "group": "warning"},
+    ("alarm_wn_0", 4): {"code": "G_WN_0_4", "name": "Gen Overfrequency Warning", "name_ru": "Повышенная частота генератора — предупреждение", "severity": "warning", "group": "warning", "analysis_key": "gen_overfrequency"},
+    ("alarm_wn_0", 5): {"code": "G_WN_0_5", "name": "Gen Underfrequency Warning", "name_ru": "Пониженная частота генератора — предупреждение", "severity": "warning", "group": "warning", "analysis_key": "gen_underfrequency"},
+    ("alarm_wn_0", 6): {"code": "G_WN_0_6", "name": "Gen Overvoltage Warning", "name_ru": "Перенапряжение генератора — предупреждение", "severity": "warning", "group": "warning", "analysis_key": "gen_overvoltage"},
+    ("alarm_wn_0", 7): {"code": "G_WN_0_7", "name": "Gen Undervoltage Warning", "name_ru": "Пониженное напряжение генератора — предупреждение", "severity": "warning", "group": "warning", "analysis_key": "gen_undervoltage"},
+    ("alarm_wn_0", 8): {"code": "G_WN_0_8", "name": "Crank Failure Warning", "name_ru": "Отказ запуска — предупреждение", "severity": "warning", "group": "warning", "analysis_key": "crank_failure"},
+    ("alarm_wn_0", 9): {"code": "G_WN_0_9", "name": "Gen Overcurrent Warning", "name_ru": "Перегрузка по току — предупреждение", "severity": "warning", "group": "warning", "analysis_key": "gen_overcurrent"},
+    ("alarm_wn_0", 10): {"code": "G_WN_0_10", "name": "Current Imbalance Warning", "name_ru": "Дисбаланс токов — предупреждение", "severity": "warning", "group": "warning", "analysis_key": "current_imbalance"},
     ("alarm_wn_0", 11): {"code": "G_WN_0_11", "name": "Earth Fault Warning", "name_ru": "Замыкание на землю — предупреждение", "severity": "warning", "group": "warning"},
-    ("alarm_wn_0", 12): {"code": "G_WN_0_12", "name": "Reverse Power Warning", "name_ru": "Обратная мощность — предупреждение", "severity": "warning", "group": "warning"},
-    ("alarm_wn_0", 13): {"code": "G_WN_0_13", "name": "Over Power Warning", "name_ru": "Перегрузка по мощности — предупреждение", "severity": "warning", "group": "warning"},
-    ("alarm_wn_0", 14): {"code": "G_WN_0_14", "name": "Loss of Excitation Warning", "name_ru": "Потеря возбуждения — предупреждение", "severity": "warning", "group": "warning"},
+    ("alarm_wn_0", 12): {"code": "G_WN_0_12", "name": "Reverse Power Warning", "name_ru": "Обратная мощность — предупреждение", "severity": "warning", "group": "warning", "analysis_key": "reverse_power"},
+    ("alarm_wn_0", 13): {"code": "G_WN_0_13", "name": "Over Power Warning", "name_ru": "Перегрузка по мощности — предупреждение", "severity": "warning", "group": "warning", "analysis_key": "over_power"},
+    ("alarm_wn_0", 14): {"code": "G_WN_0_14", "name": "Loss of Excitation Warning", "name_ru": "Потеря возбуждения — предупреждение", "severity": "warning", "group": "warning", "analysis_key": "loss_of_excitation"},
     ("alarm_wn_0", 15): {"code": "G_WN_0_15", "name": "ECU Communication Warning", "name_ru": "Потеря связи с ECU — предупреждение", "severity": "warning", "group": "warning"},
 
     # Offset 1 (alarm_wn_1)
     ("alarm_wn_1", 0): {"code": "G_WN_1_0", "name": "ECU Warning", "name_ru": "Ошибка ECU — предупреждение", "severity": "warning", "group": "warning"},
     ("alarm_wn_1", 1): {"code": "G_WN_1_1", "name": "High Temp. Input Warning", "name_ru": "Высокая температура (вход) — предупреждение", "severity": "warning", "group": "warning"},
-    ("alarm_wn_1", 2): {"code": "G_WN_1_2", "name": "Low Oil Pressure Input Warning", "name_ru": "Низкое давление масла (вход) — предупреждение", "severity": "warning", "group": "warning"},
-    ("alarm_wn_1", 8): {"code": "G_WN_1_8", "name": "High Engine Temp. Warning", "name_ru": "Высокая температура двигателя — предупреждение", "severity": "warning", "group": "warning"},
+    ("alarm_wn_1", 2): {"code": "G_WN_1_2", "name": "Low Oil Pressure Input Warning", "name_ru": "Низкое давление масла (вход) — предупреждение", "severity": "warning", "group": "warning", "analysis_key": "low_oil_pressure"},
+    ("alarm_wn_1", 8): {"code": "G_WN_1_8", "name": "High Engine Temp. Warning", "name_ru": "Высокая температура двигателя — предупреждение", "severity": "warning", "group": "warning", "analysis_key": "high_engine_temp"},
     ("alarm_wn_1", 9): {"code": "G_WN_1_9", "name": "Low Engine Temp. Warning", "name_ru": "Низкая температура двигателя — предупреждение", "severity": "warning", "group": "warning"},
     ("alarm_wn_1", 12): {"code": "G_WN_1_12", "name": "High Oil Pressure Warning", "name_ru": "Высокое давление масла — предупреждение", "severity": "warning", "group": "warning"},
-    ("alarm_wn_1", 13): {"code": "G_WN_1_13", "name": "Low Oil Pressure Warning", "name_ru": "Низкое давление масла — предупреждение", "severity": "warning", "group": "warning"},
+    ("alarm_wn_1", 13): {"code": "G_WN_1_13", "name": "Low Oil Pressure Warning", "name_ru": "Низкое давление масла — предупреждение", "severity": "warning", "group": "warning", "analysis_key": "low_oil_pressure"},
 
     # Offset 2 (alarm_wn_2)
     ("alarm_wn_2", 0): {"code": "G_WN_2_0", "name": "High Fuel Level Warning", "name_ru": "Высокий уровень топлива — предупреждение", "severity": "warning", "group": "warning"},
-    ("alarm_wn_2", 1): {"code": "G_WN_2_1", "name": "Low Fuel Level Warning", "name_ru": "Низкий уровень топлива — предупреждение", "severity": "warning", "group": "warning"},
-    ("alarm_wn_2", 12): {"code": "G_WN_2_12", "name": "Charging Failure Warning", "name_ru": "Отказ зарядки — предупреждение", "severity": "warning", "group": "warning", "analysis_key": "charging_failure"},
+    ("alarm_wn_2", 1): {"code": "G_WN_2_1", "name": "Low Fuel Level Warning", "name_ru": "Низкий уровень топлива — предупреждение", "severity": "warning", "group": "warning", "analysis_key": "low_fuel_level"},
+    ("alarm_wn_2", 12): {"code": "G_WN_2_12", "name": "Charging Failure Warning", "name_ru": "Отказ зарядки — предупреждение", "severity": "warning", "group": "warning", "analysis_key": "charging_failure", "description_ru": "Напряжение зарядки аккумулятора отсутствует или ниже нормы при работающем двигателе. Без зарядки батарея разрядится."},
     ("alarm_wn_2", 13): {"code": "G_WN_2_13", "name": "Battery Overvoltage Warning", "name_ru": "Перенапряжение батареи — предупреждение", "severity": "warning", "group": "warning"},
     ("alarm_wn_2", 14): {"code": "G_WN_2_14", "name": "Battery Undervoltage Warning", "name_ru": "Пониженное напряжение батареи — предупреждение", "severity": "warning", "group": "warning"},
     ("alarm_wn_2", 15): {"code": "G_WN_2_15", "name": "Synchronization Failure Warning", "name_ru": "Ошибка синхронизации — предупреждение", "severity": "warning", "group": "warning"},
@@ -1072,16 +1101,16 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
     # ============ TRIP & STOP GROUP (alarm_ts_0 .. alarm_ts_5) ============
     # Same offset layout, severity = "trip"
 
-    ("alarm_ts_0", 0): {"code": "G_TS_0_0", "name": "Emergency Stop Trip&Stop", "name_ru": "Аварийный останов — Trip&Stop", "severity": "trip", "group": "trip_stop"},
-    ("alarm_ts_0", 1): {"code": "G_TS_0_1", "name": "Overspeed Trip&Stop", "name_ru": "Превышение оборотов — Trip&Stop", "severity": "trip", "group": "trip_stop"},
-    ("alarm_ts_0", 6): {"code": "G_TS_0_6", "name": "Gen Overvoltage Trip&Stop", "name_ru": "Перенапряжение генератора — Trip&Stop", "severity": "trip", "group": "trip_stop"},
-    ("alarm_ts_0", 7): {"code": "G_TS_0_7", "name": "Gen Undervoltage Trip&Stop", "name_ru": "Пониженное напряжение генератора — Trip&Stop", "severity": "trip", "group": "trip_stop"},
-    ("alarm_ts_0", 8): {"code": "G_TS_0_8", "name": "Crank Failure Trip&Stop", "name_ru": "Отказ запуска — Trip&Stop", "severity": "trip", "group": "trip_stop"},
-    ("alarm_ts_0", 9): {"code": "G_TS_0_9", "name": "Gen Overcurrent Trip&Stop", "name_ru": "Перегрузка по току — Trip&Stop", "severity": "trip", "group": "trip_stop"},
-    ("alarm_ts_0", 12): {"code": "G_TS_0_12", "name": "Reverse Power Trip&Stop", "name_ru": "Обратная мощность — Trip&Stop", "severity": "trip", "group": "trip_stop"},
+    ("alarm_ts_0", 0): {"code": "G_TS_0_0", "name": "Emergency Stop Trip&Stop", "name_ru": "Аварийный останов — Trip&Stop", "severity": "trip", "group": "trip_stop", "analysis_key": "emergency_stop"},
+    ("alarm_ts_0", 1): {"code": "G_TS_0_1", "name": "Overspeed Trip&Stop", "name_ru": "Превышение оборотов — Trip&Stop", "severity": "trip", "group": "trip_stop", "analysis_key": "overspeed"},
+    ("alarm_ts_0", 6): {"code": "G_TS_0_6", "name": "Gen Overvoltage Trip&Stop", "name_ru": "Перенапряжение генератора — Trip&Stop", "severity": "trip", "group": "trip_stop", "analysis_key": "gen_overvoltage"},
+    ("alarm_ts_0", 7): {"code": "G_TS_0_7", "name": "Gen Undervoltage Trip&Stop", "name_ru": "Пониженное напряжение генератора — Trip&Stop", "severity": "trip", "group": "trip_stop", "analysis_key": "gen_undervoltage"},
+    ("alarm_ts_0", 8): {"code": "G_TS_0_8", "name": "Crank Failure Trip&Stop", "name_ru": "Отказ запуска — Trip&Stop", "severity": "trip", "group": "trip_stop", "analysis_key": "crank_failure"},
+    ("alarm_ts_0", 9): {"code": "G_TS_0_9", "name": "Gen Overcurrent Trip&Stop", "name_ru": "Перегрузка по току — Trip&Stop", "severity": "trip", "group": "trip_stop", "analysis_key": "gen_overcurrent"},
+    ("alarm_ts_0", 12): {"code": "G_TS_0_12", "name": "Reverse Power Trip&Stop", "name_ru": "Обратная мощность — Trip&Stop", "severity": "trip", "group": "trip_stop", "analysis_key": "reverse_power"},
 
-    ("alarm_ts_1", 8): {"code": "G_TS_1_8", "name": "High Engine Temp. Trip&Stop", "name_ru": "Высокая температура двигателя — Trip&Stop", "severity": "trip", "group": "trip_stop"},
-    ("alarm_ts_1", 13): {"code": "G_TS_1_13", "name": "Low Oil Pressure Trip&Stop", "name_ru": "Низкое давление масла — Trip&Stop", "severity": "trip", "group": "trip_stop"},
+    ("alarm_ts_1", 8): {"code": "G_TS_1_8", "name": "High Engine Temp. Trip&Stop", "name_ru": "Высокая температура двигателя — Trip&Stop", "severity": "trip", "group": "trip_stop", "analysis_key": "high_engine_temp"},
+    ("alarm_ts_1", 13): {"code": "G_TS_1_13", "name": "Low Oil Pressure Trip&Stop", "name_ru": "Низкое давление масла — Trip&Stop", "severity": "trip", "group": "trip_stop", "analysis_key": "low_oil_pressure"},
 
     ("alarm_ts_5", 0): {"code": "G_TS_5_0", "name": "Digital Input 1 Trip&Stop", "name_ru": "Дискретный вход 1 — Trip&Stop", "severity": "trip", "group": "trip_stop"},
     ("alarm_ts_5", 1): {"code": "G_TS_5_1", "name": "Digital Input 2 Trip&Stop", "name_ru": "Дискретный вход 2 — Trip&Stop", "severity": "trip", "group": "trip_stop"},
@@ -1089,15 +1118,15 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
     ("alarm_ts_5", 3): {"code": "G_TS_5_3", "name": "Digital Input 4 Trip&Stop", "name_ru": "Дискретный вход 4 — Trip&Stop", "severity": "trip", "group": "trip_stop"},
 
     # ============ TRIP GROUP (alarm_tr_0 .. alarm_tr_5) ============
-    ("alarm_tr_0", 0): {"code": "G_TR_0_0", "name": "Emergency Stop Trip", "name_ru": "Аварийный останов — Trip", "severity": "trip", "group": "trip"},
-    ("alarm_tr_0", 1): {"code": "G_TR_0_1", "name": "Overspeed Trip", "name_ru": "Превышение оборотов — Trip", "severity": "trip", "group": "trip"},
-    ("alarm_tr_0", 9): {"code": "G_TR_0_9", "name": "Gen Overcurrent Trip", "name_ru": "Перегрузка по току — Trip", "severity": "trip", "group": "trip"},
-    ("alarm_tr_0", 12): {"code": "G_TR_0_12", "name": "Reverse Power Trip", "name_ru": "Обратная мощность — Trip", "severity": "trip", "group": "trip"},
+    ("alarm_tr_0", 0): {"code": "G_TR_0_0", "name": "Emergency Stop Trip", "name_ru": "Аварийный останов — Trip", "severity": "trip", "group": "trip", "analysis_key": "emergency_stop"},
+    ("alarm_tr_0", 1): {"code": "G_TR_0_1", "name": "Overspeed Trip", "name_ru": "Превышение оборотов — Trip", "severity": "trip", "group": "trip", "analysis_key": "overspeed"},
+    ("alarm_tr_0", 9): {"code": "G_TR_0_9", "name": "Gen Overcurrent Trip", "name_ru": "Перегрузка по току — Trip", "severity": "trip", "group": "trip", "analysis_key": "gen_overcurrent"},
+    ("alarm_tr_0", 12): {"code": "G_TR_0_12", "name": "Reverse Power Trip", "name_ru": "Обратная мощность — Trip", "severity": "trip", "group": "trip", "analysis_key": "reverse_power"},
 
     # ============ BLOCK GROUP (alarm_bk_0 .. alarm_bk_5) ============
-    ("alarm_bk_0", 8): {"code": "G_BK_0_8", "name": "Crank Failure Block", "name_ru": "Отказ запуска — блокировка", "severity": "block", "group": "block"},
+    ("alarm_bk_0", 8): {"code": "G_BK_0_8", "name": "Crank Failure Block", "name_ru": "Отказ запуска — блокировка", "severity": "block", "group": "block", "analysis_key": "crank_failure"},
     ("alarm_bk_2", 11): {"code": "G_BK_2_11", "name": "Stop Failure Block", "name_ru": "Неудачная остановка — блокировка", "severity": "block", "group": "block"},
-    ("alarm_bk_2", 12): {"code": "G_BK_2_12", "name": "Charging Failure Block", "name_ru": "Отказ зарядки — блокировка", "severity": "block", "group": "block"},
+    ("alarm_bk_2", 12): {"code": "G_BK_2_12", "name": "Charging Failure Block", "name_ru": "Отказ зарядки — блокировка", "severity": "block", "group": "block", "analysis_key": "charging_failure"},
 }
 
 
@@ -1138,3 +1167,162 @@ def get_alarm_fields(device_type: str) -> list[str]:
     elif device_type == "generator":
         return ALARM_REGISTER_FIELDS_HGM9520N
     return []
+
+
+def get_description_ru(defn: dict) -> str:
+    """Get detailed description for an alarm.
+
+    Priority: explicit description_ru → keyword-based → severity template.
+    """
+    if defn.get("description_ru"):
+        return defn["description_ru"]
+
+    name = (defn.get("name") or "").lower()
+    name_ru = defn.get("name_ru", defn.get("code", ""))
+    severity = defn.get("severity", "")
+
+    # ---- Keyword-based detailed descriptions ----
+    # Based on English alarm name for precise matching
+
+    # Voltage
+    if "overvoltage" in name and "gen" in name:
+        return f"{name_ru}. Напряжение генератора превысило допустимый предел. Возможные причины: неисправность AVR (регулятор напряжения), повышенные обороты двигателя, резкий сброс нагрузки. Проверить AVR, обороты, нагрузку."
+    if "undervoltage" in name and "gen" in name:
+        return f"{name_ru}. Напряжение генератора ниже нормы. Возможные причины: перегрузка генератора, неисправность AVR, проблемы с обмоткой возбуждения. Проверить нагрузку (не превышает ли номинал), AVR."
+    if "overvoltage" in name and ("mains" in name or "bus" in name or "battery" in name):
+        return f"{name_ru}. Повышенное напряжение. Возможные причины: нестабильность источника питания, сброс нагрузки. Проверить напряжение на вводе, состояние зарядного устройства."
+    if "undervoltage" in name and ("mains" in name or "bus" in name or "battery" in name):
+        return f"{name_ru}. Пониженное напряжение. Возможные причины: перегрузка, длительный простой без подзарядки, старение батареи. Проверить источник питания, батарею."
+
+    # Frequency
+    if "overfrequency" in name:
+        return f"{name_ru}. Частота выше допустимого предела. Возможные причины: нестабильность энергосистемы, избыток генерации, проблемы с регулятором оборотов (GOV). Проверить частоту, обороты."
+    if "underfrequency" in name:
+        return f"{name_ru}. Частота ниже допустимого предела. Возможные причины: перегрузка энергосистемы, недостаточная мощность двигателя, проблемы с GOV. Проверить нагрузку, обороты."
+
+    # Current
+    if "overcurrent" in name:
+        return f"{name_ru}. Ток превысил допустимый предел. Возможные причины: перегрузка, короткое замыкание в нагрузке, пусковые токи крупных двигателей. Проверить потребление нагрузки, кабели."
+    if "current imbalance" in name:
+        return f"{name_ru}. Токи по фазам сильно различаются. Возможные причины: неравномерная нагрузка по фазам, обрыв фазы нагрузки, много однофазных потребителей на одной фазе."
+    if "earth fault" in name:
+        return f"{name_ru}. Обнаружен ток утечки на землю. Возможные причины: повреждение изоляции кабеля, пробой обмотки на корпус, сырость в электрощитах. ОПАСНО для персонала!"
+
+    # Power
+    if "over power" in name:
+        return f"{name_ru}. Активная мощность генератора превысила порог. Возможные причины: подключение слишком большой нагрузки, КЗ в сети потребителей, неисправность распределения нагрузки. Снизить нагрузку перед повторным запуском."
+    if "reverse power" in name:
+        return f"{name_ru}. Генератор потребляет мощность вместо отдачи (обратная мощность). Двигатель переходит в моторный режим. Причины: недостаток топлива, проблемы с GOV. Проверить топливо, регулятор оборотов."
+    if "loss of excitation" in name:
+        return f"{name_ru}. Потеря возбуждения — генератор не может поддерживать напряжение. Причины: неисправность AVR, обрыв обмотки возбуждения, обрыв кабеля. Проверить AVR, обмотку, вращающийся выпрямитель."
+    if "insufficient capacity" in name:
+        return f"{name_ru}. Генератор не способен обеспечить требуемую мощность. Нагрузка превышает номинал. Необходимо отключить часть потребителей или подключить дополнительный генератор."
+
+    # Speed / Engine
+    if "overspeed" in name:
+        return f"{name_ru}. Обороты двигателя превысили безопасный предел. КРИТИЧНО: возможен разнос двигателя. Проверить регулятор оборотов (GOV), топливную рейку, актуатор. НЕ ЗАПУСКАТЬ до проверки."
+    if "underspeed" in name or "speed signal loss" in name:
+        return f"{name_ru}. Обороты двигателя ниже нормы или потерян сигнал датчика скорости. Проверить датчик оборотов, проводку, топливоподачу."
+    if "crank failure" in name:
+        return f"{name_ru}. Двигатель не запустился после серии попыток прокрутки. Причины: нет топлива, разряжена батарея, неисправен стартер, засор фильтра, воздух в топливной системе."
+    if "stop failure" in name:
+        return f"{name_ru}. Двигатель не удалось остановить штатным способом. Проверить соленоид останова, топливный клапан. Может потребоваться ручная остановка."
+
+    # Temperature
+    if "high" in name and "temp" in name:
+        return f"{name_ru}. Температура превысила допустимый предел. Возможные причины: низкий уровень ОЖ, неисправность термостата, засор радиатора, перегрузка генератора. НЕ ЗАПУСКАТЬ до остывания."
+    if "low" in name and "temp" in name:
+        return f"{name_ru}. Температура ниже допустимого предела. Возможные причины: неисправность подогревателя, экстремально холодная погода. Необходим предварительный подогрев."
+    if "temp" in name and ("sensor" in name or "open" in name or "error" in name):
+        return f"{name_ru}. Неисправность датчика температуры — обрыв цепи или выход из диапазона. Контроллер не может контролировать температуру. Проверить датчик и проводку."
+
+    # Oil pressure
+    if "oil pressure" in name and ("sensor" in name or "open" in name or "error" in name):
+        return f"{name_ru}. Неисправность датчика давления масла — обрыв цепи или ошибка. Контроллер не может контролировать давление масла. Проверить датчик и проводку."
+    if "high" in name and "oil pressure" in name:
+        return f"{name_ru}. Давление масла выше нормы. Возможные причины: засор масляного фильтра, неисправность перепускного клапана, холодный пуск (масло загустело)."
+    if "low" in name and "oil pressure" in name:
+        return f"{name_ru}. Давление масла ниже нормы. КРИТИЧНО: работа без смазки разрушит двигатель. Проверить уровень масла щупом, утечки, масляный насос. НЕ ЗАПУСКАТЬ при низком уровне."
+
+    # Fuel
+    if "fuel" in name and ("sensor" in name or "open" in name or "error" in name):
+        return f"{name_ru}. Неисправность датчика уровня топлива. Контроллер не может контролировать запас топлива. Проверить датчик и проводку."
+    if "high fuel" in name:
+        return f"{name_ru}. Уровень топлива выше нормы. Возможен перелив при автозаправке. Проверить систему автоматической подачи топлива."
+    if "low fuel" in name:
+        return f"{name_ru}. Уровень топлива ниже нормы. Необходима дозаправка. При полной выработке топлива двигатель остановится, в систему попадёт воздух."
+
+    # Battery / Charging
+    if "charging failure" in name:
+        return f"{name_ru}. Зарядка АКБ не работает при работающем двигателе. Причины: обрыв ремня генератора зарядки, неисправность реле-регулятора, плохой контакт на клеммах."
+
+    # Synchronization
+    if "sync" in name:
+        return f"{name_ru}. Проблема синхронизации генератора с сетью. Причины: разница частот (GOV), разница напряжений (AVR), несовпадение фазового угла. Проверить параметры GOV и AVR."
+    if "phase" in name and ("error" in name or "sequence" in name or "reverse" in name):
+        return f"{name_ru}. Нарушение чередования фаз. Трёхфазные двигатели будут вращаться в обратном направлении. ОПАСНО: проверить подключение кабелей."
+    if "loss of phase" in name or "loss phase" in name:
+        return f"{name_ru}. Обрыв одной или нескольких фаз. КРИТИЧНО: работа на двух фазах вызывает перегрев и выход из строя оборудования. Проверить кабели и предохранители."
+
+    # Breaker / Switch
+    if "breaker" in name or "switch" in name:
+        return f"{name_ru}. Проблема с автоматом/контактором. Проверить состояние автомата, привод, управляющую цепь. Убедиться, что нет механических повреждений."
+    if "close failure" in name:
+        return f"{name_ru}. Автомат не удалось замкнуть. Причины: неисправность привода, механическая блокировка, нет подтверждения от концевого выключателя."
+    if "open failure" in name:
+        return f"{name_ru}. Автомат не удалось разомкнуть. КРИТИЧНО: нагрузка остаётся подключённой. Проверить привод и механизм размыкания."
+
+    # GOV / AVR limits
+    if "gov" in name and "limit" in name:
+        return f"{name_ru}. Регулятор оборотов (GOV) достиг предела регулирования. Двигатель не может поддерживать заданную частоту. Проверить нагрузку, топливоподачу."
+    if "avr" in name and "limit" in name:
+        return f"{name_ru}. Регулятор напряжения (AVR) достиг предела. Генератор не может поддерживать напряжение. Проверить нагрузку, обмотку возбуждения."
+
+    # Communication / ECU
+    if "ecu" in name or "communication" in name or "msc" in name:
+        return f"{name_ru}. Потеря связи с внешним блоком. Проверить кабель связи, разъёмы, настройки протокола. Убедиться, что внешний блок исправен и запитан."
+
+    # Maintenance
+    if "maintenance" in name:
+        return f"{name_ru}. Подошло время планового технического обслуживания. Необходимо выполнить ТО согласно регламенту и сбросить счётчик в контроллере."
+
+    # Digital Input
+    if "digital input" in name or "input" in name and any(c.isdigit() for c in name):
+        n = "".join(c for c in name if c.isdigit())
+        return f"{name_ru}. Сработал дискретный вход {n} контроллера. Функция входа определяется конфигурацией контроллера и подключённым оборудованием. Проверить, что подключено к данному входу."
+
+    # Water level
+    if "water level" in name:
+        return f"{name_ru}. Низкий уровень охлаждающей жидкости. Двигатель может перегреться. Проверить уровень ОЖ, убедиться в отсутствии утечек."
+
+    # Detonation / Gas
+    if "detonation" in name:
+        return f"{name_ru}. Обнаружена детонация в цилиндрах. Причины: некачественное топливо, неправильная настройка зажигания. КРИТИЧНО: может повредить поршневую группу."
+    if "gas leak" in name:
+        return f"{name_ru}. Обнаружена утечка газа. КРИТИЧНО: опасность взрыва и отравления! Немедленно обеспечить вентиляцию, не допускать искрообразования."
+
+    # Voltage bus error
+    if "voltage bus error" in name:
+        return f"{name_ru}. Ошибка шины напряжения — несоответствие измеренных и ожидаемых значений. Проверить трансформаторы напряжения, проводку к контроллеру."
+    if "msc id error" in name or "id error" in name:
+        return f"{name_ru}. Ошибка идентификатора в мультисетевой коммуникации (MSC). Проверить настройки ID устройств в сети, кабели связи."
+
+    # Frequency change / Vector drift
+    if "frequency change" in name:
+        return f"{name_ru}. Резкое изменение частоты сети — возможно КЗ или аварийное отключение генерирующего оборудования в энергосистеме."
+    if "vector drift" in name:
+        return f"{name_ru}. Дрейф вектора напряжения — изменение фазового угла. Указывает на нестабильность энергосистемы или потерю синхронизма."
+    if "large frequency" in name:
+        return f"{name_ru}. Большая разница частот между генератором и сетью. Синхронизация невозможна. Проверить регуляторы оборотов обоих источников."
+
+    # ---- Fallback severity templates ----
+    sev_desc = {
+        "shutdown": f"{name_ru}. Критическая авария — контроллер выполнил аварийную остановку генератора. Необходимо выяснить и устранить причину до повторного запуска.",
+        "trip": f"{name_ru}. Сработала защита — автомат/контактор отключён. Проверить нагрузку и состояние оборудования перед повторным включением.",
+        "trip_stop": f"{name_ru}. Сработала защита с остановкой двигателя. Проверить причину и устранить до повторного запуска.",
+        "mains_trip": f"{name_ru}. Авария сети — автомат сети отключён. Проверить параметры сетевого напряжения и качество электроснабжения.",
+        "warning": f"{name_ru}. Предупреждение — оборудование работает, но требуется внимание. Рекомендуется проверить при ближайшей возможности.",
+        "indication": f"{name_ru}. Информационное сообщение о состоянии оборудования.",
+        "block": f"{name_ru}. Блокировка — операция запрещена до устранения причины.",
+    }
+    return sev_desc.get(severity, f"{name_ru}. Авария контроллера SmartGen.")

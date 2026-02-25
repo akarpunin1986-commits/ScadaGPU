@@ -1,5 +1,8 @@
 #!/bin/sh
 
+echo "=== Installing extra dependencies ==="
+pip install --quiet python-multipart 2>/dev/null || true
+
 echo "=== Running Alembic migrations ==="
 cd /app
 if alembic upgrade head 2>&1; then

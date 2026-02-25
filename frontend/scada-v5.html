@@ -125,6 +125,7 @@ body{background:var(--bg);color:var(--t);font-family:var(--u);height:100vh;overf
 .pl-btn{margin-top:4px;width:100%;padding:3px;border-radius:4px;border:1px solid rgba(160,112,255,.2);background:rgba(160,112,255,.06);color:var(--p);cursor:pointer;font-family:var(--u);font-size:9px;font-weight:500;transition:all .15s}
 .pl-btn:hover{background:rgba(160,112,255,.15);border-color:rgba(160,112,255,.4)}
 .pl-block.disabled{opacity:.4;pointer-events:none}.pl-block.disabled .pl-btn{cursor:default}
+.sy-block.disabled{opacity:.4;pointer-events:none}
 .sum-popup{position:fixed;z-index:9999;background:var(--bg2);border:1px solid var(--bd);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.5);padding:10px 14px;min-width:220px;max-width:340px;animation:fadeIn .15s}
 .sum-pop-hdr{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--bd)}
 .sum-pop-row{font-size:12px;color:var(--t);padding:4px 0;line-height:1.4}
@@ -482,9 +483,32 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 </div><div class="sb-sites" id="sbSites"></div><div class="sb-global">
 <button class="sb-btn" onclick="showB24Dashboard()">🔗 Битрикс24</button>
 <button class="sb-btn" onclick="initAIModal();showM('aiconf')">🤖 AI Провайдер</button>
+<button class="sb-btn" onclick="showM('kbase')">📚 База знаний</button>
 </div><div class="sb-ft"><button class="sb-btn" onclick="toggleTheme()" id="themeBtn">☀️ Светлая тема</button></div></div>
 <div class="mn" id="mainArea"></div></div>
 <!-- MODALS -->
+<!-- Knowledge Base Modal -->
+<div class="mbg" id="m-kbase"><div class="mod" style="max-width:600px"><div class="mhd"><h3>📚 База знаний</h3><button class="mx" onclick="hideM('kbase')">✕</button></div><div class="mbd">
+<div style="font-size:12px;color:var(--t2);margin-bottom:12px">Загрузите мануалы SmartGen (PDF, DOCX, TXT). Санёк будет использовать их для анализа аварий.</div>
+<div id="kbDropZone" style="border:2px dashed var(--bd2);border-radius:8px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:14px;background:var(--bg2)" onclick="document.getElementById('kbFileInput').click()">
+<div style="font-size:28px;margin-bottom:6px">📄</div>
+<div style="font-size:13px;color:var(--t2)">Перетащите файл сюда или <b style="color:var(--g)">нажмите для выбора</b></div>
+<div style="font-size:11px;color:var(--t3);margin-top:4px">PDF, DOCX, TXT — до 20 МБ</div>
+<input type="file" id="kbFileInput" accept=".pdf,.docx,.doc,.txt" style="display:none" onchange="kbHandleFile(this.files[0])">
+</div>
+<div style="display:flex;gap:8px;margin-bottom:12px">
+<select class="fi" id="kbCategory" style="flex:1;padding:8px 10px;font-size:12px">
+<option value="hgm9520n_manual">HGM9520N (генератор)</option>
+<option value="hgm9560_manual">HGM9560 (ШПР/АВР)</option>
+<option value="general">Общий</option>
+</select>
+</div>
+<div id="kbUploadStatus" style="display:none;padding:10px;border-radius:6px;font-size:12px;margin-bottom:12px"></div>
+<div style="font-size:13px;font-weight:600;color:var(--t);margin-bottom:8px">Загруженные документы</div>
+<div id="kbDocList" style="max-height:240px;overflow-y:auto;font-size:12px;color:var(--t2)">
+<div style="text-align:center;padding:16px;color:var(--t3)">Загрузка...</div>
+</div>
+</div></div></div>
 <!-- AI Provider Config -->
 <div class="mbg" id="m-aiconf"><div class="mod" style="max-width:540px"><div class="mhd"><h3>🤖 AI Провайдеры</h3><button class="mx" onclick="hideM('aiconf')">✕</button></div><div class="mbd">
 <div style="font-size:12px;color:var(--t2);margin-bottom:12px">Настройте LLM-провайдеров. Можно подключить несколько — один будет активным.</div>
@@ -685,6 +709,11 @@ let deviceSlotIndex = {};
 let latestMetrics = {};
 // Grace period: last time each device was seen online (epoch ms)
 const latestOnlineTime = {};
+// Alarm definitions lookup: {register_field: {bit: {code, name_ru, severity, ...}}}
+let alarmDefs = {};
+let alarmDefsLoaded = false;
+// Track when each alarm was first seen: {deviceId: {alarmCode: epochMs}}
+const _alarmFirstSeen = {};
 // Maps siteKey → apiSiteId
 let siteApiIds = {};
 // Whether backend API is available
@@ -764,6 +793,100 @@ async function loadFromAPI() {
     }
 }
 
+// ---- Alarm definitions loader ----
+async function loadAlarmDefs() {
+    try {
+        const defs = await api.get('/api/alarm-analytics/definitions');
+        alarmDefs = {};
+        for (const d of defs) {
+            if (!alarmDefs[d.register_field]) alarmDefs[d.register_field] = {};
+            alarmDefs[d.register_field][d.bit] = d;
+        }
+        alarmDefsLoaded = true;
+        console.log('Alarm definitions loaded:', defs.length);
+        // Pre-load active alarm timestamps from DB
+        try {
+            const active = await api.get('/api/alarm-analytics/active');
+            for (const a of active) {
+                if (!_alarmFirstSeen[a.device_id]) _alarmFirstSeen[a.device_id] = {};
+                _alarmFirstSeen[a.device_id][a.alarm_code] = new Date(a.occurred_at).getTime();
+            }
+            if (active.length) console.log('Alarm timestamps loaded from DB:', active.length);
+        } catch(e2) { /* ok */ }
+    } catch(e) { console.warn('Failed to load alarm defs:', e); }
+}
+
+// Alarm register fields per device type
+const ALARM_FIELDS_GEN = [
+    'alarm_sd_0','alarm_sd_1','alarm_sd_2','alarm_sd_3','alarm_sd_4','alarm_sd_5',
+    'alarm_ts_0','alarm_ts_1','alarm_ts_2','alarm_ts_3','alarm_ts_4','alarm_ts_5',
+    'alarm_tr_0','alarm_tr_1','alarm_tr_2','alarm_tr_3','alarm_tr_4','alarm_tr_5',
+    'alarm_bk_0','alarm_bk_1','alarm_bk_2','alarm_bk_3','alarm_bk_4','alarm_bk_5',
+    'alarm_wn_0','alarm_wn_1','alarm_wn_2','alarm_wn_3','alarm_wn_4','alarm_wn_5',
+];
+const ALARM_FIELDS_ATS = [
+    'alarm_reg_00','alarm_reg_01','alarm_reg_02','alarm_reg_08',
+    'alarm_reg_12','alarm_reg_14','alarm_reg_16',
+    'alarm_reg_20','alarm_reg_21','alarm_reg_24',
+    'alarm_reg_30','alarm_reg_44',
+];
+
+function decodeAlarms(mx, deviceType) {
+    if (!mx || !alarmDefsLoaded) return [];
+    const fields = deviceType === 'ats' ? ALARM_FIELDS_ATS : ALARM_FIELDS_GEN;
+    const result = [];
+    for (const field of fields) {
+        const val = mx[field];
+        if (!val) continue;
+        const defs = alarmDefs[field] || {};
+        for (let bit = 0; bit < 16; bit++) {
+            if (val & (1 << bit)) {
+                const def = defs[bit];
+                if (def) result.push(def);
+                else result.push({code: `${field}:${bit}`, name_ru: `Неизвестная авария (${field} бит ${bit})`, severity: 'warning'});
+            }
+        }
+    }
+    return result;
+}
+
+// Track alarm first-seen times and return alarms with timestamps
+// controllerTime — ISO string from controller RTC (optional); uses Date.now() as fallback
+function trackAlarmTimes(deviceId, alarms, controllerTime) {
+    if (!_alarmFirstSeen[deviceId]) _alarmFirstSeen[deviceId] = {};
+    const prev = _alarmFirstSeen[deviceId];
+    const currentCodes = new Set(alarms.map(a => a.code));
+    // Remove codes no longer active
+    for (const code of Object.keys(prev)) {
+        if (!currentCodes.has(code)) delete prev[code];
+    }
+    // Use controller time if available, else browser time
+    const nowMs = controllerTime ? new Date(controllerTime).getTime() : Date.now();
+    // Add new codes
+    for (const a of alarms) {
+        if (!prev[a.code]) prev[a.code] = isNaN(nowMs) ? Date.now() : nowMs;
+    }
+    return alarms.map(a => ({...a, _firstSeen: prev[a.code]}));
+}
+
+function fmtAlarmTime(epochMs) {
+    if (!epochMs) return '';
+    const d = new Date(epochMs);
+    const pad = n => String(n).padStart(2, '0');
+    return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) + ' ' + pad(d.getDate()) + '.' + pad(d.getMonth()+1);
+}
+
+function fmtAlarmDuration(epochMs) {
+    if (!epochMs) return '';
+    const min = Math.round((Date.now() - epochMs) / 60000);
+    if (min < 1) return 'только что';
+    if (min < 60) return min + ' мин';
+    const h = Math.floor(min / 60), m = min % 60;
+    if (h < 24) return h + 'ч ' + m + 'мин';
+    const dd = Math.floor(h / 24);
+    return dd + 'д ' + (h % 24) + 'ч';
+}
+
 function connectWebSocket() {
     if (ws) { try { ws.close(); } catch(e){} }
     const url = WS_BASE + '/ws/metrics';
@@ -817,7 +940,15 @@ function handleMetricsUpdate(m) {
         }
     }
 
-    latestMetrics[m.device_id] = m;
+    // Merge: preserve fields from previous message that are missing in this one.
+    // This prevents data flicker when a poll cycle fails to read some blocks.
+    // On offline, full replace to avoid showing stale data as if it were live.
+    const prev = latestMetrics[m.device_id];
+    if (prev && m.online !== false) {
+        latestMetrics[m.device_id] = Object.assign({}, prev, m);
+    } else {
+        latestMetrics[m.device_id] = m;
+    }
 
     const info = deviceSlotIndex[m.device_id];
     if (!info) return;
@@ -1759,10 +1890,10 @@ if(kvs[4]){const ats=mx?.gen_ats_status;if(ats!=null&&isOnline){const hasSd=mx.v
 const modes=card.querySelectorAll('.mdt');modes.forEach(m=>m.classList.remove('on'));
 if(mx){if(mx.mode_auto)modes[0]?.classList.add('on');if(mx.mode_manual)modes[1]?.classList.add('on');if(mx.mode_test)modes[2]?.classList.add('on');if(mx.mode_stop)modes[3]?.classList.add('on')}else{if(on)modes[0]?.classList.add('on');else modes[3]?.classList.add('on')}
 if(typeof updateQuickButtons==='function')updateQuickButtons('c'+sl,mx);
-// Power Limit block
-const plb=$(sl+'-pl');if(plb){const hasPL=mx&&(mx.current_p_pct!=null||mx.target_p_pct!=null);if(hasPL&&isOnline){plb.style.display='';plb.classList.remove('disabled');const cpP=mx.current_p_pct??0,tpP=mx.target_p_pct,cpQ=mx.current_q_pct??0,tpQ=mx.target_q_pct;const pfEl=$(sl+'-pl-pf'),qfEl=$(sl+'-pl-qf'),pvEl=$(sl+'-pl-pv'),qvEl=$(sl+'-pl-qv');if(pfEl){pfEl.style.width=Math.min(cpP,100)+'%';pfEl.className='pl-fill'+(cpP>80?' pl-crit':cpP>50?' pl-warn':'')}if(qfEl){qfEl.style.width=Math.min(Math.abs(cpQ),100)+'%';qfEl.className='pl-fill pl-q'+(Math.abs(cpQ)>80?' pl-crit':Math.abs(cpQ)>50?' pl-warn':'')}if(pvEl)pvEl.textContent=cpP.toFixed(1)+'%'+(tpP!=null?' → '+tpP.toFixed(1)+'%':'');if(qvEl)qvEl.textContent=cpQ.toFixed(1)+'%'+(tpQ!=null?' → '+tpQ.toFixed(1)+'%':'')}else if(hasPL&&!isOnline){plb.style.display='';plb.classList.add('disabled')}else{plb.style.display='none'}}
-// Sync panel
-const syb=$(sl+'-sy');if(syb){const ats=mx?.gen_ats_status;const showSync=isOnline&&on&&mx&&(mx.volt_diff!=null||mx.freq_diff!=null||mx.phase_diff!=null);if(showSync){syb.style.display='';const isClosed=ats===3;const vD=mx.volt_diff??0,fD=mx.freq_diff??0,pD=mx.phase_diff??0;const uOk=Math.abs(vD)<5,fOk=Math.abs(fD)<0.3,pOk=Math.abs(pD)<10;const allOk=uOk&&fOk&&pOk;syb.className='sy-block'+(isClosed||allOk?' sy-ok':'');syb.querySelector('.sy-hdr').textContent=isClosed?'✓ Синхронизирован':allOk?'✓ Условия совпали':'⟳ Синхронизация';const uEl=$(sl+'-sy-u'),fEl=$(sl+'-sy-f'),pEl=$(sl+'-sy-p');const uB=$(sl+'-sy-ub'),fB=$(sl+'-sy-fb'),pB=$(sl+'-sy-pb');if(uEl){uEl.innerHTML=(uOk?'<span style="color:var(--g)">✓</span> ':'<span style="color:var(--r)">✗</span> ')+(vD>0?'+':'')+vD.toFixed(1)+'В';uEl.style.color=uOk?'var(--g)':Math.abs(vD)<15?'var(--y)':'var(--r)'}if(fEl){fEl.innerHTML=(fOk?'<span style="color:var(--g)">✓</span> ':'<span style="color:var(--r)">✗</span> ')+(fD>0?'+':'')+fD.toFixed(2)+'Гц';fEl.style.color=fOk?'var(--g)':Math.abs(fD)<0.5?'var(--y)':'var(--r)'}if(pEl){pEl.innerHTML=(pOk?'<span style="color:var(--g)">✓</span> ':'<span style="color:var(--r)">✗</span> ')+(pD>0?'+':'')+pD.toFixed(1)+'°';pEl.style.color=pOk?'var(--g)':Math.abs(pD)<15?'var(--y)':'var(--r)'}if(uB){const uPct=50+Math.max(-50,Math.min(50,(vD/30)*50));uB.style.left=uPct+'%';uB.className='sy-bar-c '+(uOk?'sy-bar-ok':Math.abs(vD)<15?'sy-bar-w':'sy-bar-r')}if(fB){const fPct=50+Math.max(-50,Math.min(50,(fD/1)*50));fB.style.left=fPct+'%';fB.className='sy-bar-c '+(fOk?'sy-bar-ok':Math.abs(fD)<0.5?'sy-bar-w':'sy-bar-r')}if(pB){const pPct=50+Math.max(-50,Math.min(50,(pD/30)*50));pB.style.left=pPct+'%';pB.className='sy-bar-c '+(pOk?'sy-bar-ok':Math.abs(pD)<15?'sy-bar-w':'sy-bar-r')}}else{syb.style.display='none'}}
+// Power Limit block — always visible when online (disabled placeholder if no data)
+const plb=$(sl+'-pl');if(plb){const hasPL=mx&&(mx.current_p_pct!=null||mx.target_p_pct!=null);if(hasPL&&isOnline){plb.style.display='';plb.classList.remove('disabled');const cpP=mx.current_p_pct??0,tpP=mx.target_p_pct,cpQ=mx.current_q_pct??0,tpQ=mx.target_q_pct;const pfEl=$(sl+'-pl-pf'),qfEl=$(sl+'-pl-qf'),pvEl=$(sl+'-pl-pv'),qvEl=$(sl+'-pl-qv');if(pfEl){pfEl.style.width=Math.min(cpP,100)+'%';pfEl.className='pl-fill'+(cpP>80?' pl-crit':cpP>50?' pl-warn':'')}if(qfEl){qfEl.style.width=Math.min(Math.abs(cpQ),100)+'%';qfEl.className='pl-fill pl-q'+(Math.abs(cpQ)>80?' pl-crit':Math.abs(cpQ)>50?' pl-warn':'')}if(pvEl)pvEl.textContent=cpP.toFixed(1)+'%'+(tpP!=null?' → '+tpP.toFixed(1)+'%':'');if(qvEl)qvEl.textContent=cpQ.toFixed(1)+'%'+(tpQ!=null?' → '+tpQ.toFixed(1)+'%':'')}else if(isOnline){plb.style.display='';plb.classList.add('disabled');const pfEl=$(sl+'-pl-pf'),qfEl=$(sl+'-pl-qf'),pvEl=$(sl+'-pl-pv'),qvEl=$(sl+'-pl-qv');if(pfEl)pfEl.style.width='0%';if(qfEl)qfEl.style.width='0%';if(pvEl)pvEl.textContent='—';if(qvEl)qvEl.textContent='—'}else{plb.style.display='none'}}
+// Sync panel — always visible when online (disabled placeholder if no data / standby)
+const syb=$(sl+'-sy');if(syb){const ats=mx?.gen_ats_status;const hasSync=mx&&(mx.volt_diff!=null||mx.freq_diff!=null||mx.phase_diff!=null);if(isOnline&&on&&hasSync){syb.style.display='';syb.classList.remove('disabled');const isClosed=ats===3;const vD=mx.volt_diff??0,fD=mx.freq_diff??0,pD=mx.phase_diff??0;const uOk=Math.abs(vD)<5,fOk=Math.abs(fD)<0.3,pOk=Math.abs(pD)<10;const allOk=uOk&&fOk&&pOk;syb.className='sy-block'+(isClosed||allOk?' sy-ok':'');syb.querySelector('.sy-hdr').textContent=isClosed?'✓ Синхронизирован':allOk?'✓ Условия совпали':'⟳ Синхронизация';const uEl=$(sl+'-sy-u'),fEl=$(sl+'-sy-f'),pEl=$(sl+'-sy-p');const uB=$(sl+'-sy-ub'),fB=$(sl+'-sy-fb'),pB=$(sl+'-sy-pb');if(uEl){uEl.innerHTML=(uOk?'<span style="color:var(--g)">✓</span> ':'<span style="color:var(--r)">✗</span> ')+(vD>0?'+':'')+vD.toFixed(1)+'В';uEl.style.color=uOk?'var(--g)':Math.abs(vD)<15?'var(--y)':'var(--r)'}if(fEl){fEl.innerHTML=(fOk?'<span style="color:var(--g)">✓</span> ':'<span style="color:var(--r)">✗</span> ')+(fD>0?'+':'')+fD.toFixed(2)+'Гц';fEl.style.color=fOk?'var(--g)':Math.abs(fD)<0.5?'var(--y)':'var(--r)'}if(pEl){pEl.innerHTML=(pOk?'<span style="color:var(--g)">✓</span> ':'<span style="color:var(--r)">✗</span> ')+(pD>0?'+':'')+pD.toFixed(1)+'°';pEl.style.color=pOk?'var(--g)':Math.abs(pD)<15?'var(--y)':'var(--r)'}if(uB){const uPct=50+Math.max(-50,Math.min(50,(vD/30)*50));uB.style.left=uPct+'%';uB.className='sy-bar-c '+(uOk?'sy-bar-ok':Math.abs(vD)<15?'sy-bar-w':'sy-bar-r')}if(fB){const fPct=50+Math.max(-50,Math.min(50,(fD/1)*50));fB.style.left=fPct+'%';fB.className='sy-bar-c '+(fOk?'sy-bar-ok':Math.abs(fD)<0.5?'sy-bar-w':'sy-bar-r')}if(pB){const pPct=50+Math.max(-50,Math.min(50,(pD/30)*50));pB.style.left=pPct+'%';pB.className='sy-bar-c '+(pOk?'sy-bar-ok':Math.abs(pD)<15?'sy-bar-w':'sy-bar-r')}}else if(isOnline){syb.style.display='';syb.className='sy-block disabled';syb.querySelector('.sy-hdr').textContent='⟳ Синхронизация';const uEl=$(sl+'-sy-u'),fEl=$(sl+'-sy-f'),pEl=$(sl+'-sy-p');if(uEl){uEl.textContent='—';uEl.style.color=''}if(fEl){fEl.textContent='—';fEl.style.color=''}if(pEl){pEl.textContent='—';pEl.style.color=''}}else{syb.style.display='none'}}
 // Update run hours display in header
 const rhEl=$(sl+'-rh');if(rhEl){if(!isOnline){rhEl.textContent='⏱ — ч';rhEl.style.opacity='0.4'}else{const rhVal=mx?.run_hours!=null?mx.run_hours:rh;rhEl.textContent='⏱ '+(typeof rhVal==='number'?rhVal.toFixed(0):rhVal)+' ч';rhEl.style.opacity=''}}
 const tob=$(sl+'-to');if(tob){if(!isOnline){tob.querySelector('.to-head').innerHTML=`<span class="to-name" style="color:var(--t3)">⚠ Нет связи — моточасы недоступны</span>`;const bar=tob.querySelector('.to-bar');if(bar)bar.style.display='none';const tasks=tob.querySelector('.to-tasks');if(tasks)tasks.style.display='none';const hint=tob.querySelector('.to-hint');if(hint)hint.style.display='none'}else{const to=getNextTO(rh,cur,sl);if(to.unknown){tob.querySelector('.to-head').innerHTML=`<span class="to-name to-y">⚠ Укажите последнее ТО</span><span class="to-remain" style="color:var(--y);cursor:pointer" onclick="event.stopPropagation();openSet()">Настройки →</span>`;tob.onclick=function(e){e.stopPropagation();openSet()};const bar=tob.querySelector('.to-bar');if(bar)bar.style.display='none';const tasks=tob.querySelector('.to-tasks');if(tasks)tasks.style.display='none';const hint=tob.querySelector('.to-hint');if(hint)hint.style.display='none'}else{const tc2=to.remain<0?'to-r':to.pct>85?'to-r':to.pct>65?'to-y':'to-g';const bc2=to.remain<0?'var(--r)':to.pct>85?'var(--r)':to.pct>65?'var(--y)':'var(--g)';tob.querySelector('.to-head').innerHTML=`<span class="to-name ${tc2}">${to.name} → ${to.dueAt}ч</span><span class="to-remain">${to.remain>0?to.remain+'ч ост.':(to.remain<0?'просроч. '+Math.abs(to.remain)+'ч':'сейчас')} · ${rh}ч</span>`;const fill=tob.querySelector('.to-fill');if(fill){fill.parentElement.style.display='';fill.style.cssText=`width:${to.pct}%;background:${bc2}`}}}}
@@ -1812,10 +1943,15 @@ mT.innerHTML=`<div class="mg"><div class="mc"><div class="ml">Обороты</di
 else if(mT&&!isOnline)mT.innerHTML=`<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Нет связи</div>`;
 const aT=$(sl+'a-act');if(aT){let ah='';
 if(!connOk) ah+=`<div class="ai aa">🔴 <b style="color:var(--r)">CONN_LOST</b> Нет связи с HGM9520N<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
-if(mx?.alarm_common) ah+=`<div class="ai aa"${ah?' style="margin-top:2px"':''}>🔴 <b style="color:var(--r)">COMMON</b> Общая авария<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
-if(mx?.alarm_shutdown) ah+=`<div class="ai aa" style="margin-top:2px">🔴 <b style="color:var(--r)">SHUTDOWN</b> Аварийный останов<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
-if(mx?.alarm_warning) ah+=`<div class="ai aw" style="margin-top:2px">⚠ <b style="color:var(--y)">WARNING</b> Предупреждение<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
-if(mx?.alarm_block) ah+=`<div class="ai aa" style="margin-top:2px">🔴 <b style="color:var(--r)">BLOCK</b> Блокировка<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
+const _did = getDeviceIdForSlot(sl);
+const _genAlarms = trackAlarmTimes(_did, decodeAlarms(mx, 'generator'), mx && mx.controller_time);
+for (const a of _genAlarms) {
+    const _ic = a.severity==='shutdown'?'🔴':a.severity==='warning'?'⚠':'🟠';
+    const _cl = a.severity==='shutdown'||a.severity==='block'?'aa':'aw';
+    const _co = a.severity==='shutdown'||a.severity==='block'?'var(--r)':'var(--y)';
+    const _ts = a._firstSeen ? `<span style="margin-left:auto;color:var(--t4);font-size:10px;font-family:var(--m);white-space:nowrap">⏱ ${fmtAlarmTime(a._firstSeen)} (${fmtAlarmDuration(a._firstSeen)})</span>` : '';
+    ah+=`<div class="ai ${_cl}" data-alarm-code="${a.code}" data-device-id="${_did}" data-device-type="generator" style="cursor:pointer;margin-top:2px;display:flex;align-items:center;gap:6px">${_ic} <b style="color:${_co}">${a.code}</b> ${a.name_ru}${_ts}</div>`;
+}
 aT.innerHTML=ah||'<div style="color:var(--g);font-size:12px;text-align:center;padding:15px">✓ Нет активных аварий</div>'}}
 function applySpr(gOn,mN,bC,mC,isOnline){const card=$('cspr');if(!card)return;const isO=card.classList.contains('op'),active=gOn||mN;
 // Status: alarm (mains abnormal), running (active), standby (online but idle), offline
@@ -1847,10 +1983,15 @@ if(isOnline){const m3=latestMetrics[getDeviceIdForSlot('spr')];if(m3)applySprDet
 const sprAct=$('spra-act');if(sprAct){const sprMx=latestMetrics[getDeviceIdForSlot('spr')];let sah='';
 if(!isOnline) sah+=`<div class="ai aa">🔴 <b style="color:var(--r)">CONN_LOST</b> Нет связи с HGM9560<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
 if(isOnline&&!mN) sah+=`<div class="ai aa"${sah?' style="margin-top:2px"':''}>🔴 <b style="color:var(--r)">M001</b> Авария сети<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
-if(sprMx?.alarm_common) sah+=`<div class="ai aa" style="margin-top:2px">🔴 <b style="color:var(--r)">COMMON</b> Общая авария<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
-if(sprMx?.alarm_shutdown) sah+=`<div class="ai aa" style="margin-top:2px">🔴 <b style="color:var(--r)">SHUTDOWN</b> Аварийный останов<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
-if(sprMx?.alarm_warning) sah+=`<div class="ai aw" style="margin-top:2px">⚠ <b style="color:var(--y)">WARNING</b> Предупреждение<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
-if(sprMx?.alarm_trip_stop) sah+=`<div class="ai aa" style="margin-top:2px">🔴 <b style="color:var(--r)">TRIP_STOP</b> Аварийный стоп<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
+const _sprDid = getDeviceIdForSlot('spr');
+const _sprAlarms = trackAlarmTimes(_sprDid, decodeAlarms(sprMx, 'ats'), sprMx && sprMx.controller_time);
+for (const a of _sprAlarms) {
+    const _ic = a.severity==='shutdown'?'🔴':a.severity==='warning'?'⚠':'🟠';
+    const _cl = a.severity==='shutdown'||a.severity==='block'?'aa':'aw';
+    const _co = a.severity==='shutdown'||a.severity==='block'?'var(--r)':'var(--y)';
+    const _ts = a._firstSeen ? `<span style="margin-left:auto;color:var(--t4);font-size:10px;font-family:var(--m);white-space:nowrap">⏱ ${fmtAlarmTime(a._firstSeen)} (${fmtAlarmDuration(a._firstSeen)})</span>` : '';
+    sah+=`<div class="ai ${_cl}" data-alarm-code="${a.code}" data-device-id="${_sprDid}" data-device-type="ats" style="cursor:pointer;margin-top:2px;display:flex;align-items:center;gap:6px">${_ic} <b style="color:${_co}">${a.code}</b> ${a.name_ru}${_ts}</div>`;
+}
 sprAct.innerHTML=sah||'<div style="color:var(--g);font-size:12px;text-align:center;padding:15px">✓ Нет активных аварий</div>'}}
 // === BITRIX24 INTEGRATION ===
 function getBxConfig(){try{return JSON.parse(localStorage.getItem('s5bx'))||{}}catch(e){return{}}}
@@ -3056,25 +3197,41 @@ const el=$('almActiveList'),cnt=$('almActiveCount');
 if(!el)return;
 el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">⏳ Загрузка...</div>';
 try{
-const alarms=await api.get('/api/history/alarms/active');
+// Load from both sources: summary flags (history) + bitwise (alarm-analytics)
+const [alarmsHist, alarmsAA] = await Promise.all([
+    api.get('/api/history/alarms/active').catch(()=>[]),
+    api.get('/api/alarm-analytics/active').catch(()=>[]),
+]);
+// Merge: prefer alarm-analytics (have name_ru), add history items not covered
+const aaSet = new Set(alarmsAA.map(a=>a.device_id+'_'+a.alarm_code));
+const alarms = alarmsAA.map(a=>({
+    ...a, message: a.alarm_name_ru || a.alarm_name || a.alarm_code,
+    severity: a.alarm_severity || a.severity || 'error',
+    alarm_code: a.alarm_code,
+}));
+for (const a of alarmsHist) {
+    if (!aaSet.has(a.device_id+'_'+a.alarm_code)) alarms.push(a);
+}
 if(cnt)cnt.textContent=alarms.length+' шт.';
 if(!alarms.length){el.innerHTML='<div style="padding:16px 20px;background:var(--gd);border:1px solid rgba(0,224,154,.2);border-radius:var(--rad);color:var(--g);font-size:13px;text-align:center">✓ Нет активных аварий</div>';return}
-const sevI={error:'🔴',warning:'⚠'},sevC={error:'var(--r)',warning:'var(--y)'};
+const sevI={error:'🔴',shutdown:'🔴',warning:'⚠',block:'🟠'},sevC={error:'var(--r)',shutdown:'var(--r)',warning:'var(--y)',block:'var(--r)'};
 const cards=alarms.map(a=>{
 const occ=new Date(a.occurred_at);
 const durMin=Math.round((Date.now()-occ.getTime())/60000);
 const durStr=durMin<60?durMin+' мин':(durMin/60|0)+' ч '+(durMin%60)+' мин';
-const ic=sevI[a.severity]||'🔴';
-const col=sevC[a.severity]||'var(--r)';
-const bg=a.severity==='warning'?'var(--yd)':'var(--rd)';
-const border=a.severity==='warning'?'rgba(255,176,32,.2)':'rgba(255,64,96,.2)';
+const sev = a.alarm_severity || a.severity || 'error';
+const ic=sevI[sev]||'🔴';
+const col=sevC[sev]||'var(--r)';
+const bg=sev==='warning'?'var(--yd)':'var(--rd)';
+const border=sev==='warning'?'rgba(255,176,32,.2)':'rgba(255,64,96,.2)';
 const dev=resolveDeviceName(a.device_id);
-return`<div class="ai" data-device-id="${a.device_id}" style="cursor:pointer;padding:10px 14px;background:${bg};border:1px solid ${border};border-radius:var(--rs);margin-bottom:4px;display:flex;align-items:center;gap:10px">
+const msg = a.alarm_name_ru || a.message || a.alarm_code;
+return`<div class="ai" data-device-id="${a.device_id}" data-alarm-code="${a.alarm_code}" data-device-type="${a.device_type||''}" style="cursor:pointer;padding:10px 14px;background:${bg};border:1px solid ${border};border-radius:var(--rs);margin-bottom:4px;display:flex;align-items:center;gap:10px">
 <span style="font-size:16px">${ic}</span>
 <div style="flex:1;min-width:0">
 <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
 <b style="color:${col};font-family:var(--m);font-size:12px">${esc(a.alarm_code)}</b>
-<span style="font-size:12px;color:var(--t)">${esc(a.message)}</span></div>
+<span style="font-size:12px;color:var(--t)">${esc(msg)}</span></div>
 <div style="font-size:10px;color:var(--t3);font-family:var(--m)">${dev} · ${occ.toLocaleString('ru-RU')} · ${durStr}</div></div></div>`}).join('');
 el.innerHTML=cards;
 }catch(e){el.innerHTML=`<div style="color:var(--r);font-size:12px;padding:20px;text-align:center">Ошибка: ${esc(e.message)}</div>`}}
@@ -3086,27 +3243,56 @@ el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;paddi
 const st=alarmsPageState;
 st.sevFilter=$('almSev')?.value||'';
 st.activeOnly=$('almActiveOnly')?.checked||false;
-let url=`/api/history/alarms?limit=${st.limit}&offset=${st.page*st.limit}`;
-if(st.sevFilter)url+=`&severity=${st.sevFilter}`;
-if(st.activeOnly)url+='&is_active=true';
-if(st.hours)url+=`&last_hours=${st.hours}`;
+// Fetch from alarm-analytics (bitwise, has name_ru) as primary source
+let aaUrl=`/api/alarm-analytics/events?limit=${st.limit}&offset=${st.page*st.limit}`;
+if(st.sevFilter)aaUrl+=`&severity=${st.sevFilter}`;
+if(st.activeOnly)aaUrl+='&is_active=true';
+if(st.hours)aaUrl+=`&last_hours=${st.hours}`;
+// Also fetch from history (summary flags) as fallback
+let hUrl=`/api/history/alarms?limit=${st.limit}&offset=${st.page*st.limit}`;
+if(st.sevFilter)hUrl+=`&severity=${st.sevFilter}`;
+if(st.activeOnly)hUrl+='&is_active=true';
+if(st.hours)hUrl+=`&last_hours=${st.hours}`;
 try{
-const alarms=await api.get(url);
+const [alarmsAA, alarmsH] = await Promise.all([
+    api.get(aaUrl).catch(()=>[]),
+    api.get(hUrl).catch(()=>[]),
+]);
+// Merge: AA events first (sorted by occurred_at desc), then history events not in AA
+const allAlarms = alarmsAA.map(a=>({
+    id: a.id, device_id: a.device_id, device_type: a.device_type||'',
+    alarm_code: a.alarm_code,
+    severity: a.alarm_severity || a.severity || 'error',
+    message: a.alarm_name_ru || a.alarm_name || a.alarm_code,
+    occurred_at: a.occurred_at, cleared_at: a.cleared_at, is_active: a.is_active,
+}));
+const aaIds = new Set(allAlarms.map(a=>a.device_id+'_'+a.alarm_code+'_'+new Date(a.occurred_at).getTime()));
+for (const a of alarmsH) {
+    const key = a.device_id+'_'+a.alarm_code+'_'+new Date(a.occurred_at).getTime();
+    if (!aaIds.has(key)) allAlarms.push(a);
+}
+allAlarms.sort((a,b)=>new Date(b.occurred_at)-new Date(a.occurred_at));
+const alarms = allAlarms.slice(0, st.limit);
 if(!alarms||!alarms.length){el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:30px">Нет аварий за выбранный период ✓</div>';if(pag)pag.innerHTML='';return}
-const sevI={error:'🔴',warning:'🟡'},sevL={error:'Ошибка',warning:'Предупр.'};
+const sevI={error:'🔴',shutdown:'🔴',warning:'🟡',block:'🟠'},sevL={error:'Ошибка',shutdown:'Аварийн.',warning:'Предупр.',block:'Блокир.'};
 const rows=alarms.map(a=>{
 const occ=new Date(a.occurred_at),clr=a.cleared_at?new Date(a.cleared_at):null;
-const dur=clr?Math.round((clr-occ)/60000):'—';
+const dur=clr?Math.round((clr-occ)/60000):null;
+const durStr=dur!=null?(dur<60?dur+' мин':(dur/60|0)+'ч '+(dur%60)+'мин'):'—';
 const dev=resolveDeviceName(a.device_id);
-return`<tr class="ai" data-device-id="${a.device_id}" style="cursor:pointer">
+const sev = a.alarm_severity || a.severity || 'error';
+const msg = a.alarm_name_ru || a.message || a.alarm_code;
+const clrStr = clr ? clr.toLocaleString('ru-RU') : '—';
+return`<tr class="ai" data-device-id="${a.device_id}" data-alarm-code="${a.alarm_code}" data-device-type="${a.device_type||''}" style="cursor:pointer">
 <td style="white-space:nowrap">${occ.toLocaleString('ru-RU')}</td>
 <td>${esc(dev)}</td>
 <td style="font-family:var(--m)"><b>${esc(a.alarm_code)}</b></td>
-<td>${sevI[a.severity]||'⚪'} ${sevL[a.severity]||a.severity}</td>
-<td>${esc(a.message)}</td>
-<td>${typeof dur==='number'?dur+' мин':dur}</td>
+<td>${sevI[sev]||'⚪'} ${sevL[sev]||sev}</td>
+<td>${esc(msg)}</td>
+<td style="white-space:nowrap">${clrStr}</td>
+<td>${durStr}</td>
 <td>${a.is_active?'<span style="color:var(--r);font-weight:600">● Активна</span>':'<span style="color:var(--t3)">✓ Снята</span>'}</td></tr>`}).join('');
-el.innerHTML=`<table class="pt"><thead><tr><th>Время</th><th>Устройство</th><th>Код</th><th>Уровень</th><th>Сообщение</th><th>Длит.</th><th>Статус</th></tr></thead><tbody>${rows}</tbody></table>`;
+el.innerHTML=`<table class="pt"><thead><tr><th>Возникла</th><th>Устройство</th><th>Код</th><th>Уровень</th><th>Сообщение</th><th>Устранена</th><th>Длит.</th><th>Статус</th></tr></thead><tbody>${rows}</tbody></table>`;
 const hasMore=alarms.length===st.limit;
 if(pag)pag.innerHTML=`<div style="display:flex;gap:8px;align-items:center;margin-top:8px">
 <button class="sb-btn" style="padding:5px 12px;font-size:11px;width:auto" onclick="alarmsPageState.page=Math.max(0,alarmsPageState.page-1);almLoadHistory()" ${st.page===0?'disabled style="opacity:.4;pointer-events:none;padding:5px 12px;font-size:11px;width:auto"':''}>← Назад</button>
@@ -3197,6 +3383,8 @@ else{st.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px 
     else { cur = Object.keys(S)[0] || null; renderDash(); }
     // Connect WebSocket for live data
     connectWebSocket();
+    // Load alarm definitions for bitwise decoding
+    loadAlarmDefs();
 })();
 
 // ═══════════════════════════════════════════════════════════════
@@ -3893,6 +4081,118 @@ async function _snHealthCheck(){
 setTimeout(_snHealthCheck,2000);
 setInterval(_snHealthCheck,30000);
 setTimeout(_snUpdateCtxBadge,500);
+
+// ---------------------------------------------------------------------------
+// Knowledge Base (📚 База знаний)
+// ---------------------------------------------------------------------------
+(function(){
+  const dropZone=document.getElementById('kbDropZone');
+  if(dropZone){
+    dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.style.borderColor='var(--g)';dropZone.style.background='rgba(0,255,136,.05)'});
+    dropZone.addEventListener('dragleave',e=>{e.preventDefault();dropZone.style.borderColor='var(--bd2)';dropZone.style.background='var(--bg2)'});
+    dropZone.addEventListener('drop',e=>{
+      e.preventDefault();
+      dropZone.style.borderColor='var(--bd2)';dropZone.style.background='var(--bg2)';
+      const f=e.dataTransfer.files[0];
+      if(f)kbHandleFile(f);
+    });
+  }
+  // Load docs on modal open
+  const obs=new MutationObserver(()=>{
+    const m=document.getElementById('m-kbase');
+    if(m&&m.style.display!=='none'&&m.classList.contains('show'))kbLoadDocs();
+  });
+  const mbg=document.getElementById('m-kbase');
+  if(mbg)obs.observe(mbg,{attributes:true,attributeFilter:['style','class']});
+  // Also load on first open via showM
+  const origShowM=window.showM;
+  window.showM=function(id){
+    origShowM(id);
+    if(id==='kbase')setTimeout(kbLoadDocs,100);
+  };
+})();
+
+async function kbHandleFile(file){
+  if(!file)return;
+  const status=document.getElementById('kbUploadStatus');
+  const category=document.getElementById('kbCategory').value;
+  status.style.display='block';
+  status.style.background='var(--bg3)';
+  status.style.color='var(--t2)';
+  status.textContent='⏳ Загрузка и обработка «'+file.name+'»...';
+
+  const form=new FormData();
+  form.append('file',file);
+  form.append('category',category);
+  form.append('title',file.name);
+
+  try{
+    const resp=await fetch('/api/ai/knowledge/upload',{method:'POST',body:form});
+    const data=await resp.json();
+    if(data.success){
+      status.style.background='rgba(0,255,136,.1)';
+      status.style.color='var(--g)';
+      status.textContent='✅ «'+data.filename+'» — '+data.chunks_stored+' фрагментов сохранено';
+      kbLoadDocs();
+    }else{
+      status.style.background='rgba(255,80,80,.1)';
+      status.style.color='var(--r)';
+      status.textContent='❌ '+(data.error||'Неизвестная ошибка');
+    }
+  }catch(e){
+    status.style.background='rgba(255,80,80,.1)';
+    status.style.color='var(--r)';
+    status.textContent='❌ Ошибка сети: '+e.message;
+  }
+  // Reset file input
+  document.getElementById('kbFileInput').value='';
+}
+
+async function kbLoadDocs(){
+  const list=document.getElementById('kbDocList');
+  if(!list)return;
+  try{
+    const resp=await fetch('/api/ai/knowledge/');
+    if(!resp.ok){
+      list.innerHTML='<div style="text-align:center;padding:16px;color:var(--r)">Ошибка сервера (HTTP '+resp.status+')</div>';
+      return;
+    }
+    const ct=resp.headers.get('content-type')||'';
+    if(!ct.includes('json')){
+      list.innerHTML='<div style="text-align:center;padding:16px;color:var(--r)">Бэкенд недоступен. Перезагрузите страницу.</div>';
+      return;
+    }
+    const docs=await resp.json();
+    if(!docs.length){
+      list.innerHTML='<div style="text-align:center;padding:16px;color:var(--t3)">Нет загруженных документов</div>';
+      return;
+    }
+    const catLabels={hgm9520n_manual:'HGM9520N',hgm9560_manual:'HGM9560',general:'Общий'};
+    list.innerHTML=docs.map(d=>{
+      const cat=catLabels[d.category]||d.category;
+      const dt=d.created_at?new Date(d.created_at).toLocaleDateString('ru'):'';
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border:1px solid var(--bd);border-radius:6px;margin-bottom:6px;background:var(--bg2)">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${d.source_filename}">📄 ${d.source_filename}</div>
+          <div style="font-size:11px;color:var(--t3)">${cat} · ${d.chunk_count} фрагм. · ${dt}</div>
+        </div>
+        <button style="background:none;border:1px solid var(--r);color:var(--r);border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;flex-shrink:0;margin-left:8px" onclick="kbDeleteDoc('${d.source_filename.replace(/'/g,"\\'")}')">🗑</button>
+      </div>`;
+    }).join('');
+  }catch(e){
+    list.innerHTML='<div style="text-align:center;padding:16px;color:var(--r)">Ошибка: '+e.message+'</div>';
+  }
+}
+
+async function kbDeleteDoc(filename){
+  if(!confirm('Удалить «'+filename+'» из базы знаний?'))return;
+  try{
+    await fetch('/api/ai/knowledge/'+encodeURIComponent(filename),{method:'DELETE'});
+    kbLoadDocs();
+  }catch(e){
+    alert('Ошибка удаления: '+e.message);
+  }
+}
 </script>
 <script src="/alarm_modal.js"></script>
 <!-- Power Limit Modal -->

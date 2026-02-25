@@ -128,6 +128,17 @@ class AlarmAnalyticsDetector:
                 except Exception:
                     pass
 
+    @staticmethod
+    def _extract_controller_time(payload: dict) -> datetime | None:
+        """Extract controller RTC time from payload, return None if unavailable."""
+        ct_str = payload.get("controller_time")
+        if ct_str:
+            try:
+                return datetime.fromisoformat(ct_str)
+            except (ValueError, TypeError):
+                pass
+        return None
+
     async def _process(self, payload: dict) -> None:
         """Process a single metrics payload — detect bit transitions."""
         device_id = payload.get("device_id")
@@ -136,6 +147,9 @@ class AlarmAnalyticsDetector:
 
         if device_id is None or not online:
             return
+
+        # Use controller RTC time if available, otherwise server time
+        now = self._extract_controller_time(payload) or datetime.utcnow()
 
         alarm_map = get_alarm_map(device_type)
         alarm_fields = get_alarm_fields(device_type)
@@ -195,6 +209,7 @@ class AlarmAnalyticsDetector:
                             alarm_register=int(field.split("_")[-1]) if field[-1].isdigit() else 0,
                             alarm_bit=bit,
                             is_active=True,
+                            occurred_at=now,
                             metrics_snapshot=snapshot,
                             analysis_result=analysis,
                         )
@@ -211,15 +226,16 @@ class AlarmAnalyticsDetector:
                                 AlarmAnalyticsEvent.alarm_code == defn["code"],
                                 AlarmAnalyticsEvent.is_active == True,  # noqa: E712
                             )
-                        )
+                        ).order_by(AlarmAnalyticsEvent.occurred_at.desc())
                         result = await session.execute(stmt)
-                        active_alarm = result.scalar_one_or_none()
-                        if active_alarm:
-                            active_alarm.cleared_at = datetime.utcnow()
+                        active_alarms = result.scalars().all()
+                        for active_alarm in active_alarms:
+                            active_alarm.cleared_at = now
                             active_alarm.is_active = False
+                        if active_alarms:
                             logger.info(
-                                "AA ALARM OFF: device=%d code=%s",
-                                device_id, defn["code"],
+                                "AA ALARM OFF: device=%d code=%s (%d cleared)",
+                                device_id, defn["code"], len(active_alarms),
                             )
 
                     await session.commit()

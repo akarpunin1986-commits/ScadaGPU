@@ -388,10 +388,102 @@ def _analyze_loss_of_excitation(m: dict) -> dict:
     }
 
 
+def _analyze_over_power(m: dict) -> dict:
+    gen = m.get("gen", {})
+    p = gen.get("total_p", 0) or 0
+    ia = gen.get("ia", 0) or 0
+    ib = gen.get("ib", 0) or 0
+    ic = gen.get("ic", 0) or 0
+    max_i = max(ia, ib, ic)
+    evidence = [
+        f"P генератора: {p} кВт",
+        f"IA={ia}A, IB={ib}A, IC={ic}A (макс: {max_i}A)",
+        f"Обороты: {m.get('engine_speed', '?')} об/мин",
+    ]
+    if p > 0:
+        return {
+            "evidence": evidence,
+            "probable_cause": f"Активная мощность генератора ({p} кВт) превысила порог уставки Over Power. Вероятно подключена слишком большая нагрузка или есть КЗ",
+            "recommendation": "1) Отключить часть нагрузки до номинального уровня. 2) Проверить нет ли КЗ в сети потребителей. 3) Проверить уставки распределения нагрузки (P% регистр 4352).",
+        }
+    return {
+        "evidence": evidence,
+        "probable_cause": "Аварийный останов по перегрузке мощности. Генератор в момент срабатывания аварии мог быть уже остановлен",
+        "recommendation": "Проверить журнал нагрузки. Снизить нагрузку перед повторным запуском. Проверить кабели потребителей на КЗ.",
+    }
+
+
+def _analyze_gen_overfrequency(m: dict) -> dict:
+    gen = m.get("gen", {})
+    return {
+        "evidence": [
+            f"Частота генератора: {gen.get('freq', '?')} Гц",
+            f"Обороты: {m.get('engine_speed', '?')} об/мин",
+        ],
+        "probable_cause": "Повышенные обороты двигателя. Возможные причины: неисправность GOV, сброс нагрузки, заклинивание топливной рейки",
+        "recommendation": "Проверить регулятор оборотов (GOV), топливную систему, нагрузку.",
+    }
+
+
+def _analyze_gen_underfrequency(m: dict) -> dict:
+    gen = m.get("gen", {})
+    return {
+        "evidence": [
+            f"Частота генератора: {gen.get('freq', '?')} Гц",
+            f"Обороты: {m.get('engine_speed', '?')} об/мин",
+            f"P генератора: {gen.get('total_p', '?')} кВт",
+        ],
+        "probable_cause": "Пониженные обороты из-за перегрузки, нехватки топлива или неисправности GOV",
+        "recommendation": "Проверить: 1) нагрузку (не превышает ли номинал); 2) уровень топлива; 3) регулятор оборотов.",
+    }
+
+
+def _analyze_fuel_level(m: dict) -> dict:
+    return {
+        "evidence": [f"Уровень топлива: {m.get('fuel_level', '?')}%"],
+        "probable_cause": "Недостаточный уровень топлива. Топливо не подвозится вовремя или есть утечка",
+        "recommendation": "Организовать дозаправку. Проверить топливопроводы на утечки.",
+    }
+
+
+def _analyze_sensor_fault(m: dict) -> dict:
+    """Generic sensor fault analysis."""
+    evidence = []
+    if m.get("coolant_temp") is not None:
+        evidence.append(f"Температура ОЖ: {m['coolant_temp']}°C")
+    if m.get("oil_pressure") is not None:
+        evidence.append(f"Давление масла: {m['oil_pressure']} кПа")
+    if m.get("fuel_level") is not None:
+        evidence.append(f"Уровень топлива: {m['fuel_level']}%")
+    if m.get("battery_voltage") is not None:
+        evidence.append(f"Батарея: {m['battery_voltage']}V")
+    return {
+        "evidence": evidence or ["Данные датчиков недоступны"],
+        "probable_cause": "Обрыв цепи датчика, окисление контактов, повреждение кабеля, неисправность самого датчика",
+        "recommendation": "Проверить: 1) разъём датчика; 2) кабель от датчика до контроллера; 3) сопротивление датчика мультиметром. При необходимости заменить.",
+    }
+
+
+def _analyze_breaker_fault(m: dict) -> dict:
+    """Generic breaker/switch fault analysis."""
+    gen = m.get("gen", {})
+    mains = m.get("mains", {})
+    evidence = []
+    if gen.get("freq"):
+        evidence.append(f"F генератора: {gen['freq']} Гц")
+    if mains.get("freq"):
+        evidence.append(f"F сети: {mains['freq']} Гц")
+    return {
+        "evidence": evidence or ["Данные метрик недоступны"],
+        "probable_cause": "Неисправность привода автомата/контактора, механическая блокировка, нет подтверждения от концевого выключателя",
+        "recommendation": "Проверить: 1) привод автомата; 2) механическое состояние; 3) управляющую цепь; 4) концевые выключатели.",
+    }
+
+
 ANALYSIS_RULES_HGM9520N = {
     "emergency_stop": {
-        "manual_description": "Нажата кнопка аварийного останова (Emergency Stop).",
-        "manual_danger": "Двигатель экстренно остановлен. Генератор не будет запускаться до деблокировки.",
+        "manual_description": "Нажата физическая кнопка аварийного останова (Emergency Stop).",
+        "manual_danger": "Двигатель экстренно остановлен. Генератор не будет запускаться до деблокировки кнопки и сброса аварии.",
         "analyze": _analyze_emergency_stop,
     },
     "overspeed": {
@@ -449,7 +541,241 @@ ANALYSIS_RULES_HGM9520N = {
         "manual_danger": "Генератор не способен поддерживать напряжение. Нагрузка может остаться без питания.",
         "analyze": _analyze_loss_of_excitation,
     },
+    "over_power": {
+        "manual_description": "Активная мощность генератора превысила допустимый порог (уставка Over Power).",
+        "manual_danger": "Перегрузка по мощности повреждает обмотки генератора, перегружает двигатель и может привести к возгоранию.",
+        "analyze": _analyze_over_power,
+    },
+    "gen_overfrequency": {
+        "manual_description": "Частота генератора превысила уставку (обычно >52 Гц при номинале 50 Гц).",
+        "manual_danger": "Повышенная частота ускоряет работу оборудования и может повредить чувствительную электронику.",
+        "analyze": _analyze_gen_overfrequency,
+    },
+    "gen_underfrequency": {
+        "manual_description": "Частота генератора ниже уставки (обычно <48 Гц при номинале 50 Гц).",
+        "manual_danger": "Пониженная частота указывает на перегрузку. Двигатели замедляются, возможен перегрев.",
+        "analyze": _analyze_gen_underfrequency,
+    },
+    "low_fuel_level": {
+        "manual_description": "Уровень топлива ниже допустимого. Двигатель может остановиться при полной выработке.",
+        "manual_danger": "При работе без топлива в систему попадёт воздух — потребуется прокачка топливной системы.",
+        "analyze": _analyze_fuel_level,
+    },
+    "sensor_fault": {
+        "manual_description": "Неисправность аналогового датчика — обрыв цепи, выход за диапазон или ошибка.",
+        "manual_danger": "Контроллер не может контролировать параметр. Защита по этому параметру неактивна.",
+        "analyze": _analyze_sensor_fault,
+    },
+    "breaker_fault": {
+        "manual_description": "Неисправность автомата/контактора — не удалось переключить или нет подтверждения.",
+        "manual_danger": "Нагрузка может остаться без питания или наоборот — подключённой к неисправному источнику.",
+        "analyze": _analyze_breaker_fault,
+    },
 }
+
+
+# ---------------------------------------------------------------------------
+# Smart generic fallback — extracts metrics evidence from snapshot
+# ---------------------------------------------------------------------------
+
+def _extract_evidence_from_snapshot(snapshot: dict, device_type: str, alarm_name: str) -> list[str]:
+    """Extract relevant metrics from snapshot as evidence lines."""
+    evidence = []
+    name = alarm_name.lower()
+
+    if device_type == "generator":
+        gen = snapshot.get("gen", {})
+        # Always include key metrics for generator alarms
+        if gen.get("total_p") is not None:
+            evidence.append(f"P генератора: {gen['total_p']} кВт")
+        if gen.get("total_q") is not None:
+            evidence.append(f"Q генератора: {gen['total_q']} квар")
+        if gen.get("freq"):
+            evidence.append(f"Частота генератора: {gen['freq']} Гц")
+        # Voltage (for voltage-related alarms or always as context)
+        if gen.get("uab") or "volt" in name or "phase" in name:
+            evidence.append(f"UAB={gen.get('uab', '?')}V, UBC={gen.get('ubc', '?')}V, UCA={gen.get('uca', '?')}V")
+        # Current (for current/power alarms)
+        if gen.get("ia") or "current" in name or "power" in name or "overcurrent" in name:
+            evidence.append(f"IA={gen.get('ia', '?')}A, IB={gen.get('ib', '?')}A, IC={gen.get('ic', '?')}A")
+        # Engine
+        if snapshot.get("engine_speed") is not None:
+            evidence.append(f"Обороты: {snapshot['engine_speed']} об/мин")
+        if snapshot.get("coolant_temp") is not None:
+            evidence.append(f"Темп. ОЖ: {snapshot['coolant_temp']}°C")
+        if snapshot.get("oil_pressure") is not None:
+            evidence.append(f"Давл. масла: {snapshot['oil_pressure']} кПа")
+        if snapshot.get("fuel_level") is not None:
+            evidence.append(f"Топливо: {snapshot['fuel_level']}%")
+        if snapshot.get("battery_voltage") is not None:
+            evidence.append(f"Батарея: {snapshot['battery_voltage']}V")
+        # Genset status
+        st = snapshot.get("genset_status_text")
+        if st:
+            evidence.append(f"Статус ГУ: {st}")
+
+    elif device_type == "ats":
+        mains = snapshot.get("mains", {})
+        busbar = snapshot.get("busbar", {})
+        if mains.get("ua") or mains.get("uab"):
+            evidence.append(f"Сеть: UA={mains.get('ua', '?')}V, UB={mains.get('ub', '?')}V, UC={mains.get('uc', '?')}V")
+        if mains.get("freq"):
+            evidence.append(f"Частота сети: {mains['freq']} Гц")
+        if mains.get("total_p") is not None:
+            evidence.append(f"P сети: {mains['total_p']} кВт")
+        if busbar.get("uab"):
+            evidence.append(f"Шина: UAB={busbar['uab']}V, UBC={busbar.get('ubc', '?')}V")
+        if busbar.get("freq"):
+            evidence.append(f"Частота шины: {busbar['freq']} Гц")
+        if snapshot.get("battery_voltage") is not None:
+            evidence.append(f"Батарея: {snapshot['battery_voltage']}V")
+        sw = snapshot.get("switches", {})
+        if sw.get("mains_switch_text"):
+            evidence.append(f"Автомат сети: {sw['mains_switch_text']}")
+        if sw.get("busbar_switch_text"):
+            evidence.append(f"Автомат шины: {sw['busbar_switch_text']}")
+
+    return evidence or ["Метрики в момент аварии недоступны"]
+
+
+def _smart_recommendation(alarm_name: str, severity: str) -> str:
+    """Generate context-aware recommendation from alarm name keywords."""
+    name = alarm_name.lower()
+
+    if "temp" in name:
+        return "Проверить систему охлаждения: уровень ОЖ, радиатор, вентилятор, термостат. Не запускать до нормализации температуры."
+    if "oil" in name and "pressure" in name:
+        return "Проверить: 1) уровень масла щупом; 2) наличие утечек; 3) масляный фильтр; 4) масляный насос. НЕ ЗАПУСКАТЬ при низком уровне."
+    if "fuel" in name:
+        return "Проверить уровень топлива, топливные фильтры, топливопроводы на утечки. При необходимости дозаправить."
+    if "voltage" in name or "volt" in name:
+        return "Проверить напряжение мультиметром. Для генератора — проверить AVR, обороты. Для сети — связаться с энергоснабжающей организацией."
+    if "current" in name:
+        return "Проверить потребление нагрузки. Отключить лишних потребителей. Проверить кабели на КЗ."
+    if "frequency" in name or "speed" in name:
+        return "Проверить регулятор оборотов (GOV), топливоподачу, нагрузку."
+    if "sensor" in name:
+        return "Проверить датчик: разъём, кабель, сопротивление. При обрыве — заменить датчик."
+    if "breaker" in name or "switch" in name or "close" in name or "open" in name:
+        return "Проверить привод автомата, механическое состояние, управляющую цепь, концевые выключатели."
+    if "sync" in name or "phase" in name:
+        return "Проверить GOV и AVR обоих источников. Проверить подключение фаз."
+    if "communication" in name or "ecu" in name or "msc" in name:
+        return "Проверить кабели связи, разъёмы, питание внешнего блока, настройки протокола."
+    if "battery" in name or "charging" in name:
+        return "Проверить: клеммы батареи, ремень генератора зарядки, напряжение мультиметром."
+
+    if severity == "shutdown":
+        return "Выяснить причину аварии. Устранить до повторного запуска. При необходимости вызвать сервисного инженера."
+    return "Проверить оборудование. При повторных срабатываниях обратиться к сервисной организации."
+
+
+def _analyze_smart_generic(alarm_code: str, device_type: str, snapshot: dict, alarm_def: dict) -> dict:
+    """Smart generic analysis using snapshot metrics and alarm name keywords."""
+    from alarm_analytics.alarm_definitions import get_description_ru
+
+    name = alarm_def.get("name", alarm_code)
+    name_ru = alarm_def.get("name_ru", "")
+    severity = alarm_def.get("severity", "")
+
+    # Description from the improved keyword-based generator
+    desc = get_description_ru(alarm_def)
+
+    # Extract evidence from metrics snapshot
+    evidence = _extract_evidence_from_snapshot(snapshot or {}, device_type, name)
+
+    # Smart recommendation
+    rec = _smart_recommendation(name, severity)
+
+    # Determine probable cause from alarm type
+    cause = _smart_probable_cause(name, snapshot or {}, device_type)
+
+    return {
+        "manual_description": desc,
+        "manual_danger": _smart_danger(name, severity),
+        "evidence": evidence,
+        "probable_cause": cause,
+        "recommendation": rec,
+    }
+
+
+def _smart_danger(name: str, severity: str) -> str | None:
+    """Generate danger description from alarm name."""
+    n = name.lower()
+    if "overspeed" in n:
+        return "КРИТИЧНО. Разнос двигателя может привести к механическому разрушению."
+    if "oil pressure" in n and "low" in n:
+        return "КРИТИЧНО. Работа без смазки приводит к задиру подшипников и заклиниванию двигателя."
+    if "high" in n and "temp" in n:
+        return "КРИТИЧНО. Перегрев двигателя может привести к заклиниванию и разрушению."
+    if "over power" in n or "overcurrent" in n:
+        return "Перегрузка может повредить обмотки генератора и привести к возгоранию."
+    if "earth fault" in n:
+        return "ОПАСНО для персонала! Ток утечки на корпус может привести к поражению электрическим током."
+    if "gas leak" in n:
+        return "КРИТИЧНО. Опасность взрыва и отравления!"
+    if "loss of phase" in n:
+        return "Работа на двух фазах приводит к перегреву и выходу из строя оборудования."
+    if "reverse" in n and ("power" in n or "phase" in n):
+        return "Двигатели могут вращаться в обратном направлении. Возможно повреждение оборудования."
+    if severity == "shutdown":
+        return "Аварийная остановка генератора. Не запускать до устранения причины."
+    return None
+
+
+def _smart_probable_cause(name: str, snapshot: dict, device_type: str) -> str:
+    """Determine probable cause from alarm name and snapshot."""
+    n = name.lower()
+
+    if device_type == "generator":
+        gen = snapshot.get("gen", {})
+        p = gen.get("total_p", 0) or 0
+
+        if "over power" in n:
+            return f"Мощность генератора ({p} кВт) превысила уставку. Подключена слишком большая нагрузка или КЗ в сети потребителей"
+        if "overcurrent" in n:
+            ia = gen.get("ia", 0) or 0
+            ib = gen.get("ib", 0) or 0
+            ic = gen.get("ic", 0) or 0
+            max_i = max(ia, ib, ic)
+            return f"Ток генератора (макс. {max_i}A) превысил уставку. Перегрузка, КЗ в нагрузке или пусковые токи"
+        if "overvoltage" in n and "gen" in n:
+            return "Напряжение генератора выше нормы. Неисправность AVR, повышенные обороты или сброс нагрузки"
+        if "undervoltage" in n and "gen" in n:
+            return "Напряжение генератора ниже нормы. Перегрузка, неисправность AVR или проблемы с возбуждением"
+        if "overfrequency" in n:
+            spd = snapshot.get("engine_speed", 0) or 0
+            return f"Частота/обороты ({spd} об/мин) выше нормы. Неисправность GOV, сброс нагрузки"
+        if "underfrequency" in n or "underspeed" in n:
+            return "Частота/обороты ниже нормы. Перегрузка, нехватка топлива или неисправность GOV"
+        if "temp" in n and "high" in n:
+            ct = snapshot.get("coolant_temp", "?")
+            return f"Температура ({ct}°C) превысила уставку. Низкий уровень ОЖ, засор радиатора, перегрузка"
+        if "oil pressure" in n and "low" in n:
+            op = snapshot.get("oil_pressure", "?")
+            return f"Давление масла ({op} кПа) ниже уставки. Низкий уровень масла, неисправность насоса, утечка"
+
+    # Generic causes for common patterns
+    if "sensor" in n and ("open" in n or "error" in n):
+        return "Обрыв цепи датчика или выход за рабочий диапазон. Окисление контактов, повреждение кабеля"
+    if "communication" in n or "ecu" in n:
+        return "Обрыв линии связи, неисправность внешнего модуля, несовпадение настроек протокола"
+    if "breaker" in n or "close failure" in n or "open failure" in n:
+        return "Неисправность привода автомата, механическая блокировка, обрыв управляющей цепи"
+    if "sync" in n:
+        return "Параметры генератора и сети не совпадают: разница частот, напряжений или фазовый угол"
+    if "charging" in n:
+        bv = snapshot.get("battery_voltage", "?")
+        return f"Зарядка не работает (батарея {bv}V). Обрыв ремня, неисправность реле-регулятора"
+    if "fuel" in n and "low" in n:
+        fl = snapshot.get("fuel_level", "?")
+        return f"Уровень топлива ({fl}%) ниже нормы. Топливо не подвезено вовремя или утечка"
+    if "maintenance" in n:
+        return "Наработка двигателя достигла межсервисного интервала. Необходимо плановое ТО"
+    if "input" in n and any(c.isdigit() for c in n):
+        return "Сработал дискретный вход контроллера. Функция определяется конфигурацией и подключённым оборудованием"
+
+    return "Причина определяется по коду аварии и показаниям приборов. Используйте кнопку «Спросить Санька» для подробного анализа"
 
 
 # ---------------------------------------------------------------------------
@@ -471,14 +797,8 @@ def analyze(alarm_code: str, device_type: str, snapshot: dict, alarm_def: dict) 
     try:
         analysis_key = alarm_def.get("analysis_key")
         if not analysis_key:
-            # No specific analysis available — return basic info
-            return {
-                "manual_description": f"{alarm_def.get('name', alarm_code)}: {alarm_def.get('name_ru', '')}",
-                "manual_danger": None,
-                "evidence": [],
-                "probable_cause": "Специфический анализ для данной аварии не настроен",
-                "recommendation": "Обратитесь к документации SmartGen для данного кода аварии.",
-            }
+            # No specific analysis — use smart generic based on snapshot + alarm name
+            return _analyze_smart_generic(alarm_code, device_type, snapshot, alarm_def)
 
         # Select the right rule set
         if device_type == "ats":

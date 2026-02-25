@@ -43,6 +43,12 @@ async def send_command(cmd: CommandRequest, request: Request):
     if reader is None:
         raise HTTPException(404, f"Device {cmd.device_id} not found in active readers")
 
+    logger.info(
+        "Command request: device=%d fc=%d addr=0x%04X value=%d reader=%s",
+        cmd.device_id, cmd.function_code, cmd.address, cmd.value,
+        type(reader).__name__,
+    )
+
     try:
         if cmd.function_code == 5:
             await reader.write_coil(cmd.address, bool(cmd.value))
@@ -67,11 +73,16 @@ async def send_command(cmd: CommandRequest, request: Request):
             value=cmd.value,
         )
     except ConnectionError as exc:
+        logger.error(
+            "Command ConnectionError: device=%d fc=%d addr=0x%04X: %s",
+            cmd.device_id, cmd.function_code, cmd.address, exc,
+        )
         raise HTTPException(502, f"Connection error: {exc}")
     except Exception as exc:
         logger.error(
-            "Command failed: device=%d fc=%d addr=%d: %s",
+            "Command failed: device=%d fc=%d addr=0x%04X: %s",
             cmd.device_id, cmd.function_code, cmd.address, exc,
+            exc_info=True,
         )
         raise HTTPException(500, f"Command failed: {exc}")
 

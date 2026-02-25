@@ -144,23 +144,27 @@ SANEK_SYSTEM_PROMPT = """Ты — Санёк, AI-ассистент промыш
 15. При анализе трендов и истории: указывай ДИАПАЗОН значений (мин — макс) и СРЕДНЕЕ за период, а не выбирай одну экстремальную точку.
 16. На вопрос "какая мощность?" отвечай СУММАРНОЙ нагрузкой объекта (load_total_p для ATS), а затем можешь разбить на составляющие (сеть + генераторы).
 
+БАЗА ЗНАНИЙ (МАНУАЛЫ):
+17. При вопросах о конкретных ошибках, настройках контроллера, параметрах — вызови search_knowledge для поиска информации из мануалов SmartGen.
+    Используй результаты для подробного и точного ответа оператору. Если база знаний пуста — отвечай по своим знаниям.
+
 АВАРИИ И ДИАГНОСТИКА:
-17. При ЛЮБОМ вопросе об ошибках, авариях, проблемах, состоянии — ОБЯЗАТЕЛЬНО вызови get_alarms.
+18. При ЛЮБОМ вопросе об ошибках, авариях, проблемах, состоянии — ОБЯЗАТЕЛЬНО вызови get_alarms.
     Результат get_alarms — это ТЕКУЩИЕ ПРОБЛЕМЫ, которые ПРОИСХОДЯТ ПРЯМО СЕЙЧАС.
     Поле "status: ⚠️ АКТИВНА СЕЙЧАС" означает, что проблема НЕ РЕШЕНА и ПРОДОЛЖАЕТСЯ.
     Поле "duration" показывает, СКОЛЬКО ВРЕМЕНИ проблема уже длится.
     CONN_LOST = устройство ПРЯМО СЕЙЧАС не на связи. Это НЕ историческое событие, а ТЕКУЩАЯ авария.
-18. НЕ говори "всё работает нормально" или "ошибок нет", пока не вызовешь get_alarms и не убедишься, что список пуст.
+19. НЕ говори "всё работает нормально" или "ошибок нет", пока не вызовешь get_alarms и не убедишься, что список пуст.
     НЕ представляй активные аварии как прошедшие события. Если status="⚠️ АКТИВНА СЕЙЧАС" — говори "СЕЙЧАС есть проблема", а НЕ "была зарегистрирована авария".
-19. При ответе об авариях: укажи имя устройства, тип аварии, сколько длится (поле duration), и рекомендации оператору.
+20. При ответе об авариях: укажи имя устройства, тип аварии, сколько длится (поле duration), и рекомендации оператору.
 
 СТИЛЬ ОТВЕТОВ:
-20. Отвечай РАЗВЁРНУТО и ПОДРОБНО. На каждый вопрос давай максимально полный и информативный ответ.
-21. При отчёте о метриках: не просто числа, а контекст. Пример: "Суммарная нагрузка объекта МКЗ — 248.8 кВт (из них 152.5 кВт от сети и 96.3 кВт от генераторов). Генераторы работают параллельно с сетью."
-22. При отчёте об авариях: описывай каждую аварию подробно — что произошло, когда, на каком устройстве, как долго длится, каков приоритет, возможные действия оператора.
-23. При сводке: дай полную картину — состояние каждого устройства, мощности, аварии, ТО. Не упускай деталей.
-24. Используй структурированный формат: заголовки, списки, группировки. Не выдавай сырые коды — переводи в понятный язык (CONN_LOST → "Нет связи", SHUTDOWN → "Аварийный останов" и т.д.).
-25. Если устройство offline — объясни последствия: данные не поступают, состояние неизвестно, нужна проверка связи.
+21. Отвечай РАЗВЁРНУТО и ПОДРОБНО. На каждый вопрос давай максимально полный и информативный ответ.
+22. При отчёте о метриках: не просто числа, а контекст. Пример: "Суммарная нагрузка объекта МКЗ — 248.8 кВт (из них 152.5 кВт от сети и 96.3 кВт от генераторов). Генераторы работают параллельно с сетью."
+23. При отчёте об авариях: описывай каждую аварию подробно — что произошло, когда, на каком устройстве, как долго длится, каков приоритет, возможные действия оператора.
+24. При сводке: дай полную картину — состояние каждого устройства, мощности, аварии, ТО. Не упускай деталей.
+25. Используй структурированный формат: заголовки, списки, группировки. Не выдавай сырые коды — переводи в понятный язык (CONN_LOST → "Нет связи", SHUTDOWN → "Аварийный останов" и т.д.).
+26. Если устройство offline — объясни последствия: данные не поступают, состояние неизвестно, нужна проверка связи.
 
 КОНТЕКСТ ОБОРУДОВАНИЯ:
 - Генераторы HGM9520N — дизельные/газопоршневые установки с контроллером Smartgen
@@ -180,7 +184,7 @@ SANEK_SYSTEM_PROMPT = """Ты — Санёк, AI-ассистент промыш
 - Всегда показывай СУММАРНУЮ нагрузку (mains_total_p + busbar_p) как "общее потребление объекта".
 
 МЕТРИКИ ГЕНЕРАТОРА (HGM9520N):
-- total_p — полная активная мощность генератора, кВт
+- total_p / power_total — полная активная мощность генератора, кВт (МГНОВЕННАЯ)
 - voltage_ab/bc/ca — линейные напряжения, В
 - current_a/b/c — токи по фазам, А
 - frequency — частота, Гц
@@ -189,7 +193,16 @@ SANEK_SYSTEM_PROMPT = """Ты — Санёк, AI-ассистент промыш
 - engine_speed — обороты двигателя, об/мин
 - fuel_level — уровень топлива, %
 - load_pct — нагрузка генератора, %
-- run_hours/run_minutes — наработка, ч"""
+- run_hours — наработка двигателя, ч (НАКОПИТЕЛЬНЫЙ СЧЁТЧИК)
+- energy_kwh — выработанная энергия, кВт·ч (НАКОПИТЕЛЬНЫЙ СЧЁТЧИК)
+
+РАСЧЁТ ВЫРАБОТКИ ЭНЕРГИИ:
+- energy_kwh — это НАКОПИТЕЛЬНЫЙ счётчик (увеличивается всё время). Текущее значение = всё, что выработано с начала эксплуатации.
+- Выработка за ПЕРИОД = energy_kwh(конец) - energy_kwh(начало). Пример: было 100000, стало 100500 → за период выработано 500 кВт·ч.
+- Для ответа "сколько выработали" — используй get_energy_report (он сам считает дельту) ИЛИ get_history с fields=energy_kwh.
+- power_total — это МГНОВЕННАЯ мощность (кВт). Это НЕ выработка. Мощность показывает текущую нагрузку, а НЕ сколько было выработано.
+- Аналогично: run_hours — наработка в часах (тоже накопительный). run_hours(конец) - run_hours(начало) = сколько часов работал за период.
+- Для каждого генератора можно получить ИНДИВИДУАЛЬНУЮ выработку."""
 
 # ---------------------------------------------------------------------------
 # SCADA tool definitions for LLM function calling
@@ -324,9 +337,11 @@ SCADA_TOOLS = [
         "name": "get_history",
         "description": (
             "Получить историю метрик устройства за период. "
-            "Для ГЕНЕРАТОРОВ: fields=power_total,gen_uab,current_a,coolant_temp,engine_speed. "
-            "Для ШПР (ATS): fields=mains_total_p,busbar_p,load_total_p,mains_uab,busbar_uab. "
+            "Для ГЕНЕРАТОРОВ: fields=power_total,gen_uab,current_a,coolant_temp,engine_speed,energy_kwh,run_hours. "
+            "Для ШПР (ATS): fields=mains_total_p,busbar_p,load_total_p,mains_uab,busbar_uab,energy_kwh. "
             "load_total_p = суммарная нагрузка объекта (mains_total_p + busbar_p), вычисляется автоматически. "
+            "energy_kwh — накопительный счётчик энергии (кВт·ч). Для расчёта выработки за период: energy_kwh(конец) - energy_kwh(начало). "
+            "run_hours — наработка двигателя в часах (накопительный). "
             "ВАЖНО: Для ATS НЕ используй power_total — это поле только для генераторов. "
             "Если fields не указан — поля выбираются автоматически по типу устройства."
         ),
@@ -346,8 +361,8 @@ SCADA_TOOLS = [
                     "type": "string",
                     "description": (
                         "Поля через запятую. "
-                        "Генератор: power_total,gen_uab,current_a,coolant_temp. "
-                        "ATS/ШПР: mains_total_p,busbar_p,load_total_p. "
+                        "Генератор: power_total,gen_uab,current_a,coolant_temp,energy_kwh,run_hours. "
+                        "ATS/ШПР: mains_total_p,busbar_p,load_total_p,energy_kwh. "
                         "Если не указано — выбирается автоматически."
                     ),
                 },
@@ -366,7 +381,12 @@ SCADA_TOOLS = [
     },
     {
         "name": "send_command",
-        "description": "⚠ ОПАСНО: Отправить команду управления генератором. Команды: start (пуск), stop (стоп), auto (авто режим), manual (ручной режим). ТРЕБУЕТ ПОДТВЕРЖДЕНИЯ ОПЕРАТОРА.",
+        "description": (
+            "⚠ ОПАСНО: Отправить команду управления генератором/ШПР. "
+            "Команды: start (пуск), stop (стоп), auto (авто режим), manual (ручной режим), "
+            "reset (сброс аварий), mute (заглушить звук), fast_stop (экстренный стоп). "
+            "ТРЕБУЕТ ПОДТВЕРЖДЕНИЯ ОПЕРАТОРА."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
@@ -376,8 +396,8 @@ SCADA_TOOLS = [
                 },
                 "command": {
                     "type": "string",
-                    "description": "Команда: start, stop, auto, manual",
-                    "enum": ["start", "stop", "auto", "manual"],
+                    "description": "Команда: start, stop, auto, manual, reset, mute, fast_stop",
+                    "enum": ["start", "stop", "auto", "manual", "reset", "mute", "fast_stop"],
                 },
             },
             "required": ["device_id", "command"],
@@ -405,6 +425,52 @@ SCADA_TOOLS = [
             "required": ["device_id"],
         },
     },
+    {
+        "name": "get_energy_report",
+        "description": (
+            "Отчёт по выработке/потреблению электроэнергии за период. "
+            "Возвращает выработку каждого генератора (кВт·ч) и потребление от сети по каждому ШПР. "
+            "Данные берутся из счётчиков energy_kwh в базе. "
+            "Используй при вопросах: 'сколько выработали', 'расход электроэнергии', 'P генераторов за неделю' и т.д."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "site_id": {
+                    "type": "integer",
+                    "description": "ID объекта (опционально, если не указан — все объекты)",
+                },
+                "last_hours": {
+                    "type": "integer",
+                    "description": "За последние N часов (по умолчанию 168 = 1 неделя)",
+                    "default": 168,
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "search_knowledge",
+        "description": (
+            "Поиск в базе знаний (мануалы SmartGen HGM9520N, HGM9560 и др.). "
+            "Используй при вопросах об ошибках, настройках, параметрах контроллера. "
+            "Возвращает релевантные фрагменты из загруженных мануалов."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Поисковый запрос (название ошибки, параметр, ключевые слова)",
+                },
+                "category": {
+                    "type": "string",
+                    "description": "Категория: hgm9520n_manual, hgm9560_manual, general (опционально)",
+                },
+            },
+            "required": ["query"],
+        },
+    },
 ]
 
 # Commands that are dangerous and require confirmation
@@ -416,14 +482,21 @@ COMMAND_LABELS = {
     "stop": "Остановка",
     "auto": "Переключение в авто-режим",
     "manual": "Переключение в ручной режим",
+    "reset": "Сброс аварий",
+    "mute": "Отключение звукового сигнала",
+    "fast_stop": "Экстренная остановка",
 }
 
-# Modbus coil addresses for commands (HGM9520N)
+# Modbus coil addresses for commands (HGM9520N / HGM9560)
+# Addresses per SmartGen protocol: docs/tested-scripts/hgm9560_modbus_gui (3).py
 COMMAND_ADDRESSES = {
-    "start": (5, 0x0001, 0xFF00),   # FC05, coil 1, ON
-    "stop": (5, 0x0002, 0xFF00),    # FC05, coil 2, ON
-    "auto": (5, 0x0003, 0xFF00),    # FC05, coil 3, ON
-    "manual": (5, 0x0004, 0xFF00),  # FC05, coil 4, ON
+    "start":     (5, 0x0000, 0xFF00),  # FC05, coil 0:  Remote Start
+    "stop":      (5, 0x0001, 0xFF00),  # FC05, coil 1:  Remote Stop
+    "auto":      (5, 0x0003, 0xFF00),  # FC05, coil 3:  Remote Auto
+    "manual":    (5, 0x0004, 0xFF00),  # FC05, coil 4:  Remote Manual
+    "reset":     (5, 0x0011, 0xFF00),  # FC05, coil 17: Remote Alarm Reset (Сброс)
+    "mute":      (5, 0x000C, 0xFF00),  # FC05, coil 12: Remote Mute
+    "fast_stop": (5, 0x000F, 0xFF00),  # FC05, coil 15: Emergency Fast Stop
 }
 
 
@@ -567,6 +640,18 @@ async def execute_tool(name: str, args: dict) -> dict:
                 args.get("q_percent"),
             )
 
+        elif name == "get_energy_report":
+            return await _build_energy_report(
+                args.get("site_id"),
+                args.get("last_hours", 168),
+            )
+
+        elif name == "search_knowledge":
+            return await _search_knowledge_base(
+                args["query"],
+                args.get("category"),
+            )
+
         else:
             return {"error": f"Неизвестный инструмент: {name}"}
 
@@ -693,6 +778,129 @@ async def _build_system_summary() -> dict:
     return summary
 
 
+async def _build_energy_report(site_id: int | None, last_hours: int) -> dict:
+    """Build energy production/consumption report for a period.
+
+    Calculates delta of energy_kwh counters between start and end of period.
+    Also reports average power (power_total for generators, load_total_p for ATS).
+    """
+    report = {"period_hours": last_hours, "devices": [], "totals": {}}
+
+    try:
+        # Get all devices (optionally filtered by site)
+        params = {}
+        if site_id:
+            params["site_id"] = site_id
+        sites = await _api_get("/api/sites")
+        all_devices = []
+        for site in (sites if isinstance(sites, list) else []):
+            if site_id and site["id"] != site_id:
+                continue
+            devs = await _api_get("/api/devices", {"site_id": site["id"]})
+            for d in (devs if isinstance(devs, list) else []):
+                d["_site_name"] = site["name"]
+                all_devices.append(d)
+
+        total_gen_kwh = 0
+        total_mains_kwh = 0
+
+        for dev in all_devices:
+            did = dev["id"]
+            dtype = dev.get("device_type", "generator")
+            dname = dev.get("name", f"#{did}")
+            site_name = dev.get("_site_name", "")
+
+            # Get history with energy_kwh for start and end of period
+            hist = await _api_get(f"/api/history/metrics/{did}", {
+                "last_hours": last_hours,
+                "fields": "energy_kwh,power_total,run_hours" if dtype == "generator"
+                    else "energy_kwh,mains_total_p,busbar_p",
+                "limit": 2000,
+            })
+
+            if not isinstance(hist, list) or len(hist) < 2:
+                report["devices"].append({
+                    "device_id": did,
+                    "name": dname,
+                    "site": site_name,
+                    "type": dtype,
+                    "note": "Недостаточно данных за период",
+                })
+                continue
+
+            # Find first and last valid energy_kwh readings
+            first_kwh = None
+            last_kwh = None
+            first_run_h = None
+            last_run_h = None
+            powers = []
+
+            for pt in hist:
+                ekwh = pt.get("energy_kwh")
+                if ekwh is not None and ekwh > 0:
+                    if first_kwh is None:
+                        first_kwh = ekwh
+                    last_kwh = ekwh
+                rh = pt.get("run_hours")
+                if rh is not None and rh > 0:
+                    if first_run_h is None:
+                        first_run_h = rh
+                    last_run_h = rh
+                # Collect power readings for average
+                p = pt.get("power_total") or pt.get("mains_total_p")
+                if p is not None and p > 0:
+                    powers.append(p)
+
+            energy_delta = None
+            if first_kwh is not None and last_kwh is not None and last_kwh >= first_kwh:
+                energy_delta = round(last_kwh - first_kwh, 1)
+
+            run_delta = None
+            if first_run_h is not None and last_run_h is not None and last_run_h >= first_run_h:
+                run_delta = round(last_run_h - first_run_h, 1)
+
+            avg_power = round(sum(powers) / len(powers), 1) if powers else None
+            max_power = round(max(powers), 1) if powers else None
+
+            dev_report = {
+                "device_id": did,
+                "name": dname,
+                "site": site_name,
+                "type": "генератор" if dtype == "generator" else "ШПР",
+                "energy_kwh": energy_delta,
+                "avg_power_kw": avg_power,
+                "max_power_kw": max_power,
+                "data_points": len(hist),
+            }
+            if run_delta is not None:
+                dev_report["run_hours_delta"] = run_delta
+            if energy_delta is None and avg_power:
+                # Estimate from average power * hours
+                estimated = round(avg_power * last_hours, 0)
+                dev_report["estimated_kwh"] = estimated
+                dev_report["note"] = "Счётчик energy_kwh недоступен, оценка по средней мощности"
+
+            if dtype == "generator" and energy_delta is not None:
+                total_gen_kwh += energy_delta
+            elif dtype == "ats" and energy_delta is not None:
+                total_mains_kwh += energy_delta
+
+            report["devices"].append(dev_report)
+
+        report["totals"] = {
+            "generators_kwh": round(total_gen_kwh, 1),
+            "note": f"Суммарная выработка генераторов за {last_hours} часов",
+        }
+        if total_mains_kwh:
+            report["totals"]["mains_kwh"] = round(total_mains_kwh, 1)
+
+    except Exception as e:
+        logger.error("Error building energy report: %s", e, exc_info=True)
+        report["error"] = str(e)
+
+    return report
+
+
 async def _execute_command(device_id: int, command: str) -> dict:
     """Execute a Modbus command on a device."""
     if command not in COMMAND_ADDRESSES:
@@ -725,6 +933,32 @@ async def _execute_power_limit(
         "q_raw": q_raw,
     })
     return result
+
+
+async def _search_knowledge_base(query: str, category: str = None) -> dict:
+    """Search knowledge base via internal API."""
+    params = {"q": query, "limit": 5}
+    if category:
+        params["category"] = category
+    try:
+        results = await _api_get("/api/ai/knowledge/search", params)
+        if isinstance(results, list) and results:
+            return {
+                "found": len(results),
+                "results": [
+                    {
+                        "title": r.get("title", ""),
+                        "content": r.get("content", "")[:800],
+                        "source": r.get("source_filename", ""),
+                        "category": r.get("category", ""),
+                    }
+                    for r in results
+                ],
+            }
+        return {"found": 0, "results": [], "hint": "База знаний пуста или нет совпадений. Попробуйте другие ключевые слова."}
+    except Exception as e:
+        logger.warning("Knowledge base search error: %s", e)
+        return {"found": 0, "error": str(e), "hint": "База знаний недоступна."}
 
 
 # ---------------------------------------------------------------------------
