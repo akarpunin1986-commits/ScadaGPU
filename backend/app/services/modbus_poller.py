@@ -778,12 +778,14 @@ class BaseReader(ABC):
 class HGM9520NReader(BaseReader):
     """Modbus TCP via pymodbus AsyncModbusTcpClient."""
 
-    RECONNECT_EVERY = 30  # force reconnect every N poll cycles (~60s at POLL_INTERVAL=2)
+    RECONNECT_EVERY = 100  # force reconnect every N poll cycles (~200s at POLL_INTERVAL=2)
+    MAX_RETRIES = 2  # retry failed blocks once before giving up
 
     def __init__(self, device: Device, *, site_code: str = ""):
         super().__init__(device, site_code=site_code)
         self._client: AsyncModbusTcpClient | None = None
         self._poll_count = 0
+        self._power_logged = False
 
     async def connect(self) -> None:
         self._client = AsyncModbusTcpClient(
@@ -819,37 +821,55 @@ class HGM9520NReader(BaseReader):
             total_blocks = len(REGISTER_MAP_9520N)
 
             for block_name, block in REGISTER_MAP_9520N.items():
-                try:
-                    resp = await asyncio.wait_for(
-                        self._client.read_holding_registers(
-                            address=block["address"],
-                            count=block["count"],
-                            slave=self.slave_id,
-                        ),
-                        timeout=self.timeout,
-                    )
-                except (asyncio.TimeoutError, Exception) as exc:
-                    logger.warning(
-                        "HGM9520N timeout block=%s device=%s: %s",
-                        block_name, self.device_id, exc,
-                    )
-                    errors += 1
-                    continue
+                regs = None
+                for attempt in range(1, self.MAX_RETRIES + 1):
+                    try:
+                        resp = await asyncio.wait_for(
+                            self._client.read_holding_registers(
+                                address=block["address"],
+                                count=block["count"],
+                                slave=self.slave_id,
+                            ),
+                            timeout=self.timeout,
+                        )
+                    except (asyncio.TimeoutError, Exception) as exc:
+                        if attempt < self.MAX_RETRIES:
+                            await asyncio.sleep(0.15)
+                            continue
+                        logger.warning(
+                            "HGM9520N timeout block=%s device=%s: %s (attempt %d)",
+                            block_name, self.device_id, exc, attempt,
+                        )
+                        errors += 1
+                        break
 
-                if resp.isError():
-                    logger.warning(
-                        "HGM9520N read error block=%s device=%s: %s",
-                        block_name, self.device_id, resp,
-                    )
-                    errors += 1
+                    if resp.isError():
+                        if attempt < self.MAX_RETRIES:
+                            await asyncio.sleep(0.15)
+                            continue
+                        logger.warning(
+                            "HGM9520N read error block=%s device=%s: %s (attempt %d)",
+                            block_name, self.device_id, resp, attempt,
+                        )
+                        errors += 1
+                        break
+                    regs = list(resp.registers)
+                    break
+                if regs is None:
                     continue
-                regs = list(resp.registers)
                 for field_name, parser in block["fields"].items():
                     try:
                         result[field_name] = parser(regs)
                     except Exception as exc:
                         logger.debug("Parse error %s.%s: %s", block_name, field_name, exc)
                         result[field_name] = None
+                # Log raw power registers once for diagnostics
+                if block_name == "power" and not self._power_logged:
+                    self._power_logged = True
+                    logger.info(
+                        "Device %s power RAW regs[174-181]=%s → power_total=%.1f kW",
+                        self.device_id, regs[:8], result.get("power_total", 0),
+                    )
 
             if errors == total_blocks:
                 await self.disconnect()
@@ -1456,6 +1476,7 @@ class HGM9520NRtuReader(HGM9560Reader):
 
     def __init__(self, device: Device, *, site_code: str = ""):
         super().__init__(device, site_code=site_code)
+        self._power_logged = False
         # Override adaptive polling for HGM9520N-specific standby detection
         self._last_gen_status: int | None = None
 
@@ -1545,6 +1566,13 @@ class HGM9520NRtuReader(HGM9560Reader):
                 # Update standby detection after parsing 'accumulated' block
                 if block_name == "accumulated" and "gen_status" in result:
                     self._last_gen_status = result["gen_status"]
+                # Log raw power registers once for diagnostics
+                if block_name == "power" and not self._power_logged:
+                    self._power_logged = True
+                    logger.info(
+                        "Device %s power RAW regs[174-181]=%s → power_total=%.1f kW (RTU)",
+                        self.device_id, regs[:8], result.get("power_total", 0),
+                    )
 
             if errors == total_blocks:
                 await self.disconnect()
@@ -1618,6 +1646,8 @@ def _make_reader(device: Device, *, site_code: str = "") -> BaseReader:
 class ModbusPoller:
     """Background poller: reads devices from DB, polls via Modbus, publishes to Redis."""
 
+    OFFLINE_THRESHOLD = 3  # consecutive failures before publishing online=False
+
     def __init__(self, redis: Redis, session_factory: async_sessionmaker[AsyncSession]):
         self.redis = redis
         self.session_factory = session_factory
@@ -1625,6 +1655,7 @@ class ModbusPoller:
         self._readers: dict[int, BaseReader] = {}
         self._last_poll: dict[int, float] = {}  # device_id -> last poll timestamp
         self._poll_intervals: dict[int, float] = {}  # device_id -> per-device interval
+        self._fail_counts: dict[int, int] = {}  # device_id -> consecutive poll failures
 
     async def _load_devices(self) -> list[Device]:
         from sqlalchemy.orm import selectinload
@@ -1812,7 +1843,7 @@ class ModbusPoller:
             for i, (device_id, reader) in enumerate(group):
                 if i > 0 and hasattr(reader, '_flush_stale'):
                     # Flush stale bytes from previous device before switching slave
-                    await asyncio.sleep(0.08)
+                    await asyncio.sleep(0.15)
                     await reader._flush_stale(timeout=0.10)
                 await self._poll_device(device_id, reader)
 
@@ -1831,16 +1862,25 @@ class ModbusPoller:
             data = await reader.read_all()
             if not data:
                 logger.warning("Device %s: read_all returned empty data", device_id)
-                await self._publish(device_id, reader, {}, online=False, error="no data received")
+                self._fail_counts[device_id] = self._fail_counts.get(device_id, 0) + 1
+                if self._fail_counts[device_id] >= self.OFFLINE_THRESHOLD:
+                    await self._publish(device_id, reader, {}, online=False, error="no data received")
+                    logger.warning("Device %s offline: %d consecutive failures", device_id, self._fail_counts[device_id])
                 await reader.disconnect()
             else:
+                if self._fail_counts.get(device_id, 0) > 0:
+                    logger.info("Device %s back online after %d failures", device_id, self._fail_counts[device_id])
+                self._fail_counts[device_id] = 0
                 await self._publish(device_id, reader, data, online=True)
         except Exception as exc:
+            self._fail_counts[device_id] = self._fail_counts.get(device_id, 0) + 1
             logger.error(
-                "Poll error device=%s (%s): %s",
+                "Poll error device=%s (%s): %s (fail %d/%d)",
                 device_id, reader.ip, exc,
+                self._fail_counts[device_id], self.OFFLINE_THRESHOLD,
             )
-            await self._publish(device_id, reader, {}, online=False, error=str(exc))
+            if self._fail_counts[device_id] >= self.OFFLINE_THRESHOLD:
+                await self._publish(device_id, reader, {}, online=False, error=str(exc))
             try:
                 await reader.disconnect()
             except Exception:

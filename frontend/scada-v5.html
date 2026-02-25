@@ -683,6 +683,8 @@ const api = {
 let deviceSlotIndex = {};
 // Cache latest WS metrics per device
 let latestMetrics = {};
+// Grace period: last time each device was seen online (epoch ms)
+const latestOnlineTime = {};
 // Maps siteKey → apiSiteId
 let siteApiIds = {};
 // Whether backend API is available
@@ -804,6 +806,17 @@ function scheduleWsReconnect() {
 
 function handleMetricsUpdate(m) {
     if (!m || !m.device_id) return;
+
+    // Grace period: suppress brief offline blips (< 10 s)
+    if (m.online === true) {
+        latestOnlineTime[m.device_id] = Date.now();
+    } else if (m.online === false) {
+        const last = latestOnlineTime[m.device_id] || 0;
+        if (Date.now() - last < 10000) {
+            m.online = true;           // still within grace window
+        }
+    }
+
     latestMetrics[m.device_id] = m;
 
     const info = deviceSlotIndex[m.device_id];
