@@ -88,6 +88,7 @@ class DiskSpaceManager:
         target_mb = self.max_db_size_mb * 0.70
         total_deleted = 0
 
+        # Stage 1: delete oldest metrics_data
         while db_mb > target_mb and self._running:
             deleted = await self._delete_oldest_batch()
             if deleted == 0:
@@ -95,7 +96,23 @@ class DiskSpaceManager:
                 break
             total_deleted += deleted
             db_mb = await self._get_db_size_mb()
-            logger.info("Deleted %d rows (total %d), DB now %.1fMB", deleted, total_deleted, db_mb)
+            logger.info("Deleted %d metrics rows (total %d), DB now %.1fMB", deleted, total_deleted, db_mb)
+
+        # Stage 2: if still over target, delete oldest cleared alarm_analytics_events
+        alarms_deleted = 0
+        while db_mb > target_mb and self._running:
+            deleted = await self._delete_oldest_alarm_analytics_batch()
+            if deleted == 0:
+                logger.warning("No more cleared alarm_analytics_events to delete")
+                break
+            alarms_deleted += deleted
+            db_mb = await self._get_db_size_mb()
+            logger.info(
+                "Deleted %d alarm_analytics rows (total %d), DB now %.1fMB",
+                deleted, alarms_deleted, db_mb,
+            )
+
+        total_deleted += alarms_deleted
 
         if total_deleted > 0:
             # VACUUM to reclaim disk space
@@ -115,6 +132,25 @@ class DiskSpaceManager:
                 text(
                     "DELETE FROM metrics_data WHERE id IN ("
                     "  SELECT id FROM metrics_data ORDER BY timestamp ASC LIMIT :batch"
+                    ")"
+                ),
+                {"batch": self.cleanup_batch_size},
+            )
+            await session.commit()
+            return r.rowcount
+
+    async def _delete_oldest_alarm_analytics_batch(self) -> int:
+        """Delete oldest cleared (archived) alarm_analytics_events.
+
+        Active alarms (is_active=TRUE) are NEVER deleted.
+        """
+        async with self.session_factory() as session:
+            r = await session.execute(
+                text(
+                    "DELETE FROM alarm_analytics_events WHERE id IN ("
+                    "  SELECT id FROM alarm_analytics_events"
+                    "  WHERE is_active = FALSE"
+                    "  ORDER BY occurred_at ASC LIMIT :batch"
                     ")"
                 ),
                 {"batch": self.cleanup_batch_size},

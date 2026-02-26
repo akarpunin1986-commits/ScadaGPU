@@ -95,6 +95,7 @@ class AlarmExplainResponse(BaseModel):
 @router.get("/events", response_model=list[AlarmAnalyticsEventBrief])
 async def list_events(
     device_id: Optional[int] = Query(None),
+    device_ids: Optional[str] = Query(None, description="Comma-separated device IDs"),
     alarm_code: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(None),
     severity: Optional[str] = Query(None),
@@ -107,7 +108,11 @@ async def list_events(
     stmt = select(AlarmAnalyticsEvent)
     conditions = []
 
-    if device_id is not None:
+    if device_ids is not None:
+        ids = [int(x.strip()) for x in device_ids.split(",") if x.strip().isdigit()]
+        if ids:
+            conditions.append(AlarmAnalyticsEvent.device_id.in_(ids))
+    elif device_id is not None:
         conditions.append(AlarmAnalyticsEvent.device_id == device_id)
     if alarm_code is not None:
         conditions.append(AlarmAnalyticsEvent.alarm_code == alarm_code)
@@ -145,13 +150,18 @@ async def get_event(
 @router.get("/active", response_model=list[AlarmAnalyticsEventBrief])
 async def get_active(
     device_id: Optional[int] = Query(None),
+    device_ids: Optional[str] = Query(None, description="Comma-separated device IDs"),
     session: AsyncSession = Depends(get_session),
 ) -> list[AlarmAnalyticsEventBrief]:
     """Return only currently active alarm analytics events."""
     stmt = select(AlarmAnalyticsEvent).where(
         AlarmAnalyticsEvent.is_active == True  # noqa: E712
     )
-    if device_id is not None:
+    if device_ids is not None:
+        ids = [int(x.strip()) for x in device_ids.split(",") if x.strip().isdigit()]
+        if ids:
+            stmt = stmt.where(AlarmAnalyticsEvent.device_id.in_(ids))
+    elif device_id is not None:
         stmt = stmt.where(AlarmAnalyticsEvent.device_id == device_id)
     stmt = stmt.order_by(desc(AlarmAnalyticsEvent.occurred_at))
     result = await session.execute(stmt)

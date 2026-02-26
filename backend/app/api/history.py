@@ -283,6 +283,7 @@ async def get_metrics_stats(
 @router.get("/alarms", response_model=list[AlarmEventOut])
 async def get_alarm_events(
     device_id: Optional[int] = Query(None),
+    device_ids: Optional[str] = Query(None, description="Comma-separated device IDs"),
     is_active: Optional[bool] = Query(None),
     severity: Optional[str] = Query(None),
     last_hours: Optional[float] = Query(None),
@@ -293,7 +294,11 @@ async def get_alarm_events(
     """Return alarm events with filtering and pagination."""
     stmt = select(AlarmEvent)
     conditions = []
-    if device_id is not None:
+    if device_ids is not None:
+        ids = [int(x.strip()) for x in device_ids.split(",") if x.strip().isdigit()]
+        if ids:
+            conditions.append(AlarmEvent.device_id.in_(ids))
+    elif device_id is not None:
         conditions.append(AlarmEvent.device_id == device_id)
     if is_active is not None:
         conditions.append(AlarmEvent.is_active == is_active)
@@ -318,11 +323,16 @@ async def get_alarm_events(
 @router.get("/alarms/active", response_model=list[AlarmEventOut])
 async def get_active_alarms(
     device_id: Optional[int] = Query(None),
+    device_ids: Optional[str] = Query(None, description="Comma-separated device IDs"),
     session: AsyncSession = Depends(get_session),
 ) -> list[AlarmEventOut]:
     """Return only currently active alarms."""
     stmt = select(AlarmEvent).where(AlarmEvent.is_active == True)
-    if device_id is not None:
+    if device_ids is not None:
+        ids = [int(x.strip()) for x in device_ids.split(",") if x.strip().isdigit()]
+        if ids:
+            stmt = stmt.where(AlarmEvent.device_id.in_(ids))
+    elif device_id is not None:
         stmt = stmt.where(AlarmEvent.device_id == device_id)
     stmt = stmt.order_by(desc(AlarmEvent.occurred_at))
     result = await session.execute(stmt)

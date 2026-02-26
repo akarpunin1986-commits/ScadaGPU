@@ -270,8 +270,21 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .arc-pag{padding:4px 0}
 .arc-stat-card{padding:12px;background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad)}
 .sb-ft{padding:8px;border-top:1px solid var(--bd)}
-.sb-global{padding:8px;border-top:1px solid var(--bd)}
-.sb-global .sb-btn{margin-bottom:2px}
+.sb-admin{padding:8px;border-top:1px solid var(--bd)}.sb-admin-hd{cursor:pointer;display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:var(--rs);font-size:12px;color:var(--t3);transition:background .15s;user-select:none}
+.sb-admin-hd:hover{background:var(--bg4);color:var(--t)}.sb-admin-arrow{font-size:9px;transition:transform .2s;display:inline-block}
+.sb-admin.open .sb-admin-arrow{transform:rotate(90deg)}.sb-admin-body{max-height:0;overflow:hidden;transition:max-height .25s ease}.sb-admin.open .sb-admin-body{max-height:250px}
+.sb-admin-body .sb-btn{margin-bottom:2px}
+.alm-expand-row{cursor:pointer;transition:background .15s}.alm-expand-row:hover{background:var(--bg4)}
+.alm-chevron{transition:transform .2s;display:inline-block;font-size:10px;margin-right:4px}
+.alm-expand-row.open .alm-chevron{transform:rotate(90deg)}.alm-detail-td{padding:0!important;border-bottom:1px solid var(--bd)}
+.alm-expand-inner{padding:12px 16px;background:var(--bg2);font-size:12px;border-top:1px solid var(--bd)}
+.alm-exp-desc{margin-bottom:8px;line-height:1.5;color:var(--t2)}
+.alm-exp-metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:4px;margin:8px 0}
+.alm-exp-kv{display:flex;justify-content:space-between;padding:3px 6px;background:var(--ov);border-radius:4px;font-family:var(--m);font-size:11px}
+.alm-exp-kv .ek{color:var(--t3)}.alm-exp-kv .ev{color:var(--t);font-weight:500}
+.alm-exp-btns{display:flex;gap:8px;margin-top:10px}
+.alm-exp-btn{padding:5px 12px;border:1px solid var(--bd);border-radius:var(--rs);font-size:11px;background:var(--bg3);color:var(--t2);cursor:pointer;transition:all .15s;font-family:var(--u)}
+.alm-exp-btn:hover{background:var(--bg4);color:var(--t);border-color:var(--bd2)}
 .sb-tree{margin-bottom:2px}
 .sb-tree .si{display:flex;align-items:center;gap:6px}
 .si-arrow{font-size:9px;width:14px;text-align:center;color:var(--t3);flex-shrink:0}
@@ -480,11 +493,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 <div class="sb"><div class="sb-hd">
 <div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg><b>SCADA</b><span>v5</span></div>
 <button class="sb-btn primary" onclick="openAddSite()">+ Объект</button>
-</div><div class="sb-sites" id="sbSites"></div><div class="sb-global">
+</div><div class="sb-sites" id="sbSites"></div><div class="sb-admin" id="sbAdmin">
+<div class="sb-admin-hd" onclick="toggleAdmin()"><span class="sb-admin-arrow" id="sbAdminArrow">▶</span> ⚙️ Администрирование</div>
+<div class="sb-admin-body">
 <button class="sb-btn" onclick="showB24Dashboard()">🔗 Битрикс24</button>
 <button class="sb-btn" onclick="initAIModal();showM('aiconf')">🤖 AI Провайдер</button>
 <button class="sb-btn" onclick="showM('kbase')">📚 База знаний</button>
-</div><div class="sb-ft"><button class="sb-btn" onclick="toggleTheme()" id="themeBtn">☀️ Светлая тема</button></div></div>
+</div></div><div class="sb-ft"><button class="sb-btn" onclick="toggleTheme()" id="themeBtn">☀️ Светлая тема</button></div></div>
 <div class="mn" id="mainArea"></div></div>
 <!-- MODALS -->
 <!-- Knowledge Base Modal -->
@@ -1341,6 +1356,17 @@ function getDeviceIdForSlot(slot) {
     if (!cur || !S[cur]) return null;
     return S[cur][slot]?._deviceId || null;
 }
+function getDeviceIdsForSite(siteKey) {
+    const s = S[siteKey];
+    if (!s) return [];
+    return [s.g1?._deviceId, s.g2?._deviceId, s.spr?._deviceId].filter(Boolean);
+}
+function toggleAdmin(){
+    const el=$('sbAdmin');if(!el)return;
+    el.classList.toggle('open');
+    localStorage.setItem('sbAdminOpen',el.classList.contains('open')?'1':'0');
+}
+(function(){const st=localStorage.getItem('sbAdminOpen');if(st==='1'){const el=document.getElementById('sbAdmin');if(el)el.classList.add('open')}})();
 
 // ===================== END API / WS LAYER =====================
 const DEF_TPL={name:'Стандартный',intervals:[
@@ -3197,10 +3223,14 @@ const el=$('almActiveList'),cnt=$('almActiveCount');
 if(!el)return;
 el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">⏳ Загрузка...</div>';
 try{
+// Build device_ids filter from current site
+const dids=getDeviceIdsForSite(cur);
+const didsQ=dids.length?'?device_ids='+dids.join(','):'';
+const didsA=dids.length?'&device_ids='+dids.join(','):'';
 // Load from both sources: summary flags (history) + bitwise (alarm-analytics)
 const [alarmsHist, alarmsAA] = await Promise.all([
-    api.get('/api/history/alarms/active').catch(()=>[]),
-    api.get('/api/alarm-analytics/active').catch(()=>[]),
+    api.get('/api/history/alarms/active'+didsQ).catch(()=>[]),
+    api.get('/api/alarm-analytics/active'+didsQ).catch(()=>[]),
 ]);
 // Merge: prefer alarm-analytics (have name_ru), add history items not covered
 const aaSet = new Set(alarmsAA.map(a=>a.device_id+'_'+a.alarm_code));
@@ -3243,16 +3273,21 @@ el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;paddi
 const st=alarmsPageState;
 st.sevFilter=$('almSev')?.value||'';
 st.activeOnly=$('almActiveOnly')?.checked||false;
+// Build device_ids filter from current site
+const dids=getDeviceIdsForSite(cur);
+const didsParam=dids.length?`&device_ids=${dids.join(',')}`:'';
 // Fetch from alarm-analytics (bitwise, has name_ru) as primary source
 let aaUrl=`/api/alarm-analytics/events?limit=${st.limit}&offset=${st.page*st.limit}`;
 if(st.sevFilter)aaUrl+=`&severity=${st.sevFilter}`;
 if(st.activeOnly)aaUrl+='&is_active=true';
 if(st.hours)aaUrl+=`&last_hours=${st.hours}`;
+aaUrl+=didsParam;
 // Also fetch from history (summary flags) as fallback
 let hUrl=`/api/history/alarms?limit=${st.limit}&offset=${st.page*st.limit}`;
 if(st.sevFilter)hUrl+=`&severity=${st.sevFilter}`;
 if(st.activeOnly)hUrl+='&is_active=true';
 if(st.hours)hUrl+=`&last_hours=${st.hours}`;
+hUrl+=didsParam;
 try{
 const [alarmsAA, alarmsH] = await Promise.all([
     api.get(aaUrl).catch(()=>[]),
@@ -3283,15 +3318,17 @@ const dev=resolveDeviceName(a.device_id);
 const sev = a.alarm_severity || a.severity || 'error';
 const msg = a.alarm_name_ru || a.message || a.alarm_code;
 const clrStr = clr ? clr.toLocaleString('ru-RU') : '—';
-return`<tr class="ai" data-device-id="${a.device_id}" data-alarm-code="${a.alarm_code}" data-device-type="${a.device_type||''}" style="cursor:pointer">
-<td style="white-space:nowrap">${occ.toLocaleString('ru-RU')}</td>
+const eid=a.id||0;
+return`<tr class="alm-expand-row" onclick="almToggleRow(${eid},this,'${esc(a.alarm_code)}',${a.device_id},'${a.device_type||''}')">
+<td style="white-space:nowrap"><span class="alm-chevron">▶</span>${occ.toLocaleString('ru-RU')}</td>
 <td>${esc(dev)}</td>
 <td style="font-family:var(--m)"><b>${esc(a.alarm_code)}</b></td>
 <td>${sevI[sev]||'⚪'} ${sevL[sev]||sev}</td>
 <td>${esc(msg)}</td>
 <td style="white-space:nowrap">${clrStr}</td>
 <td>${durStr}</td>
-<td>${a.is_active?'<span style="color:var(--r);font-weight:600">● Активна</span>':'<span style="color:var(--t3)">✓ Снята</span>'}</td></tr>`}).join('');
+<td>${a.is_active?'<span style="color:var(--r);font-weight:600">● Активна</span>':'<span style="color:var(--t3)">✓ Снята</span>'}</td></tr>
+<tr class="alm-detail-tr" id="almDet_${eid}" style="display:none"><td colspan="8" class="alm-detail-td"><div class="alm-expand-inner" id="almDetIn_${eid}"></div></td></tr>`}).join('');
 el.innerHTML=`<table class="pt"><thead><tr><th>Возникла</th><th>Устройство</th><th>Код</th><th>Уровень</th><th>Сообщение</th><th>Устранена</th><th>Длит.</th><th>Статус</th></tr></thead><tbody>${rows}</tbody></table>`;
 const hasMore=alarms.length===st.limit;
 if(pag)pag.innerHTML=`<div style="display:flex;gap:8px;align-items:center;margin-top:8px">
@@ -3299,6 +3336,65 @@ if(pag)pag.innerHTML=`<div style="display:flex;gap:8px;align-items:center;margin
 <span style="font-size:11px;color:var(--t3);font-family:var(--m)">Стр. ${st.page+1}</span>
 <button class="sb-btn" style="padding:5px 12px;font-size:11px;width:auto" onclick="alarmsPageState.page++;almLoadHistory()" ${!hasMore?'disabled style="opacity:.4;pointer-events:none;padding:5px 12px;font-size:11px;width:auto"':''}>Вперёд →</button></div>`;
 }catch(e){el.innerHTML=`<div style="color:var(--r);font-size:12px;padding:20px;text-align:center">Ошибка: ${esc(e.message)}</div>`}}
+
+let _almOpenRow=null;
+async function almToggleRow(eventId,rowEl,code,deviceId,deviceType){
+if(!eventId)return;
+// Close previously opened row
+if(_almOpenRow&&_almOpenRow!==rowEl){
+_almOpenRow.classList.remove('open');
+const prevId=_almOpenRow.dataset.eid;
+const prevDet=document.getElementById('almDet_'+prevId);
+if(prevDet)prevDet.style.display='none';
+}
+rowEl.dataset.eid=eventId;
+const detTr=document.getElementById('almDet_'+eventId);
+if(!detTr)return;
+const isOpen=rowEl.classList.contains('open');
+if(isOpen){
+rowEl.classList.remove('open');detTr.style.display='none';_almOpenRow=null;return;
+}
+rowEl.classList.add('open');detTr.style.display='table-row';_almOpenRow=rowEl;
+const inner=document.getElementById('almDetIn_'+eventId);
+if(!inner)return;
+if(inner.dataset.loaded){return}
+inner.innerHTML='<div style="color:var(--t3);padding:8px">⏳ Загрузка...</div>';
+try{
+const ev=await api.get('/api/alarm-analytics/events/'+eventId);
+almRenderExpanded(inner,ev,code,deviceId,deviceType);
+inner.dataset.loaded='1';
+}catch(e){
+inner.innerHTML='<div style="color:var(--t3);padding:8px">Нет расширенных данных</div>';
+inner.dataset.loaded='1';
+}
+}
+function almRenderExpanded(el,ev,code,deviceId,deviceType){
+let desc='';
+if(ev.analysis_result&&ev.analysis_result.manual_description){
+desc=`<div class="alm-exp-desc">📖 ${esc(ev.analysis_result.manual_description)}</div>`;
+}
+let metricsHtml='';
+if(ev.metrics_snapshot&&typeof ev.metrics_snapshot==='object'){
+const mx=ev.metrics_snapshot;
+const keys=['rpm','oil_pressure','coolant_temp','battery_voltage',
+'gen_voltage_ab','gen_voltage_bc','gen_voltage_ca',
+'gen_current_a','gen_freq','power_total','power_factor',
+'fuel_level','run_hours','mains_voltage_ab','mains_freq'];
+const labels={rpm:'Об/мин',oil_pressure:'Давл. масла',coolant_temp:'Темп. ОЖ',battery_voltage:'АКБ',
+gen_voltage_ab:'Uab ген',gen_voltage_bc:'Ubc ген',gen_voltage_ca:'Uca ген',
+gen_current_a:'Ia ген',gen_freq:'Частота ген',power_total:'Мощность',power_factor:'cos φ',
+fuel_level:'Топливо',run_hours:'Моточасы',mains_voltage_ab:'Uab сеть',mains_freq:'Частота сети'};
+const items=keys.filter(k=>mx[k]!=null).map(k=>`<div class="alm-exp-kv"><span class="ek">${labels[k]||k}</span><span class="ev">${mx[k]}</span></div>`);
+if(items.length){metricsHtml=`<div style="font-size:11px;color:var(--t3);margin-top:6px">📊 Метрики на момент аварии:</div><div class="alm-exp-metrics">${items.join('')}</div>`}
+}
+const almCode=ev.alarm_code||code;
+const devId=ev.device_id||deviceId;
+const devType=ev.device_type||deviceType||'';
+el.innerHTML=`${desc}${metricsHtml}
+<div class="alm-exp-btns">
+<button class="alm-exp-btn" onclick="event.stopPropagation();window.almShowEvent(${ev.id})">📋 Подробнее</button>
+<button class="alm-exp-btn" onclick="event.stopPropagation();window._almAskLLM('${almCode}',${devId},'${devType}')">🤖 Спросить Санька</button></div>`;
+}
 
 function almRefresh(){almLoadActive();almLoadHistory()}
 // ===================== END ALARMS PAGE =====================
