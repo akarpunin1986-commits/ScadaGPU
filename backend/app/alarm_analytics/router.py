@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import json
 import logging
+import time
+from collections import OrderedDict
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -209,70 +211,113 @@ def _find_alarm_def(alarm_code: str) -> dict | None:
     return None
 
 
+# ---------------------------------------------------------------------------
+# LRU cache for explain results (alarm_code -> (timestamp, response))
+# ---------------------------------------------------------------------------
+_EXPLAIN_CACHE: OrderedDict[str, tuple[float, str]] = OrderedDict()
+_CACHE_TTL = 600  # 10 minutes
+_CACHE_MAX = 100  # max entries
+
+
+def _cache_get(key: str) -> str | None:
+    """Get cached explanation if exists and not expired."""
+    if key in _EXPLAIN_CACHE:
+        ts, text = _EXPLAIN_CACHE[key]
+        if time.time() - ts < _CACHE_TTL:
+            _EXPLAIN_CACHE.move_to_end(key)
+            return text
+        else:
+            del _EXPLAIN_CACHE[key]
+    return None
+
+
+def _cache_put(key: str, text: str) -> None:
+    """Store explanation in cache."""
+    _EXPLAIN_CACHE[key] = (time.time(), text)
+    if len(_EXPLAIN_CACHE) > _CACHE_MAX:
+        _EXPLAIN_CACHE.popitem(last=False)
+
+
 async def _call_llm(provider: str, api_key: str, model: str, prompt: str) -> str:
-    """Call active LLM provider. Mirrors pattern from ai_parser.test_ai_provider."""
-    if provider == "openai":
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(api_key=api_key, timeout=30)
-        resp = await client.chat.completions.create(
-            model=model or "gpt-4o",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=1024,
-        )
-        return resp.choices[0].message.content or ""
+    """Call active LLM provider with timing logs."""
+    t0 = time.time()
+    model_name = model or "(default)"
+    logger.info("LLM call START: provider=%s model=%s prompt_len=%d", provider, model_name, len(prompt))
 
-    elif provider == "claude":
-        import httpx
-        async with httpx.AsyncClient(timeout=30) as http:
-            resp = await http.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": api_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": model or "claude-sonnet-4-20250514",
-                    "max_tokens": 1024,
-                    "messages": [{"role": "user", "content": prompt}],
-                },
+    try:
+        if provider == "openai":
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(api_key=api_key, timeout=30)
+            resp = await client.chat.completions.create(
+                model=model or "gpt-4o",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1024,
             )
-            if resp.status_code == 200:
-                data = resp.json()
-                return data.get("content", [{}])[0].get("text", "")
-            else:
-                err = resp.json().get("error", {}).get("message", resp.text)
-                raise RuntimeError(f"Claude API: {err}")
+            result = resp.choices[0].message.content or ""
 
-    elif provider == "gemini":
-        import httpx
-        mdl = model or "gemini-2.5-flash"
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{mdl}:generateContent?key={api_key}"
-        async with httpx.AsyncClient(timeout=30) as http:
-            resp = await http.post(url, json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"maxOutputTokens": 1024},
-            })
-            if resp.status_code == 200:
-                data = resp.json()
-                return (data.get("candidates", [{}])[0]
-                        .get("content", {}).get("parts", [{}])[0].get("text", ""))
-            else:
-                err = resp.json().get("error", {}).get("message", resp.text)
-                raise RuntimeError(f"Gemini API: {err}")
+        elif provider == "claude":
+            import httpx
+            async with httpx.AsyncClient(timeout=30) as http:
+                resp = await http.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": api_key,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    },
+                    json={
+                        "model": model or "claude-sonnet-4-20250514",
+                        "max_tokens": 1024,
+                        "messages": [{"role": "user", "content": prompt}],
+                    },
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    result = data.get("content", [{}])[0].get("text", "")
+                else:
+                    err = resp.json().get("error", {}).get("message", resp.text)
+                    raise RuntimeError(f"Claude API: {err}")
 
-    elif provider == "grok":
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(api_key=api_key, base_url="https://api.x.ai/v1", timeout=30)
-        resp = await client.chat.completions.create(
-            model=model or "grok-3-mini",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=1024,
-        )
-        return resp.choices[0].message.content or ""
+        elif provider == "gemini":
+            import httpx
+            mdl = model or "gemini-2.5-flash"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{mdl}:generateContent?key={api_key}"
+            async with httpx.AsyncClient(timeout=30) as http:
+                resp = await http.post(url, json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"maxOutputTokens": 1024},
+                })
+                if resp.status_code == 200:
+                    data = resp.json()
+                    result = (data.get("candidates", [{}])[0]
+                              .get("content", {}).get("parts", [{}])[0].get("text", ""))
+                else:
+                    err = resp.json().get("error", {}).get("message", resp.text)
+                    raise RuntimeError(f"Gemini API: {err}")
 
-    else:
-        raise RuntimeError(f"Unknown provider: {provider}")
+        elif provider == "grok":
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(api_key=api_key, base_url="https://api.x.ai/v1", timeout=30)
+            resp = await client.chat.completions.create(
+                model=model or "grok-3-mini",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1024,
+            )
+            result = resp.choices[0].message.content or ""
+
+        else:
+            raise RuntimeError(f"Unknown provider: {provider}")
+
+        elapsed = time.time() - t0
+        logger.info("LLM call OK: provider=%s model=%s elapsed=%.1fs response_len=%d",
+                     provider, model_name, elapsed, len(result))
+        return result
+
+    except Exception as e:
+        elapsed = time.time() - t0
+        logger.error("LLM call FAILED: provider=%s model=%s elapsed=%.1fs error=%s",
+                      provider, model_name, elapsed, e)
+        raise
 
 
 @router.post("/explain", response_model=AlarmExplainResponse)
@@ -282,12 +327,24 @@ async def explain_alarm(
     session: AsyncSession = Depends(get_session),
 ):
     """Use active LLM provider to explain an alarm in detail (Russian)."""
+    t_total = time.time()
+    logger.info("EXPLAIN START: code=%s device_id=%s device_type=%s",
+                req.alarm_code, req.device_id, req.device_type)
+
     from api.ai_parser import _get_active_provider, _get_api_key, _get_model
+
+    # 0. Check cache first
+    cache_key = f"{req.alarm_code}:{req.device_id}:{req.device_type}"
+    cached = _cache_get(cache_key)
+    if cached:
+        logger.info("EXPLAIN CACHE HIT: code=%s elapsed=%.3fs", req.alarm_code, time.time() - t_total)
+        return AlarmExplainResponse(success=True, explanation=cached)
 
     # 1. Resolve LLM provider
     provider = _get_active_provider()
     api_key = _get_api_key(provider)
     model = _get_model(provider)
+    logger.info("EXPLAIN provider=%s model=%s", provider, model or "(default)")
 
     if not api_key:
         return AlarmExplainResponse(
@@ -303,6 +360,7 @@ async def explain_alarm(
     description_ru = get_description_ru(alarm_def) if alarm_def else ""
 
     # 3. Get current device metrics from Redis
+    t_redis = time.time()
     metrics_snippet = "{}"
     try:
         redis = request.app.state.redis
@@ -326,8 +384,10 @@ async def explain_alarm(
             )
     except Exception as e:
         logger.warning("Could not fetch metrics for device %s: %s", req.device_id, e)
+    logger.info("EXPLAIN redis fetch: %.3fs", time.time() - t_redis)
 
     # 4. Search knowledge base for relevant manual context
+    t_kb = time.time()
     knowledge_context = ""
     try:
         from services.knowledge_base import search_knowledge
@@ -340,6 +400,7 @@ async def explain_alarm(
             knowledge_context = "\n---\n".join(snippets)
     except Exception as e:
         logger.warning("Knowledge base search error: %s", e)
+    logger.info("EXPLAIN KB search: %.3fs (found %d chars)", time.time() - t_kb, len(knowledge_context))
 
     # 5. Build prompt
     controller = "HGM9560 (ШПР/ATS)" if req.device_type == "ats" else "HGM9520N (генератор)"
@@ -375,7 +436,16 @@ async def explain_alarm(
     # 6. Call LLM
     try:
         explanation = await _call_llm(provider, api_key, model, prompt)
-        return AlarmExplainResponse(success=True, explanation=explanation.strip())
+        result_text = explanation.strip()
+        # Cache successful result
+        _cache_put(cache_key, result_text)
+        elapsed_total = time.time() - t_total
+        logger.info("EXPLAIN DONE: code=%s total=%.1fs provider=%s", req.alarm_code, elapsed_total, provider)
+        return AlarmExplainResponse(success=True, explanation=result_text)
     except Exception as e:
-        logger.error("LLM explain error (%s): %s", provider, e)
-        return AlarmExplainResponse(success=False, error=str(e))
+        elapsed_total = time.time() - t_total
+        logger.error("EXPLAIN FAILED: code=%s total=%.1fs provider=%s error=%s",
+                      req.alarm_code, elapsed_total, provider, e)
+        from services.sanek import _format_llm_error
+        friendly_err = _format_llm_error(provider, e)
+        return AlarmExplainResponse(success=False, error=friendly_err)
