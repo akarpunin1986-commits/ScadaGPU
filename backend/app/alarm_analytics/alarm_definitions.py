@@ -1326,3 +1326,92 @@ def get_description_ru(defn: dict) -> str:
         "block": f"{name_ru}. Блокировка — операция запрещена до устранения причины.",
     }
     return sev_desc.get(severity, f"{name_ru}. Авария контроллера SmartGen.")
+
+
+# ---------------------------------------------------------------------------
+# Auto-populate missing alarm type entries for HGM9520N
+# Each alarm bit exists in ALL type registers (sd, ts, tr, bk, wn).
+# The alarm TYPE is configurable per-bit in the controller.
+# We use alarm_sd_X as the base (most complete) and generate missing entries.
+# ---------------------------------------------------------------------------
+
+_TYPE_PREFIX_SEVERITY = {
+    "alarm_sd": "shutdown",
+    "alarm_ts": "trip_stop",
+    "alarm_tr": "trip",
+    "alarm_bk": "block",
+    "alarm_wn": "warning",
+}
+
+_SEVERITY_SUFFIX_RU = {
+    "shutdown": "аварийный останов",
+    "trip_stop": "аварийный стоп",
+    "trip": "отключение",
+    "block": "блокировка",
+    "warning": "предупреждение",
+}
+
+_CODE_PREFIX = {
+    "alarm_sd": "G_SD",
+    "alarm_ts": "G_TS",
+    "alarm_tr": "G_TR",
+    "alarm_bk": "G_BK",
+    "alarm_wn": "G_WN",
+}
+
+def _auto_populate_9520n():
+    """Generate missing entries for all alarm type registers from base (shutdown)."""
+    # Build base dict: word_num -> bit -> definition (from alarm_sd_X)
+    base: dict[int, dict[int, dict]] = {}
+    for (field, bit), defn in ALARM_MAP_HGM9520N.items():
+        if field.startswith("alarm_sd_"):
+            word = int(field.split("_")[-1])
+            base.setdefault(word, {})[bit] = defn
+
+    added = 0
+    for type_prefix, severity in _TYPE_PREFIX_SEVERITY.items():
+        if type_prefix == "alarm_sd":
+            continue  # base — already defined
+        code_pfx = _CODE_PREFIX[type_prefix]
+        sev_ru = _SEVERITY_SUFFIX_RU[severity]
+
+        for word in range(6):
+            field = f"{type_prefix}_{word}"
+            for bit, base_defn in base.get(word, {}).items():
+                key = (field, bit)
+                if key in ALARM_MAP_HGM9520N:
+                    continue  # already manually defined
+
+                # Generate from base
+                base_name = base_defn["name"]
+                # Remove severity suffix from English name if present
+                for suf in ("Shutdown", "Trip", "Warning", "Block"):
+                    base_name = base_name.replace(f" Alarm {suf}", "").replace(f" {suf}", "")
+                base_name = base_name.strip()
+
+                base_name_ru = base_defn["name_ru"]
+                # Remove Russian severity suffix
+                for suf_ru in ("аварийный останов", "аварийный стоп", "отключение",
+                               "блокировка", "предупреждение"):
+                    if base_name_ru.endswith(suf_ru):
+                        base_name_ru = base_name_ru[: -len(suf_ru)].rstrip(" —–-")
+                        break
+
+                new_name_ru = f"{base_name_ru} — {sev_ru}" if base_name_ru else sev_ru
+
+                ALARM_MAP_HGM9520N[key] = {
+                    "code": f"{code_pfx}_{word}_{bit}",
+                    "name": base_name,
+                    "name_ru": new_name_ru,
+                    "severity": severity,
+                }
+                added += 1
+
+    return added
+
+_populated = _auto_populate_9520n()
+if _populated:
+    import logging as _logging
+    _logging.getLogger("scada.alarm_analytics.definitions").debug(
+        "Auto-populated %d alarm entries for HGM9520N", _populated,
+    )

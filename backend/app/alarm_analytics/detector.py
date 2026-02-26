@@ -21,9 +21,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from models.base import engine
 from alarm_analytics.models import AlarmAnalyticsEvent
-from alarm_analytics.alarm_definitions import get_alarm_map, get_alarm_fields
+from alarm_analytics.alarm_definitions import get_alarm_map, get_alarm_fields, get_description_ru
 from alarm_analytics.snapshot import build_snapshot
-from alarm_analytics.analyzer import analyze
 
 logger = logging.getLogger("scada.alarm_analytics.detector")
 
@@ -196,9 +195,9 @@ class AlarmAnalyticsDetector:
             try:
                 async with self.session_factory() as session:
                     for field, bit, defn in new_alarms:
-                        analysis = analyze(
-                            defn["code"], device_type, snapshot, defn
-                        )
+                        # Store description from alarm_definitions (no rule-based analysis)
+                        desc = get_description_ru(defn)
+                        brief_info = {"manual_description": desc} if desc else None
                         event = AlarmAnalyticsEvent(
                             device_id=device_id,
                             device_type=device_type,
@@ -211,7 +210,7 @@ class AlarmAnalyticsDetector:
                             is_active=True,
                             occurred_at=now,
                             metrics_snapshot=snapshot,
-                            analysis_result=analysis,
+                            analysis_result=brief_info,
                         )
                         session.add(event)
                         logger.info(

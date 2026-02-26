@@ -96,27 +96,6 @@
         .alm-mg-val { font-family: 'JetBrains Mono', monospace; color: var(--t, #e0e6ed); }
         .alm-mg-warn { color: #fbbf24; }
         .alm-mg-err { color: #f87171; }
-        .alm-evidence {
-            list-style: none; padding: 0; margin: 8px 0;
-        }
-        .alm-evidence li {
-            font-size: 12px; color: var(--t2, #a0aec0); padding: 4px 0;
-            padding-left: 16px; position: relative;
-        }
-        .alm-evidence li::before {
-            content: ''; position: absolute; left: 0; top: 10px;
-            width: 6px; height: 6px; border-radius: 50%; background: var(--p, #60a5fa);
-        }
-        .alm-cause {
-            font-size: 13px; line-height: 1.6; color: var(--t, #e0e6ed);
-            padding: 12px 16px; background: rgba(96,165,250,0.06);
-            border-radius: 8px; border-left: 3px solid var(--p, #60a5fa);
-        }
-        .alm-rec {
-            margin-top: 12px; font-size: 12px; color: var(--t2, #a0aec0);
-            padding: 10px 14px; background: rgba(34,197,94,0.06);
-            border-radius: 8px; border-left: 3px solid #4ade80;
-        }
         .alm-loading {
             text-align: center; padding: 40px; color: var(--t3, #6c7a8d);
             font-size: 13px;
@@ -275,33 +254,6 @@
     }
 
     // ---------------------------------------------------------------------------
-    // Analysis rendering
-    // ---------------------------------------------------------------------------
-    function renderAnalysis(analysis) {
-        if (!analysis) return '<div class="alm-desc" style="color:var(--t3)">Анализ недоступен</div>';
-
-        let html = '';
-
-        if (analysis.probable_cause) {
-            html += `<div class="alm-cause"><b>Вероятная причина:</b><br>${analysis.probable_cause}</div>`;
-        }
-
-        if (analysis.evidence && analysis.evidence.length > 0) {
-            html += `<ul class="alm-evidence">`;
-            for (const e of analysis.evidence) {
-                html += `<li>${e}</li>`;
-            }
-            html += `</ul>`;
-        }
-
-        if (analysis.recommendation) {
-            html += `<div class="alm-rec"><b>Рекомендация:</b><br>${analysis.recommendation}</div>`;
-        }
-
-        return html || '<div class="alm-desc" style="color:var(--t3)">Нет данных для анализа</div>';
-    }
-
-    // ---------------------------------------------------------------------------
     // Modal
     // ---------------------------------------------------------------------------
     let overlayEl = null;
@@ -388,12 +340,6 @@
         html += `<div class="alm-section">
             <div class="alm-section-title">\u{1F4CA} Метрики в момент аварии</div>
             ${renderMetrics(ev.metrics_snapshot, ev.device_type)}
-        </div>`;
-
-        // Section: Analysis
-        html += `<div class="alm-section">
-            <div class="alm-section-title">\u{1F50D} Анализ причины</div>
-            ${renderAnalysis(analysis)}
         </div>`;
 
         // Section: LLM (Sanek) — Ask AI for detailed analysis

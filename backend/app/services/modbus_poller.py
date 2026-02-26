@@ -658,22 +658,31 @@ _SLOW_POLL_EVERY = 5  # slow block rotation period (each slot read every Nth cyc
 
 # HGM9520N-RTU: slow blocks spread across slots 1-4 (max 2 per cycle)
 # Slot 0 = fast-only cycle (no extra slow blocks)
+# NOTE: alarm detail blocks removed from slow slots — they use alarm_common gating
 _9520N_RTU_SLOW_SLOTS: dict[str, int] = {
     "breaker": 1,       "mains_voltage": 1,
-    "alarms": 2,        "alarm_sd": 2,
-    "alarm_ts": 3,      "alarm_tr": 3,
-    "alarm_bk": 4,      "alarm_wn": 4,
+    "alarms": 2,
 }
+
+# Alarm detail blocks: only read when alarm_common flag is set (or was set)
+_9520N_ALARM_DETAIL_BLOCKS = frozenset({
+    "alarm_sd", "alarm_ts", "alarm_tr", "alarm_bk", "alarm_wn",
+})
 _9520N_RTU_SLOW_BLOCKS = frozenset(_9520N_RTU_SLOW_SLOTS.keys())
 # "accumulated" is FAST — contains gen_status + gen_ats_status (needed every cycle)
 # Fast (every cycle): status, accumulated, gen_volt_plimit, gen_current_power, engine
 
 # HGM9560: slow blocks spread across slots 1-4 (max 2 per cycle)
+# NOTE: alarm_detail_b removed from slow slots — uses alarm_common gating
+# alarm_detail_a stays in slow slots (contains power_limit_active too)
 _9560_SLOW_SLOTS: dict[str, int] = {
     "running": 1,        "multiset_power": 1,
-    "alarm_detail_a": 2, "alarm_detail_b": 2,
+    "alarm_detail_a": 2,
     "rtc": 3,
 }
+
+# Alarm detail blocks gated by alarm_common (only read when alarms active)
+_9560_ALARM_DETAIL_BLOCKS = frozenset({"alarm_detail_b"})
 _9560_SLOW_BLOCKS = frozenset(_9560_SLOW_SLOTS.keys())
 
 # Blocks to skip when generator is in standby (gen_status == 0)
@@ -1097,6 +1106,8 @@ class HGM9560Reader(BaseReader):
         # Adaptive polling state
         self._adaptive_poll_count: int = 0
         self._last_result: dict = {}  # cached result from previous cycle
+        # Alarm-gated polling: skip alarm detail blocks when no alarms active
+        self._last_alarm_active: bool = False
 
     async def connect(self) -> None:
         bus_key = f"{self.ip}:{self.port}"
@@ -1581,7 +1592,16 @@ class HGM9560Reader(BaseReader):
             skipped_names: list[str] = []
             blocks_read = 0
 
+            # Pre-build alarm skip set (alarm detail blocks gated by alarm_common)
+            alarm_skip: set[str] = set()
+            if not self._last_alarm_active:
+                alarm_skip = set(_9560_ALARM_DETAIL_BLOCKS)
+
             for block_name, block in REGISTER_MAP_9560.items():
+                # --- Alarm-gated: skip detail blocks when no alarms ---
+                if block_name in alarm_skip:
+                    skipped_names.append(block_name)
+                    continue
                 # --- Adaptive: slow blocks spread across slots (max 2 per cycle) ---
                 block_slot = _9560_SLOW_SLOTS.get(block_name)
                 if block_slot is not None and block_slot != slow_slot:
@@ -1651,6 +1671,13 @@ class HGM9560Reader(BaseReader):
                     except Exception as exc:
                         logger.debug("Parse error %s.%s: %s", block_name, field_name, exc)
                         result[field_name] = None
+
+                # Alarm-gated: after status block, unblock alarm detail if alarms active
+                if block_name == "status" and result.get("alarm_common"):
+                    alarm_skip.clear()
+
+            # Update alarm-gated flag for next cycle
+            self._last_alarm_active = bool(result.get("alarm_common", False))
 
             if errors == total_blocks:
                 await self.disconnect()
@@ -1799,6 +1826,8 @@ class HGM9520NRtuReader(HGM9560Reader):
         self._power_logged = False
         # Override adaptive polling for HGM9520N-specific standby detection
         self._last_gen_status: int | None = None
+        # Alarm-gated polling: skip alarm detail blocks when no alarms active
+        self._last_alarm_active: bool = False
 
     # connect() inherited from HGM9560Reader — uses shared _rtu_connections
 
@@ -1818,6 +1847,9 @@ class HGM9520NRtuReader(HGM9560Reader):
             for bname, slot in _9520N_RTU_SLOW_SLOTS.items():
                 if slot != slow_slot:
                     skip_set.add(bname)
+            # Alarm-gated: skip alarm detail blocks if no alarms were active last cycle
+            if not self._last_alarm_active:
+                skip_set |= _9520N_ALARM_DETAIL_BLOCKS
             # 'status' and 'accumulated' are NEVER skipped (always need gen_status)
             skip_set.discard("status")
             skip_set.discard("accumulated")
@@ -1904,6 +1936,11 @@ class HGM9520NRtuReader(HGM9560Reader):
                         )
                         result[field_name] = None
 
+                # Alarm-gated polling: after status block, check alarm_common
+                # If alarm just appeared → unblock alarm detail blocks for this cycle
+                if block_name == "status" and result.get("alarm_common"):
+                    skip_set -= _9520N_ALARM_DETAIL_BLOCKS
+
                 # Update standby detection after parsing 'accumulated' block
                 if block_name == "accumulated" and "gen_status" in result:
                     self._last_gen_status = result["gen_status"]
@@ -1966,15 +2003,26 @@ class HGM9520NRtuReader(HGM9560Reader):
                     if k in self._last_result:
                         result[k] = self._last_result[k]
 
+            # Update alarm-gated flag: True if alarm_common OR any alarm reg non-zero
+            # When True on next cycle, alarm detail blocks will be read to detect clearance
+            cur_alarm = result.get("alarm_common", False)
+            if cur_alarm:
+                self._last_alarm_active = True
+            else:
+                # If we just read alarm detail blocks (alarm_common was True before),
+                # the detector will see 1→0 transitions. Now we can stop polling.
+                self._last_alarm_active = False
+
             # Merge with cached result: skipped blocks retain previous values
             self._last_result.update(result)
 
             logger.debug(
-                "Adaptive: device=%s cycle=%d, read %d/%d blocks (skipped: %s, gen_status=%s)",
+                "Adaptive: device=%s cycle=%d, read %d/%d blocks (skipped: %s, gen_status=%s, alarms=%s)",
                 self.device_id, self._adaptive_poll_count,
                 blocks_read, total_blocks,
                 ", ".join(skipped_names) or "none",
                 self._last_gen_status,
+                "active" if self._last_alarm_active else "quiet",
             )
 
             return self._last_result.copy()
