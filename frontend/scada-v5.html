@@ -274,6 +274,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .sb-admin-hd:hover{background:var(--bg4);color:var(--t)}.sb-admin-arrow{font-size:9px;transition:transform .2s;display:inline-block}
 .sb-admin.open .sb-admin-arrow{transform:rotate(90deg)}.sb-admin-body{max-height:0;overflow:hidden;transition:max-height .25s ease}.sb-admin.open .sb-admin-body{max-height:250px}
 .sb-admin-body .sb-btn{margin-bottom:2px}
+.arc-fchecks{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.arc-fchk{display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;padding:3px 8px;background:var(--bg3);border:1px solid var(--bd);border-radius:12px;transition:all .15s;user-select:none}
+.arc-fchk:hover{background:var(--bg4);border-color:var(--bd2)}.arc-fchk input{accent-color:var(--g);margin:0}
+.arc-fchk-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
+.mc-click{cursor:pointer;transition:all .15s}.mc-click:hover{background:var(--bg4);border-color:var(--bd2);transform:scale(1.02)}
 .alm-expand-row{cursor:pointer;transition:background .15s}.alm-expand-row:hover{background:var(--bg4)}
 .alm-chevron{transition:transform .2s;display:inline-block;font-size:10px;margin-right:4px}
 .alm-expand-row.open .alm-chevron{transform:rotate(90deg)}.alm-detail-td{padding:0!important;border-bottom:1px solid var(--bd)}
@@ -1965,7 +1970,7 @@ const batt=mx?.battery_volt!=null?mx.battery_volt:R(27,28.5);
 const ctC=(typeof ct==='number'&&ct>95)?'va':(typeof ct==='number'&&ct>88)?'vw':'vn';
 const opC=(typeof op==='number'&&op<300)?'va':'vn';
 const fuelC=(typeof fuel==='number'&&fuel<50)?'vw':'vn';
-mT.innerHTML=`<div class="mg"><div class="mc"><div class="ml">Обороты</div><div class="mv vn">${rpm}</div></div><div class="mc"><div class="ml">Темп.ОЖ</div><div class="mv ${ctC}">${ct}°C</div></div><div class="mc"><div class="ml">Давл.масла</div><div class="mv ${opC}">${op} кПа</div></div><div class="mc"><div class="ml">Темп.масла</div><div class="mv vn">${oilT}°C</div></div><div class="mc"><div class="ml">Топливо</div><div class="mv ${fuelC}">${fuel}%</div></div><div class="mc"><div class="ml">Расход</div><div class="mv vn">${typeof fc==='number'?fc.toFixed(1):fc} л/ч</div></div><div class="mc"><div class="ml">Турбо</div><div class="mv vn">${turbo} кПа</div></div><div class="mc"><div class="ml">Батарея</div><div class="mv vn">${typeof batt==='number'?batt.toFixed(1):batt}В</div></div></div>`}
+mT.innerHTML=`<div class="mg"><div class="mc mc-click" onclick="openFieldArchive('${sl}','engine_speed')"><div class="ml">Обороты 📈</div><div class="mv vn">${rpm}</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','coolant_temp')"><div class="ml">Темп.ОЖ 📈</div><div class="mv ${ctC}">${ct}°C</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','oil_pressure')"><div class="ml">Давл.масла 📈</div><div class="mv ${opC}">${op} кПа</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','oil_temp')"><div class="ml">Темп.масла 📈</div><div class="mv vn">${oilT}°C</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','fuel_level')"><div class="ml">Топливо 📈</div><div class="mv ${fuelC}">${fuel}%</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','fuel_consumption')"><div class="ml">Расход 📈</div><div class="mv vn">${typeof fc==='number'?fc.toFixed(1):fc} л/ч</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','turbo_pressure')"><div class="ml">Турбо 📈</div><div class="mv vn">${turbo} кПа</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','battery_volt')"><div class="ml">Батарея 📈</div><div class="mv vn">${typeof batt==='number'?batt.toFixed(1):batt}В</div></div></div>`}
 else if(mT&&!isOnline)mT.innerHTML=`<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Нет связи</div>`;
 const aT=$(sl+'a-act');if(aT){let ah='';
 if(!connOk) ah+=`<div class="ai aa">🔴 <b style="color:var(--r)">CONN_LOST</b> Нет связи с HGM9520N<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
@@ -2438,7 +2443,7 @@ const json=JSON.stringify(b,null,2);const blob=new Blob([json],{type:'applicatio
 function deleteBackup(idx){const backups=getSprBackups();backups.splice(idx,1);saveSprBackups(backups);renderBackupList();ae('🗑 Бэкап удалён')}
 // ===================== ARCHIVE PAGE =====================
 let archiveMode=false;
-let arcState={slot:'g1',hours:1,group:'power',almPage:0,almLimit:50};
+let arcState={slot:'g1',hours:1,group:'power',almPage:0,almLimit:50,selectedFields:null};
 let arcChart=null;
 // === ARC_GROUPS: per-device-type chart configurations ===
 const ARC_GROUPS_GEN={
@@ -2446,8 +2451,8 @@ power:{fields:'power_total,power_a,power_b,power_c',labels:{power_total:'Общ�
 desc:'Активная мощность генератора. «Общая мощность» — суммарная нагрузка на генератор (P = Pa + Pb + Pc). Фазные значения A, B, C показывают распределение нагрузки по фазам. Перекос более 15% между фазами — ненормально.'},
 voltage:{fields:'gen_uab,gen_ubc,gen_uca,mains_uab',labels:{gen_uab:'Генератор UAB (линейное)',gen_ubc:'Генератор UBC (линейное)',gen_uca:'Генератор UCA (линейное)',mains_uab:'Напряжение сети UAB'},unit:'В',colors:['#00e09a','#4090ff','#ffb020','#ff4060'],
 desc:'Линейные (межфазные) напряжения генератора и вводного напряжения сети. UAB — между фазами A и B, UBC — между B и C, UCA — между C и A. Норма 380-400В. Красная линия — напряжение внешней сети на вводе.'},
-engine:{fields:'coolant_temp,oil_pressure,battery_volt,fuel_level',labels:{coolant_temp:'Температура охл. жидкости (°C)',oil_pressure:'Давление масла (кПа)',battery_volt:'Напряжение АКБ (В)',fuel_level:'Уровень топлива (%)'},unit:'',colors:['#ff4060','#ffb020','#00e09a','#a070ff'],
-desc:'Параметры двигателя генератора. Температура ОЖ: норма 70-95°C, выше 100°C — перегрев. Давление масла: норма 200-500 кПа, падение ниже 100 — аварийное. АКБ: норма 24-28В (24В система). Топливо: процент заполнения бака.'},
+engine:{fields:'engine_speed,coolant_temp,oil_pressure,oil_temp,fuel_level,fuel_consumption,turbo_pressure,battery_volt',labels:{engine_speed:'Обороты двигателя (об/мин)',coolant_temp:'Температура ОЖ (°C)',oil_pressure:'Давление масла (кПа)',oil_temp:'Температура масла (°C)',fuel_level:'Уровень топлива (%)',fuel_consumption:'Расход топлива (л/ч)',turbo_pressure:'Давление турбины (кПа)',battery_volt:'Напряжение АКБ (В)'},unit:'',colors:['#00e09a','#ff4060','#ffb020','#f97316','#a070ff','#4090ff','#f472b6','#22d3ee'],
+desc:'Параметры двигателя генератора. Обороты: номинал 1500 об/мин. Температура ОЖ: норма 70-95°C, выше 100°C — перегрев. Давление масла: норма 200-500 кПа, падение ниже 100 — аварийное. АКБ: норма 24-28В (24В система). Топливо: процент заполнения бака.'},
 current:{fields:'current_a,current_b,current_c,load_pct',labels:{current_a:'Ток генератора фаза A (А)',current_b:'Ток генератора фаза B (А)',current_c:'Ток генератора фаза C (А)',load_pct:'Нагрузка генератора (%)'},unit:'А',colors:['#4090ff','#00e09a','#ffb020','#a070ff'],
 desc:'Токи на выходе генератора по трём фазам и процент нагрузки от номинала. Равномерное распределение токов по фазам — признак сбалансированной нагрузки. Нагрузка выше 80% длительно — повышенный износ.'}
 };
@@ -2551,7 +2556,7 @@ let devBtns='';
 if(s.g1?.ip)devBtns+=`<button class="arc-dev${firstSlot==='g1'?' on':''}" onclick="arcDev(this,'g1')">Генератор 1</button>`;
 if(s.g2?.ip)devBtns+=`<button class="arc-dev${firstSlot==='g2'&&!s.g1?.ip?' on':''}" onclick="arcDev(this,'g2')">Генератор 2</button>`;
 if(s.spr?.ip)devBtns+=`<button class="arc-dev${firstSlot==='spr'?' on':''}" onclick="arcDev(this,'spr')">ШПР</button>`;
-arcState.slot=firstSlot||'g1';arcState.hours=1;arcState.group='power';arcState.almPage=0;
+arcState.slot=firstSlot||'g1';arcState.hours=1;arcState.group='power';arcState.almPage=0;arcState.selectedFields=null;
 mn.innerHTML=`
 <div class="dh"><div class="dt"><h1>📊 Архив</h1>
 <select class="fi" id="arcSiteSelect" style="margin-left:12px;width:auto;padding:6px 12px;font-size:13px;font-weight:500;background:var(--bg3);border-color:var(--bd2)" onchange="arcSwitchSite(this.value)">${siteOpts}</select></div>
@@ -2575,6 +2580,7 @@ mn.innerHTML=`
 <button class="tb" onclick="arcTab(this,'arcDisk')">💾 Хранилище</button></div>
 <div id="arcCharts" style="display:block">
 <div class="tbs" style="margin-bottom:8px" id="arcChartTabs"></div>
+<div class="arc-fchecks" id="arcFieldChecks"></div>
 <div class="arc-chart-wrap"><canvas id="arcCanvas"></canvas></div>
 <div id="arcFieldStats" class="arc-fstats"></div>
 <div id="arcDesc" class="arc-desc"></div>
@@ -2593,7 +2599,19 @@ arcRenderChartTabs();arcLoadChart();arcLoadAlarms();arcLoadDisk();
 
 function arcDev(btn,slot){
 btn.parentElement.querySelectorAll('.arc-dev').forEach(b=>b.classList.remove('on'));
-btn.classList.add('on');arcState.slot=slot;arcState.almPage=0;arcRenderChartTabs();arcLoadChart();arcLoadAlarms();
+btn.classList.add('on');arcState.slot=slot;arcState.almPage=0;
+arcState.selectedFields=null;arcRenderChartTabs();arcLoadChart();arcLoadAlarms();
+}
+function openFieldArchive(slot,field,group){
+showArchive(cur);
+arcState.slot=slot;
+arcState.group=group||'engine';
+arcState.selectedFields=new Set([field]);
+// Update device button selection
+const devWrap=$('arcDevsWrap');
+if(devWrap){devWrap.querySelectorAll('.arc-dev').forEach(b=>{
+b.classList.toggle('on',b.textContent.includes(slot==='g1'?'1':slot==='g2'?'2':'ШПР'))})}
+arcRenderChartTabs();arcRenderFieldChecks();arcLoadChart();
 }
 function arcSwitchSite(siteKey){
 if(!S[siteKey])return;arcState.siteKey=siteKey;
@@ -2716,7 +2734,11 @@ if(panelId==='arcDisk')arcLoadDisk();
 }
 function arcChGroup(btn,group){
 btn.closest('.tbs').querySelectorAll('.tb').forEach(b=>b.classList.remove('on'));
-btn.classList.add('on');arcState.group=group;arcLoadChart();
+btn.classList.add('on');arcState.group=group;
+// Reset selectedFields to all fields in new group
+const grp=arcGetGroups()[group];
+arcState.selectedFields=grp?new Set(grp.fields.split(',')):null;
+arcRenderFieldChecks();arcLoadChart();
 }
 function arcRenderChartTabs(){
 const wrap=$('arcChartTabs');if(!wrap)return;
@@ -2724,6 +2746,31 @@ const tabs=arcGetTabs();const groups=arcGetGroups();
 // Reset group if current group doesn't exist for this device type
 if(!groups[arcState.group])arcState.group=tabs[0]?.key||'power';
 wrap.innerHTML=tabs.map(t=>`<button class="tb${t.key===arcState.group?' on':''}" onclick="arcChGroup(this,'${t.key}')">${t.label}</button>`).join('');
+// Init selectedFields if not set
+const grp=groups[arcState.group];
+if(!arcState.selectedFields&&grp)arcState.selectedFields=new Set(grp.fields.split(','));
+arcRenderFieldChecks();
+}
+function arcRenderFieldChecks(){
+const wrap=$('arcFieldChecks');if(!wrap)return;
+const grp=arcGetGroups()[arcState.group];
+if(!grp){wrap.innerHTML='';return}
+const fields=grp.fields.split(',');
+const sel=arcState.selectedFields||new Set(fields);
+wrap.innerHTML=fields.map((f,i)=>{
+const checked=sel.has(f)?'checked':'';
+const color=grp.colors[i]||'#888';
+const lbl=(grp.labels[f]||f).replace(/\s*\(.*\)/,'');
+return`<label class="arc-fchk"><input type="checkbox" ${checked} onchange="arcToggleField('${f}')"><span class="arc-fchk-dot" style="background:${color}"></span>${lbl}</label>`}).join('');
+}
+function arcToggleField(field){
+const grp=arcGetGroups()[arcState.group];if(!grp)return;
+if(!arcState.selectedFields)arcState.selectedFields=new Set(grp.fields.split(','));
+if(arcState.selectedFields.has(field))arcState.selectedFields.delete(field);
+else arcState.selectedFields.add(field);
+if(arcState.selectedFields.size===0){arcState.selectedFields.add(field);
+const wrap=$('arcFieldChecks');if(wrap){const cb=wrap.querySelector(`input[onchange*="${field}"]`);if(cb)cb.checked=true}return}
+arcLoadChart();
 }
 
 function arcBucket(hours){
@@ -2735,17 +2782,22 @@ const devId=arcGetDeviceId(arcState.slot);
 if(!devId){arcRenderNoData('Устройство не настроено');return}
 const grp=arcGetGroups()[arcState.group],hours=arcState.hours;
 if(!grp){arcRenderNoData('Нет данных для этой вкладки');return}
+// Use selectedFields if set, otherwise all group fields
+const allFields=grp.fields.split(',');
+const activeFields=arcState.selectedFields?allFields.filter(f=>arcState.selectedFields.has(f)):allFields;
+if(!activeFields.length){arcRenderNoData('Выберите хотя бы один параметр');return}
+const fieldsParam=activeFields.join(',');
 const bucket=hours?arcBucket(hours):0;
 let url;
 if(hours){
-if(bucket>0)url=`/api/history/metrics/${devId}/downsampled?last_hours=${hours}&bucket_seconds=${bucket}&fields=${grp.fields}`;
-else url=`/api/history/metrics/${devId}?last_hours=${hours}&fields=${grp.fields}&limit=5000`;
+if(bucket>0)url=`/api/history/metrics/${devId}/downsampled?last_hours=${hours}&bucket_seconds=${bucket}&fields=${fieldsParam}`;
+else url=`/api/history/metrics/${devId}?last_hours=${hours}&fields=${fieldsParam}&limit=5000`;
 }else{
 const from=new Date(arcState.customFrom).toISOString(),to=new Date(arcState.customTo).toISOString();
 const rangeH=(new Date(arcState.customTo)-new Date(arcState.customFrom))/3600000;
 const cb=arcBucket(rangeH);
-if(cb>0)url=`/api/history/metrics/${devId}/downsampled?start=${from}&end=${to}&bucket_seconds=${cb}&fields=${grp.fields}`;
-else url=`/api/history/metrics/${devId}?start=${from}&end=${to}&fields=${grp.fields}&limit=5000`;
+if(cb>0)url=`/api/history/metrics/${devId}/downsampled?start=${from}&end=${to}&bucket_seconds=${cb}&fields=${fieldsParam}`;
+else url=`/api/history/metrics/${devId}?start=${from}&end=${to}&fields=${fieldsParam}&limit=5000`;
 }
 try{
 const data=await api.get(url);arcRenderChart(data,grp);
@@ -2786,7 +2838,8 @@ const canvas=$('arcCanvas');if(!canvas)return;
 if(arcChart){arcChart.destroy();arcChart=null}
 if(!data||!data.length){arcRenderNoData('Нет данных за выбранный период');return}
 if(typeof Chart==='undefined'){arcRenderNoData('Chart.js не загружен');return}
-const fieldNames=grp.fields.split(',');
+const allFields=grp.fields.split(',');
+const fieldNames=arcState.selectedFields?allFields.filter(f=>arcState.selectedFields.has(f)):allFields;
 const timeKey=data[0].bucket!==undefined?'bucket':'timestamp';
 
 // Calculate adaptive point radius based on data density
@@ -2796,19 +2849,21 @@ const ptRadius=totalPts<30?3:totalPts<80?2:0;
 const hoverRadius=totalPts<200?4:3;
 
 const datasets=fieldNames.map((f,i)=>{
+  const origIdx=allFields.indexOf(f);
+  const clr=grp.colors[origIdx>=0?origIdx:i]||'#888';
   const pts=data.map(row=>({x:new Date(row[timeKey]),y:row[f]!=null?Number(row[f]):null}));
   const hasData=pts.some(p=>p.y!=null);
   if(!hasData) return null;
   return {
     label:grp.labels[f]||f,
     data:pts,
-    borderColor:grp.colors[i],
-    backgroundColor:grp.colors[i]+'18',
+    borderColor:clr,
+    backgroundColor:clr+'18',
     borderWidth:2.2,
     pointRadius:showPts?ptRadius:0,
     pointHoverRadius:hoverRadius,
-    pointBackgroundColor:grp.colors[i],
-    pointBorderColor:grp.colors[i],
+    pointBackgroundColor:clr,
+    pointBorderColor:clr,
     pointHitRadius:8,
     tension:0.25,
     fill:fieldNames.length<=2,
@@ -3069,10 +3124,13 @@ document.addEventListener('wheel',function(e){
 function arcRenderFieldStats(data,grp){
 const wrap=$('arcFieldStats');if(!wrap)return;
 if(!data||!data.length){wrap.innerHTML='';return}
-const fieldNames=grp.fields.split(',');
+const allF=grp.fields.split(',');
+const fieldNames=arcState.selectedFields?allF.filter(f=>arcState.selectedFields.has(f)):allF;
 let html='';
 for(let i=0;i<fieldNames.length;i++){
   const f=fieldNames[i];
+  const origIdx=allF.indexOf(f);
+  const clr=grp.colors[origIdx>=0?origIdx:i]||'#888';
   const vals=data.map(r=>r[f]).filter(v=>v!=null&&isFinite(v));
   if(!vals.length)continue;
   const mn=Math.min(...vals),mx=Math.max(...vals),avg=vals.reduce((a,b)=>a+b,0)/vals.length;
@@ -3080,12 +3138,12 @@ for(let i=0;i<fieldNames.length;i++){
   const lbl=grp.labels[f]||f;
   const shortLbl=lbl.split(' (')[0]; // remove unit from label
   const u=grp.unit?' '+grp.unit:'';
-  html+=`<div class="arc-fs" style="border-left-color:${grp.colors[i]}">
-<div class="arc-fs-name" style="color:${grp.colors[i]}">${shortLbl}</div>
+  html+=`<div class="arc-fs" style="border-left-color:${clr}">
+<div class="arc-fs-name" style="color:${clr}">${shortLbl}</div>
 <div class="arc-fs-row"><span class="arc-fs-lbl">Мин</span><span class="arc-fs-val">${mn.toFixed(1)}${u}</span></div>
 <div class="arc-fs-row"><span class="arc-fs-lbl">Средн</span><span class="arc-fs-val">${avg.toFixed(1)}${u}</span></div>
 <div class="arc-fs-row"><span class="arc-fs-lbl">Макс</span><span class="arc-fs-val">${mx.toFixed(1)}${u}</span></div>
-<div class="arc-fs-row"><span class="arc-fs-lbl">Текущ</span><span class="arc-fs-val" style="color:${grp.colors[i]}">${last.toFixed(1)}${u}</span></div>
+<div class="arc-fs-row"><span class="arc-fs-lbl">Текущ</span><span class="arc-fs-val" style="color:${clr}">${last.toFixed(1)}${u}</span></div>
 </div>`;
 }
 if(grp._computed){
