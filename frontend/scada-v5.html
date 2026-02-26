@@ -3198,6 +3198,8 @@ mn.innerHTML=`
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
 <h2 style="font-size:14px;font-weight:600;color:var(--t2)">📋 Журнал аварий</h2></div>
 <div class="arc-flt" style="margin-bottom:8px">
+<select class="fi" id="almSite" style="width:160px;padding:6px 8px;font-size:11px" onchange="alarmsPageState.page=0;almRefresh()">
+<option value="">🏭 Все объекты</option></select>
 <select class="fi" id="almSev" style="width:140px;padding:6px 8px;font-size:11px" onchange="alarmsPageState.page=0;almLoadHistory()">
 <option value="">Все уровни</option><option value="error">🔴 Ошибка</option><option value="warning">🟡 Предупр.</option></select>
 <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--t2)"><input type="checkbox" id="almActiveOnly" style="accent-color:var(--g)" onchange="alarmsPageState.page=0;almLoadHistory()"> Только активные</label>
@@ -3210,6 +3212,13 @@ mn.innerHTML=`
 <button class="arc-tb" onclick="almPeriod(this,0)">Всё</button></div></div>
 <div id="almHistoryTable"></div>
 <div id="almHistoryPag"></div></div>`;
+// Populate site filter dropdown
+const almSiteSel=$('almSite');
+if(almSiteSel){for(const key of Object.keys(S)){
+const name=S[key]?.name||key;
+const opt=document.createElement('option');opt.value=key;opt.textContent='📍 '+name;
+almSiteSel.appendChild(opt)}
+if(cur)almSiteSel.value=cur}
 almRefresh();
 }
 
@@ -3223,10 +3232,10 @@ const el=$('almActiveList'),cnt=$('almActiveCount');
 if(!el)return;
 el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">⏳ Загрузка...</div>';
 try{
-// Build device_ids filter from current site
-const dids=getDeviceIdsForSite(cur);
+// Build device_ids filter from site dropdown
+const almSiteKey=$('almSite')?.value||'';
+const dids=almSiteKey?getDeviceIdsForSite(almSiteKey):[];
 const didsQ=dids.length?'?device_ids='+dids.join(','):'';
-const didsA=dids.length?'&device_ids='+dids.join(','):'';
 // Load from both sources: summary flags (history) + bitwise (alarm-analytics)
 const [alarmsHist, alarmsAA] = await Promise.all([
     api.get('/api/history/alarms/active'+didsQ).catch(()=>[]),
@@ -3273,8 +3282,9 @@ el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;paddi
 const st=alarmsPageState;
 st.sevFilter=$('almSev')?.value||'';
 st.activeOnly=$('almActiveOnly')?.checked||false;
-// Build device_ids filter from current site
-const dids=getDeviceIdsForSite(cur);
+// Build device_ids filter from site dropdown
+const almSiteKey=$('almSite')?.value||'';
+const dids=almSiteKey?getDeviceIdsForSite(almSiteKey):[];
 const didsParam=dids.length?`&device_ids=${dids.join(',')}`:'';
 // Fetch from alarm-analytics (bitwise, has name_ru) as primary source
 let aaUrl=`/api/alarm-analytics/events?limit=${st.limit}&offset=${st.page*st.limit}`;
@@ -3384,7 +3394,8 @@ const labels={rpm:'Об/мин',oil_pressure:'Давл. масла',coolant_temp
 gen_voltage_ab:'Uab ген',gen_voltage_bc:'Ubc ген',gen_voltage_ca:'Uca ген',
 gen_current_a:'Ia ген',gen_freq:'Частота ген',power_total:'Мощность',power_factor:'cos φ',
 fuel_level:'Топливо',run_hours:'Моточасы',mains_voltage_ab:'Uab сеть',mains_freq:'Частота сети'};
-const items=keys.filter(k=>mx[k]!=null).map(k=>`<div class="alm-exp-kv"><span class="ek">${labels[k]||k}</span><span class="ev">${mx[k]}</span></div>`);
+const fmtV=v=>typeof v==='number'?(Number.isInteger(v)?v:+v.toFixed(1)):v;
+const items=keys.filter(k=>mx[k]!=null).map(k=>`<div class="alm-exp-kv"><span class="ek">${labels[k]||k}</span><span class="ev">${fmtV(mx[k])}</span></div>`);
 if(items.length){metricsHtml=`<div style="font-size:11px;color:var(--t3);margin-top:6px">📊 Метрики на момент аварии:</div><div class="alm-exp-metrics">${items.join('')}</div>`}
 }
 const almCode=ev.alarm_code||code;
@@ -3393,8 +3404,30 @@ const devType=ev.device_type||deviceType||'';
 el.innerHTML=`${desc}${metricsHtml}
 <div class="alm-exp-btns">
 <button class="alm-exp-btn" onclick="event.stopPropagation();window.almShowEvent(${ev.id})">📋 Подробнее</button>
-<button class="alm-exp-btn" onclick="event.stopPropagation();window._almAskLLM('${almCode}',${devId},'${devType}')">🤖 Спросить Санька</button></div>`;
+<button class="alm-exp-btn" id="almExpLlm_${ev.id}" onclick="event.stopPropagation();almAskSanek(${ev.id},'${almCode}',${devId},'${devType}')">🤖 Спросить Санька</button></div>
+<div id="almExpLlmRes_${ev.id}"></div>`;
 }
+
+async function almAskSanek(evId,alarmCode,deviceId,deviceType){
+const btn=document.getElementById('almExpLlm_'+evId);
+const res=document.getElementById('almExpLlmRes_'+evId);
+if(!btn||!res)return;
+btn.disabled=true;btn.textContent='⏳ Санёк анализирует...';res.innerHTML='';
+try{
+const resp=await fetch('/api/alarm-analytics/explain',{method:'POST',headers:{'Content-Type':'application/json'},
+body:JSON.stringify({alarm_code:alarmCode,device_id:deviceId||0,device_type:deviceType||'generator'})});
+const data=await resp.json();
+if(data.success&&data.explanation){
+res.innerHTML=`<div style="margin-top:10px;padding:12px;background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rs);font-size:12px;line-height:1.6">
+<div style="font-size:11px;color:var(--t3);margin-bottom:6px">🤖 <b>Санёк</b> — AI-анализ</div>${data.explanation.replace(/\n/g,'<br>')}</div>`;
+btn.textContent='✅ Анализ получен';
+}else{
+res.innerHTML=`<div style="color:#f87171;font-size:12px;margin-top:8px">✗ ${data.error||'Не удалось получить анализ'}</div>`;
+btn.disabled=false;btn.textContent='🤖 Попробовать снова';
+}}catch(e){
+res.innerHTML=`<div style="color:#f87171;font-size:12px;margin-top:8px">✗ Ошибка: ${e.message}</div>`;
+btn.disabled=false;btn.textContent='🤖 Попробовать снова';
+}}
 
 function almRefresh(){almLoadActive();almLoadHistory()}
 // ===================== END ALARMS PAGE =====================
