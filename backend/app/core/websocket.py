@@ -131,6 +131,38 @@ async def redis_to_ws_bridge(redis: Redis) -> None:
                 pass
 
 
+async def events_to_ws_bridge(redis: Redis) -> None:
+    """Subscribe to Redis PubSub 'events:new' and broadcast to all WS clients."""
+    logger.info("Events→WS bridge started, subscribing to events:new")
+    while True:
+        pubsub = redis.pubsub()
+        try:
+            await pubsub.subscribe("events:new")
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    payload = message["data"]
+                    if isinstance(payload, bytes):
+                        payload = payload.decode("utf-8")
+                    # Wrap in {type: "event", data: ...} envelope
+                    try:
+                        data = json.loads(payload)
+                        envelope = json.dumps({"type": "event", "data": data}, default=str)
+                        await manager.broadcast(envelope)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.error("Events→WS bridge error: %s, reconnecting in 2s", exc)
+            await asyncio.sleep(2)
+        finally:
+            try:
+                await pubsub.unsubscribe("events:new")
+                await pubsub.close()
+            except Exception:
+                pass
+
+
 async def maintenance_alerts_bridge(redis: Redis) -> None:
     """Subscribe to Redis PubSub 'maintenance:alerts' and broadcast to all WS clients."""
     logger.info("Maintenance alerts bridge started, subscribing to maintenance:alerts")

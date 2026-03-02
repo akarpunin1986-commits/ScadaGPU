@@ -15,6 +15,7 @@ from models.bitrix24_task import Bitrix24Task
 from models.ai_provider import AiProviderConfig
 from models.ai_chat import AiChatMessage
 from models.ai_knowledge import AiKnowledgeChunk
+from models.scada_event import ScadaEvent
 
 __all__ = [
     "Base",
@@ -39,4 +40,5 @@ __all__ = [
     "Bitrix24Task",
     "AiProviderConfig",
     "AiKnowledgeChunk",
+    "ScadaEvent",
 ]

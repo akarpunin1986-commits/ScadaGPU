@@ -248,7 +248,7 @@ REGISTER_MAP_9520N: dict[str, dict] = {
             "run_hours":        lambda regs: regs[10],
             "run_minutes":      lambda regs: regs[11],
             "start_count":      lambda regs: regs[13],
-            "energy_kwh":       lambda regs: regs[15] * 65536 + regs[14],
+            "energy_kwh":       lambda regs: (regs[15] * 65536 + regs[14]) * 0.1,  # 0.1 kWh per count
         },
     },
     "alarms": {
@@ -405,7 +405,7 @@ REGISTER_MAP_9520N_RTU: dict[str, dict] = {
             "run_hours":        lambda regs: regs[10],
             "run_minutes":      lambda regs: regs[11],
             "start_count":      lambda regs: regs[13],
-            "energy_kwh":       lambda regs: regs[15] * 65536 + regs[14],
+            "energy_kwh":       lambda regs: (regs[15] * 65536 + regs[14]) * 0.1,  # 0.1 kWh per count
         },
     },
     "alarms": {

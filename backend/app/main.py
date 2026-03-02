@@ -16,16 +16,18 @@ from api.commands import router as commands_router
 from api.bitrix import router as bitrix_router
 from api.ai_parser import router as ai_parser_router
 from api.history import router as history_router
-from core.websocket import router as ws_router, redis_to_ws_bridge, maintenance_alerts_bridge
+from core.websocket import router as ws_router, redis_to_ws_bridge, maintenance_alerts_bridge, events_to_ws_bridge
 from services.modbus_poller import ModbusPoller
 from services.maintenance_scheduler import MaintenanceScheduler
 from services.metrics_writer import MetricsWriter
 from services.alarm_detector import AlarmDetector
+from services.event_detector import EventDetector
 from services.disk_manager import DiskSpaceManager
 from api.power_limit import router as power_limit_router
 from alarm_analytics.router import router as alarm_analytics_router
 from alarm_analytics.detector import AlarmAnalyticsDetector
 from api.knowledge import router as knowledge_router
+from api.events import router as events_router
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
@@ -83,6 +85,14 @@ async def lifespan(app: FastAPI):
     app.state.alarm_detector = ad
     ad_task = asyncio.create_task(ad.start())
 
+    # Event detector (SCADA event journal)
+    ed = EventDetector(redis, async_session)
+    app.state.event_detector = ed
+    ed_task = asyncio.create_task(ed.start())
+
+    # Events → WebSocket bridge
+    events_bridge_task = asyncio.create_task(events_to_ws_bridge(redis))
+
     # Phase 6 — Disk space manager
     dm = DiskSpaceManager(
         async_session,
@@ -119,6 +129,7 @@ async def lifespan(app: FastAPI):
     await scheduler.stop()
     await mw.stop()
     await ad.stop()
+    await ed.stop()
     await dm.stop()
     await aa_detector.stop()
     if b24_module:
@@ -126,7 +137,7 @@ async def lifespan(app: FastAPI):
 
     all_tasks = [
         poller_task, ws_bridge_task, scheduler_task, alerts_bridge_task,
-        mw_task, ad_task, dm_task, aa_task,
+        mw_task, ad_task, ed_task, events_bridge_task, dm_task, aa_task,
     ]
     if b24_task:
         all_tasks.append(b24_task)
@@ -169,6 +180,7 @@ app.include_router(ws_router)
 app.include_router(power_limit_router)
 app.include_router(alarm_analytics_router)
 app.include_router(knowledge_router)
+app.include_router(events_router)
 
 # Bitrix24 module router (conditional)
 if settings.BITRIX24_ENABLED:

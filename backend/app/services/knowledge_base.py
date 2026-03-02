@@ -97,10 +97,70 @@ def extract_keywords(text: str) -> list[str]:
         "and", "the", "for", "with", "from", "alarm", "error", "warning",
         "для", "при", "или", "это", "что", "как", "все", "его", "она",
         "они", "так", "уже", "еще", "нет", "это", "тоже", "был",
+        "может", "быть", "когда", "где", "есть", "будет",
     }
     # Split by non-alphanumeric (keep Cyrillic)
     words = re.findall(r"[a-zA-Zа-яА-ЯёЁ0-9]+", text.lower())
     return [w for w in words if len(w) >= 3 and w not in stop_words]
+
+
+# Bilingual synonym map for common SCADA terms (RU→EN, EN→RU)
+_SYNONYMS: dict[str, list[str]] = {
+    "перегрев": ["overheating", "overheat", "high temp", "температура"],
+    "overheating": ["перегрев", "температура", "high temp"],
+    "давление": ["pressure", "oil pressure", "масло"],
+    "pressure": ["давление", "масло"],
+    "масло": ["oil", "давление", "смазк"],
+    "oil": ["масло", "давление", "смазк"],
+    "топливо": ["fuel", "бак", "уровень"],
+    "fuel": ["топливо", "бак"],
+    "обороты": ["speed", "rpm", "двигатель"],
+    "speed": ["обороты", "rpm", "скорость"],
+    "напряжение": ["voltage", "вольт"],
+    "voltage": ["напряжение", "вольт"],
+    "ток": ["current", "ампер"],
+    "current": ["ток", "ампер"],
+    "перегрузка": ["overload", "over power", "overcurrent"],
+    "overload": ["перегрузка", "over power"],
+    "охлаждение": ["coolant", "радиатор", "ож"],
+    "coolant": ["охлаждение", "радиатор", "ож", "температура"],
+    "частота": ["frequency", "герц"],
+    "frequency": ["частота", "герц"],
+    "аккумулятор": ["battery", "батарея", "акб"],
+    "battery": ["аккумулятор", "батарея", "акб"],
+    "shutdown": ["останов", "остановка", "аварий", "protection", "trip"],
+    "останов": ["shutdown", "стоп", "остановка", "protection"],
+    "генератор": ["generator", "генер"],
+    "generator": ["генератор", "генер"],
+    "сброс": ["reset", "alarm reset"],
+    "reset": ["сброс", "alarm reset"],
+    "турбина": ["turbo", "турбо", "наддув"],
+    "turbo": ["турбина", "турбо", "наддув"],
+    # Alarm-specific terms for knowledge base search
+    "alarm": ["авария", "ошибка", "защита", "fault", "warning"],
+    "авария": ["alarm", "fault", "ошибка", "защита"],
+    "protection": ["защита", "alarm", "trip", "отключение", "shutdown"],
+    "защита": ["protection", "alarm", "trip", "shutdown"],
+    "overspeed": ["обороты", "speed", "превышение оборотов"],
+    "underspeed": ["обороты", "speed", "низкие обороты"],
+    "overcurrent": ["перегрузка", "ток", "overload", "current"],
+    "trip": ["отключение", "останов", "shutdown", "protection"],
+    "блокировка": ["block", "interlock", "блокир"],
+    "block": ["блокировка", "interlock", "блокир"],
+}
+
+
+def _expand_synonyms(keywords: list[str]) -> list[str]:
+    """Expand keywords with bilingual synonyms for better search coverage."""
+    expanded = list(keywords)
+    for kw in keywords:
+        for syn_key, syn_vals in _SYNONYMS.items():
+            if kw in syn_key or syn_key in kw:
+                for sv in syn_vals:
+                    if sv not in expanded:
+                        expanded.append(sv)
+                break
+    return expanded[:10]  # Cap at 10 total keywords
 
 
 async def search_knowledge(
@@ -110,6 +170,10 @@ async def search_knowledge(
     limit: int = 5,
 ) -> list[dict]:
     """Search knowledge base by keywords using ILIKE.
+
+    Uses two-pass strategy:
+    1. Strict AND search (all keywords must match) — most relevant
+    2. Relaxed OR search with synonym expansion — broader coverage
 
     Args:
         session: DB session.
@@ -124,9 +188,9 @@ async def search_knowledge(
     if not keywords:
         return []
 
-    # Build ILIKE conditions for each keyword
+    # --- Pass 1: Strict AND search (original keywords) ---
     conditions = []
-    for kw in keywords[:5]:  # Limit to 5 keywords
+    for kw in keywords[:5]:
         pattern = f"%{kw}%"
         conditions.append(
             or_(
@@ -136,7 +200,7 @@ async def search_knowledge(
         )
 
     stmt = select(AiKnowledgeChunk)
-    filters = conditions  # OR between keyword matches would be too broad, use AND
+    filters = list(conditions)
     if category:
         filters.append(AiKnowledgeChunk.category == category)
 
@@ -145,7 +209,50 @@ async def search_knowledge(
 
     stmt = stmt.limit(limit)
     result = await session.execute(stmt)
-    rows = result.scalars().all()
+    rows = list(result.scalars().all())
+
+    # If enough results, return them
+    if len(rows) >= limit:
+        return [
+            {
+                "id": r.id,
+                "title": r.title,
+                "content": r.content,
+                "category": r.category,
+                "source_filename": r.source_filename,
+            }
+            for r in rows
+        ]
+
+    # --- Pass 2: Relaxed OR search with synonyms ---
+    seen_ids = {r.id for r in rows}
+    remaining = limit - len(rows)
+
+    expanded = _expand_synonyms(keywords)
+    or_conditions = []
+    for kw in expanded:
+        pattern = f"%{kw}%"
+        or_conditions.append(
+            or_(
+                AiKnowledgeChunk.content.ilike(pattern),
+                AiKnowledgeChunk.title.ilike(pattern),
+            )
+        )
+
+    stmt2 = select(AiKnowledgeChunk)
+    filters2 = [or_(*or_conditions)]
+    if category:
+        filters2.append(AiKnowledgeChunk.category == category)
+    if seen_ids:
+        stmt2 = stmt2.where(
+            and_(*filters2, AiKnowledgeChunk.id.notin_(seen_ids))
+        )
+    else:
+        stmt2 = stmt2.where(and_(*filters2))
+
+    stmt2 = stmt2.limit(remaining)
+    result2 = await session.execute(stmt2)
+    rows.extend(result2.scalars().all())
 
     return [
         {

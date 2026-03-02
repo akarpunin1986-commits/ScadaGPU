@@ -190,8 +190,17 @@ body{background:var(--bg);color:var(--t);font-family:var(--u);height:100vh;overf
 .slider-label{font-size:11px;font-family:var(--m);color:var(--t3);width:20px;flex-shrink:0}.slider-val{font-size:12px;font-family:var(--m);color:var(--t);width:44px;text-align:right;flex-shrink:0;font-weight:600}
 input[type=range]{flex:1;-webkit-appearance:none;height:4px;background:var(--bd);border-radius:2px;outline:none}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;background:var(--p);border-radius:50%;cursor:pointer;box-shadow:0 0 6px rgba(160,112,255,.4)}
-.ev{background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);padding:14px 16px}.ev-t{font-size:11px;color:var(--t3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.8px;font-weight:500}
-.er{font-size:11px;font-family:var(--m);padding:4px 0;color:var(--t2);display:flex;gap:8px}.et{color:var(--t4);flex-shrink:0}
+.ev{background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);padding:0;overflow:hidden}
+.ev-t{font-size:11px;color:var(--t3);padding:10px 16px;text-transform:uppercase;letter-spacing:.8px;font-weight:500;cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
+.ev-t:hover{background:var(--bg4)}.ev-arrow{font-size:9px;transition:transform .2s}.ev.collapsed .ev-arrow{transform:rotate(-90deg)}
+.ev-body{max-height:300px;overflow-y:auto;padding:0 16px 12px}.ev.collapsed .ev-body{display:none}
+.ev-badge{font-size:9px;background:var(--p);color:#fff;padding:1px 6px;border-radius:8px;margin-left:6px;font-weight:700}
+.er{font-size:11px;font-family:var(--m);padding:4px 0;color:var(--t2);display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--bg4)}.er:last-child{border:none}
+.et{color:var(--t4);flex-shrink:0;font-size:10px;min-width:54px}
+.ev-cat{font-size:8px;padding:1px 5px;border-radius:3px;font-weight:700;flex-shrink:0;text-transform:uppercase;letter-spacing:.3px}
+.ev-cat-gs{background:rgba(0,224,154,.12);color:var(--g)}.ev-cat-mode{background:rgba(100,149,237,.12);color:cornflowerblue}
+.ev-cat-ats{background:rgba(255,176,32,.12);color:var(--y)}.ev-cat-mains{background:rgba(255,77,77,.12);color:var(--r)}
+.ev-cat-op{background:rgba(168,130,255,.12);color:#a882ff}.ev-cat-sys{background:rgba(150,150,150,.12);color:var(--t3)}
 .to-iv{padding:12px;background:var(--bg4);border:1px solid var(--bd);border-radius:8px;margin-bottom:8px}.to-iv-bar{height:3px;background:var(--bg);border-radius:2px;overflow:hidden;margin-top:6px}.to-iv-fill{height:100%;border-radius:2px}
 .chk-item{display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:var(--rs);cursor:pointer;font-size:12px;transition:background .15s}.chk-item:hover{background:var(--bg4)}.chk-item.crit{background:rgba(255,64,96,.03)}.chk-item input{margin-top:2px;accent-color:var(--g)}
 .ta{width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--rs);color:var(--t2);font-size:11px;font-family:var(--u);resize:vertical;min-height:60px;outline:none}.ta:focus{border-color:var(--g)}
@@ -935,6 +944,8 @@ function connectWebSocket() {
                 for (const m of msg.data) handleMetricsUpdate(m);
             } else if (msg.type === 'maintenance_alert') {
                 // Maintenance alert from backend — ignore for now (v5 handles TO locally)
+            } else if (msg.type === 'event' && msg.data) {
+                _addRealtimeEvent(msg.data);
             } else if (msg.device_id !== undefined) {
                 handleMetricsUpdate(msg);
             }
@@ -1412,7 +1423,54 @@ return{...nextIv,remain,pct:progress,since:rh-lastH,_nextP:nextPoint,dueAt:nextP
 }
 function sv(){localStorage.setItem('s5s',JSON.stringify(S));localStorage.setItem('s5c',cur||'')}
 function esc(s){const d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML}
-function ae(m){evts.unshift({t:now(),m});if(evts.length>40)evts.pop()}
+function ae(m){evts.unshift({t:now(),m,category:'LOCAL'});if(evts.length>40)evts.pop();_renderEvtPanel()}
+let _serverEvts=[];let _evtNewCount=0;
+const _catLabels={GEN_STATUS:'Статус',MODE_CHANGE:'Режим',ATS_STATUS:'АВР',MAINS:'Сеть',OPERATOR:'Оператор',SYSTEM:'Связь',LOCAL:'UI'};
+const _catCls={GEN_STATUS:'gs',MODE_CHANGE:'mode',ATS_STATUS:'ats',MAINS:'mains',OPERATOR:'op',SYSTEM:'sys',LOCAL:'sys'};
+async function loadServerEvents(){
+  if(!cur)return;
+  try{
+    const siteId=siteApiIds[cur];if(!siteId)return;
+    const r=await fetch(API_BASE+'/api/events/latest?site_id='+siteId+'&limit=30');
+    if(r.ok){_serverEvts=await r.json();_renderEvtPanel()}
+  }catch(e){console.warn('loadServerEvents:',e)}
+}
+function _addRealtimeEvent(ev){
+  _serverEvts.unshift(ev);if(_serverEvts.length>50)_serverEvts.pop();
+  const panel=$('evPanel');if(panel&&panel.classList.contains('collapsed'))_evtNewCount++;
+  _renderEvtPanel()
+}
+function _fmtEvTime(iso){
+  if(!iso)return '';
+  const d=new Date(iso),now=new Date();
+  const time=d.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  // Show date if not today
+  if(d.toDateString()!==now.toDateString()){
+    return d.toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'})+' '+time;
+  }
+  return time;
+}
+function _renderEvtPanel(){
+  const el=$('evL');if(!el)return;
+  // Merge: server events first, then local UI events
+  const all=[];
+  for(const e of _serverEvts.slice(0,30)){
+    all.push({t:_fmtEvTime(e.created_at),m:e.message||'',cat:e.category||'SYSTEM'})
+  }
+  for(const e of evts.slice(0,Math.max(0,30-all.length))){
+    all.push({t:e.t,m:e.m,cat:e.category||'LOCAL'})
+  }
+  if(!all.length){el.innerHTML='<div style="color:var(--t4);font-size:11px;padding:4px 0">Нет событий</div>';return}
+  el.innerHTML=all.map(e=>`<div class="er"><span class="et">${e.t}</span><span class="ev-cat ev-cat-${_catCls[e.cat]||'sys'}">${_catLabels[e.cat]||e.cat}</span><span>${esc(e.m)}</span></div>`).join('');
+  // Badge
+  const badge=$('evBadge');if(badge)badge.textContent=_evtNewCount>0?_evtNewCount:'';
+}
+function toggleEvPanel(){
+  const p=$('evPanel');if(!p)return;
+  p.classList.toggle('collapsed');
+  if(!p.classList.contains('collapsed')){_evtNewCount=0;_renderEvtPanel()}
+  try{localStorage.setItem('evCollapsed',p.classList.contains('collapsed')?'1':'0')}catch(e){}
+}
 function showM(n){$('m-'+n).classList.add('sh')}function hideM(n){$('m-'+n).classList.remove('sh')}
 document.querySelectorAll('.mbg').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('sh')}));
 function R(a,b){return+(a+Math.random()*(b-a)).toFixed(1)}function RI(a,b){return Math.floor(a+Math.random()*(b-a))}
@@ -1500,6 +1558,22 @@ else{const created=await api.post('/api/devices',{site_id:siteId,name:slot==='sp
 d._deviceId=created.id;deviceSlotIndex[created.id]={siteKey:cur,slot}}
 }}catch(e){console.warn('API sync devices error:',e)}}
 ae('✅ Настройки сохранены');hideM('settings');renderSB();renderDash()}
+async function smartReset(slot,name){
+if(!confirm(`Сбросить аварию на ${name}?\n\nСистема пробует несколько методов сброса и проверяет результат.`))return;
+const devId=getDeviceIdForSlot(slot);if(!devId){ae('❌ Устройство не найдено');return}
+const cs=$('cs-'+name.replace(/[\s\/]/g,''));
+if(cs){cs.textContent='⏳ Сброс...';cs.classList.add('sh')}
+try{
+const resp=await api.post(`/api/commands/reset/${devId}`,{});
+if(resp.cleared){
+ae(`✅ Авария на ${name} сброшена!`);
+if(cs){cs.textContent='✅ Сброшено';setTimeout(()=>cs.classList.remove('sh'),3000)}
+}else{
+ae(`⚠ ${name}: авария НЕ сбросилась. Проверьте режим контроллера (LOCAL/REMOTE)`);
+if(cs){cs.textContent='⚠ Не сброшено';cs.style.color='var(--y)';setTimeout(()=>{cs.classList.remove('sh');cs.style.color=''},5000)}
+}
+}catch(e){ae(`❌ Ошибка сброса: ${e.message}`);if(cs){cs.textContent='❌ Ошибка';cs.classList.add('sh');setTimeout(()=>cs.classList.remove('sh'),3000)}}
+}
 function cmdConfirm(target,cmd,label,info){$('cmdT').textContent='Подтверждение: '+label;$('cmdTxt').innerHTML=`Команда <b>${label}</b> → <b>${target}</b>`;$('cmdInfo').textContent=info||'Modbus FC05';$('cmdOk').onclick=async()=>{hideM('cmd');
 const cs=$('cs-'+target.replace(/[\s\/]/g,''));
 // Resolve device_id and command params
@@ -1695,7 +1769,7 @@ ${cfg===0?'<div class="empty-dash" style="padding:40px"><div style="font-size:32
 <div class="gg">${genCard('g1','Генератор 1',s.g1)}${genCard('g2','Генератор 2',s.g2)}</div>
 <div class="pflow" id="pflow">${flowSvg(false,false,false,false,false,0,0,0,0,hg1?1:0,hg2?1:0)}</div>
 ${hs?sprCard(s.spr):''}
-`}<div class="ev"><div class="ev-t">Журнал событий</div><div id="evL">${evts.length?evts.slice(0,10).map(e=>`<div class="er"><span class="et">${e.t}</span>${esc(e.m)}</div>`).join(''):'<div style="color:var(--t4);font-size:11px">—</div>'}</div></div>`;uCk();if(demo)demoTick()}
+`}<div class="ev${localStorage.getItem('evCollapsed')==='1'?' collapsed':''}" id="evPanel"><div class="ev-t" onclick="toggleEvPanel()">📋 Журнал событий <span class="ev-badge" id="evBadge"></span><span class="ev-arrow" id="evArrow">▼</span></div><div class="ev-body" id="evBody"><div id="evL"><div style="color:var(--t4);font-size:11px">Загрузка...</div></div></div></div>`;uCk();if(demo)demoTick();loadServerEvents()}
 function genCard(sl,nm,c){
 if(!c?.ip)return`<div class="cc s-stb"><div style="padding:24px;text-align:center;color:var(--t3);font-size:12px">${nm} — не настроен<br><span style="color:var(--g);cursor:pointer" onclick="openSet()">Настроить →</span></div></div>`;
 const rh=c.runHours||0,to=getNextTO(rh,cur,sl),tc=to.remain<0?'to-r':to.pct>85?'to-r':to.pct>65?'to-y':'to-g',bc=to.remain<0?'var(--r)':to.pct>85?'var(--r)':to.pct>65?'var(--y)':'var(--g)';
@@ -1710,7 +1784,7 @@ return`<div class="cc s-stb" id="c${sl}"><div class="ch" onclick="tog('c${sl}')"
 <div class="pl-row"><span class="pl-lbl">P</span><div class="pl-bar"><div class="pl-fill" id="${sl}-pl-pf"></div></div><span class="pl-val" id="${sl}-pl-pv">—</span></div>
 <div class="pl-row"><span class="pl-lbl">Q</span><div class="pl-bar"><div class="pl-fill pl-q" id="${sl}-pl-qf"></div></div><span class="pl-val" id="${sl}-pl-qv">—</span></div>
 </div>
-<button class="pl-btn" onclick="event.stopPropagation();openPowerLimitModal('${sl}')">⚙ Настроить</button>
+<button class="pl-btn" onclick="event.stopPropagation();openPowerLimitModal('${sl}')">📊 Подробнее</button>
 </div>
 <div class="sy-block" id="${sl}-sy" style="display:none">
 <div class="sy-hdr">⟳ Синхронизация</div>
@@ -1733,7 +1807,7 @@ return`<div class="cc s-stb" id="c${sl}"><div class="ch" onclick="tog('c${sl}')"
 <div class="tp on" id="${sl}e"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Ожидание данных...</div></div>
 <div class="tp" id="${sl}m"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Ожидание...</div></div>
 <div class="tp" id="${sl}a">
-<div style="display:flex;gap:4px;margin-bottom:8px"><button class="spr-b" style="flex:1;font-weight:600;color:var(--r)" id="${sl}a-act-btn" onclick="showAlarmSub('${sl}','act')">🔴 Активные</button><button class="spr-b" style="flex:1" id="${sl}a-arc-btn" onclick="showAlarmSub('${sl}','arc')">📋 Архив</button><button class="spr-b" onclick="clearAlarmArchive('${sl}')">🗑</button></div>
+<div style="display:flex;gap:4px;margin-bottom:8px"><button class="spr-b" style="flex:1;font-weight:600;color:var(--r)" id="${sl}a-act-btn" onclick="showAlarmSub('${sl}','act')">🔴 Активные</button><button class="spr-b" style="flex:1" id="${sl}a-arc-btn" onclick="showAlarmSub('${sl}','arc')">📋 Архив</button></div>
 <div id="${sl}a-act"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Нет аварий ✓</div></div>
 <div id="${sl}a-arc" style="display:none"><div style="color:var(--t3);font-size:12px;text-align:center;padding:15px">Архив пуст</div></div>
 </div>
@@ -1747,7 +1821,7 @@ return`<div class="cc s-stb" id="c${sl}"><div class="ch" onclick="tog('c${sl}')"
 <button class="cb2" onclick="event.stopPropagation();cmdConfirm('${nm}','GenOpen','⚡ ОТКЛ ген.','FC05 0x0007: Remote Gen Open')"><span class="ci2">⚡</span>ОТКЛ ген.</button>
 <button class="cb2" onclick="event.stopPropagation();cmdConfirm('${nm}','MainsClose','🔌 Авт.сети','FC05 0x0005: Mains Close/Open')"><span class="ci2">🔌</span>Авт.сети</button>
 <button class="cb2" onclick="event.stopPropagation();cmdConfirm('${nm}','Mute','🔇 Тишина','FC05 addr 0x000C (12): Remote Mute Key')"><span class="ci2">🔇</span>Тишина</button>
-<button class="cb2" onclick="event.stopPropagation();cmdConfirm('${nm}','Reset','🔄 Сброс','FC05 addr 0x0011 (17): Remote Alarm Reset')"><span class="ci2">🔄</span>Сброс</button>
+<button class="cb2" onclick="event.stopPropagation();smartReset('${sl}','${nm}')"><span class="ci2">🔄</span>Сброс</button>
 </div><div style="margin-top:8px"><button class="cb2 q-danger" style="width:100%;flex-direction:row;justify-content:center;gap:8px;padding:10px" onclick="event.stopPropagation();cmdConfirm('${nm}','FastStop','🛑 Экстренный стоп','FC05 addr 0x000F (15): Remote Diesel Engine Fast Stop')"><span>🛑</span>Экстренный стоп</button></div>
 </div></div></div>
 <div class="cf"><div class="li"><span class="lo lo-r"></span><span>ожидание</span></div><span>${c.proto==='rtu_over_tcp'?'rtu':'tcp'}:${c.port||(c.proto==='rtu_over_tcp'?26:502)} · id:${c.slaveId||1}</span></div></div>`}
@@ -1769,7 +1843,7 @@ function sprCard(c){return`<div class="sr2"><div class="cc s-stb" id="cspr"><div
 <div class="tp" id="sprm"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Ожидание...</div></div>
 <div class="tp" id="sprs"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Ожидание...</div></div>
 <div class="tp" id="spra">
-<div style="display:flex;gap:4px;margin-bottom:8px"><button class="spr-b" style="flex:1;font-weight:600;color:var(--r)" id="spra-act-btn" onclick="showAlarmSub('spr','act')">🔴 Активные</button><button class="spr-b" style="flex:1" id="spra-arc-btn" onclick="showAlarmSub('spr','arc')">📋 Архив</button><button class="spr-b" onclick="clearAlarmArchive('spr')">🗑</button></div>
+<div style="display:flex;gap:4px;margin-bottom:8px"><button class="spr-b" style="flex:1;font-weight:600;color:var(--r)" id="spra-act-btn" onclick="showAlarmSub('spr','act')">🔴 Активные</button><button class="spr-b" style="flex:1" id="spra-arc-btn" onclick="showAlarmSub('spr','arc')">📋 Архив</button></div>
 <div id="spra-act"><div style="color:var(--t3);font-size:12px;text-align:center;padding:15px">Ожидание данных ШПР...</div></div>
 <div id="spra-arc" style="display:none"><div style="color:var(--t3);font-size:12px;text-align:center;padding:15px">Архив пуст</div></div>
 </div>
@@ -2246,13 +2320,24 @@ const ALARM_CODES={
 'W020':'Ошибка вкл. автомата сети','W021':'Ошибка вкл. автомата генератора','W022':'Требуется ТО',
 'M001':'Авария сети'
 };
-function getAlarmArchive(site,dev){try{return JSON.parse(localStorage.getItem('s5alm_'+site+'_'+dev))||[]}catch(e){return[]}}
-function saveAlarmArchive(site,dev,a){localStorage.setItem('s5alm_'+site+'_'+dev,JSON.stringify(a))}
-function addAlarmToArchive(dev,code,msg,severity){if(!cur)return;const arc=getAlarmArchive(cur,dev);arc.unshift({code,msg,severity,time:new Date().toLocaleString('ru-RU'),ts:Date.now()});if(arc.length>100)arc.pop();saveAlarmArchive(cur,dev,arc)}
 function showAlarmSub(sl,sub){const act=$(sl+'a-act'),arc=$(sl+'a-arc'),ab=$(sl+'a-act-btn'),bb=$(sl+'a-arc-btn');if(!act||!arc)return;if(sub==='act'){act.style.display='';arc.style.display='none';ab.style.fontWeight='600';ab.style.color='var(--r)';bb.style.fontWeight='';bb.style.color=''}else{act.style.display='none';arc.style.display='';bb.style.fontWeight='600';bb.style.color='var(--p)';ab.style.fontWeight='';ab.style.color='';renderAlarmArchive(sl)}}
-function renderAlarmArchive(sl){const el=$(sl+'a-arc');if(!el||!cur)return;const arc=getAlarmArchive(cur,sl);if(!arc.length){el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:15px">Архив пуст</div>';return}
-el.innerHTML='<div style="max-height:200px;overflow-y:auto">'+arc.map(function(a){var isA=a.severity==='alarm';var cls=isA?'aa':'aw';var ico=isA?'🔴':'⚠';var col=isA?'var(--r)':'var(--y)';return'<div class="ai '+cls+'" style="margin-bottom:2px"><span style="font-size:10px">'+ico+'</span><b style="color:'+col+';font-size:10px;margin:0 4px">'+a.code+'</b><span style="font-size:11px;flex:1">'+a.msg+'</span><span style="color:var(--t4);font-size:9px;white-space:nowrap">'+a.time+'</span></div>'}).join('')+'</div>'}
-function clearAlarmArchive(sl){if(!cur)return;if(!confirm('Очистить архив аварий?'))return;saveAlarmArchive(cur,sl,[]);renderAlarmArchive(sl);ae('🗑 Архив аварий '+sl+' очищен')}
+async function renderAlarmArchive(sl){
+const el=$(sl+'a-arc');if(!el||!cur)return;
+const devId=getDeviceIdForSlot(sl);
+if(!devId){el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:15px">Устройство не настроено</div>';return}
+el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:15px">⏳ Загрузка...</div>';
+try{
+const alarms=await api.get('/api/history/alarms?device_id='+devId+'&limit=50&last_hours=168');
+if(!alarms.length){el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:15px">Архив пуст</div>';return}
+el.innerHTML='<div style="max-height:220px;overflow-y:auto">'+alarms.map(function(a){
+var isErr=a.severity==='error';var ico=isErr?'🔴':'⚠';var col=isErr?'var(--r)':'var(--y)';
+var t=new Date(a.occurred_at+'Z').toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+var dur='';if(a.cleared_at){var ms=new Date(a.cleared_at+'Z')-new Date(a.occurred_at+'Z');dur=ms<60000?(Math.round(ms/1000)+'с'):(Math.round(ms/60000)+'мин')}
+var status=a.is_active?'<span style="color:var(--r);font-size:9px">● активна</span>':'<span style="color:var(--t4);font-size:9px">✓ '+(dur||'')+'</span>';
+return'<div class="ai '+(isErr?'aa':'aw')+'" style="margin-bottom:2px"><span style="font-size:10px">'+ico+'</span><b style="color:'+col+';font-size:10px;margin:0 4px">'+esc(a.alarm_code)+'</b><span style="font-size:11px;flex:1">'+esc(a.message)+'</span>'+status+'<span style="color:var(--t4);font-size:9px;white-space:nowrap;margin-left:4px">'+t+'</span></div>'
+}).join('')+'</div>'
+}catch(e){el.innerHTML='<div style="color:var(--r);font-size:11px;text-align:center;padding:15px">Ошибка: '+esc(e.message)+'</div>'}
+}
 // === SPR CONFIG: READ → CONFIGURE → SAVE ===
 let sprCurrentConfig = null; // {loadMode, pRaw, qRaw, readAt} — last config read from controller
 let sprSelectedLoadMode = null; // user-selected load mode (null = not changed)
@@ -2543,7 +2628,7 @@ scales:(function(){const c=getChartColors();return{
 }})()
 };
 
-function showArchive(siteKey){stopB24Poll();curView='archive';
+function showArchive(siteKey,opts){stopB24Poll();curView='archive';
 const keys=Object.keys(S);if(!keys.length){ae('⚠ Нет объектов');return}
 const sk=siteKey||(cur&&S[cur]?cur:keys[0]);
 arcState.siteKey=sk;archiveMode=true;
@@ -2594,7 +2679,7 @@ mn.innerHTML=`
 <div id="arcAlarmTable"></div>
 <div class="arc-pag" id="arcPag"></div></div>
 <div id="arcDisk" style="display:none"><div id="arcDiskInfo"></div></div>`;
-arcRenderChartTabs();arcLoadChart();arcLoadAlarms();arcLoadDisk();
+arcRenderChartTabs();if(!opts?.skipLoad){arcLoadChart();arcLoadAlarms();arcLoadDisk();}
 }
 
 function arcDev(btn,slot){
@@ -2603,7 +2688,7 @@ btn.classList.add('on');arcState.slot=slot;arcState.almPage=0;
 arcState.selectedFields=null;arcRenderChartTabs();arcLoadChart();arcLoadAlarms();
 }
 function openFieldArchive(slot,field,group){
-showArchive(cur);
+showArchive(cur,{skipLoad:true});
 arcState.slot=slot;
 arcState.group=group||'engine';
 arcState.selectedFields=new Set([field]);
@@ -2611,7 +2696,7 @@ arcState.selectedFields=new Set([field]);
 const devWrap=$('arcDevsWrap');
 if(devWrap){devWrap.querySelectorAll('.arc-dev').forEach(b=>{
 b.classList.toggle('on',b.textContent.includes(slot==='g1'?'1':slot==='g2'?'2':'ШПР'))})}
-arcRenderChartTabs();arcRenderFieldChecks();arcLoadChart();
+arcRenderChartTabs();arcRenderFieldChecks();arcLoadChart();arcLoadAlarms();arcLoadDisk();
 }
 function arcSwitchSite(siteKey){
 if(!S[siteKey])return;arcState.siteKey=siteKey;
@@ -2809,9 +2894,11 @@ const stats=await api.get(`/api/history/metrics/${devId}/stats`);arcRenderStats(
 async function arcLoadAlarms(){
 const devId=arcGetDeviceId(arcState.slot);
 if(!devId){const el=$('arcAlarmTable');if(el)el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:30px">Устройство не настроено</div>';return}
-const sev=$('arcSev')?.value||'',activeOnly=$('arcActiveOnly')?.checked,hours=arcState.hours;
+const sev=$('arcSev')?.value||'',activeOnly=$('arcActiveOnly')?.checked;
+/* Alarm journal uses separate wider time window: min 24h, or match chart range if bigger */
+const almHours=Math.max(arcState.hours||1,24);
 let url=`/api/history/alarms?device_id=${devId}&limit=${arcState.almLimit}&offset=${arcState.almPage*arcState.almLimit}`;
-if(sev)url+=`&severity=${sev}`;if(activeOnly)url+='&is_active=true';if(hours)url+=`&last_hours=${hours}`;
+if(sev)url+=`&severity=${sev}`;if(activeOnly)url+='&is_active=true';url+=`&last_hours=${almHours}`;
 try{const alarms=await api.get(url);arcRenderAlarms(alarms)}
 catch(e){const el=$('arcAlarmTable');if(el)el.innerHTML=`<div style="color:var(--r);font-size:12px;padding:20px;text-align:center">Ошибка: ${esc(e.message)}</div>`}
 }
@@ -3470,20 +3557,35 @@ async function almAskSanek(evId,alarmCode,deviceId,deviceType){
 const btn=document.getElementById('almExpLlm_'+evId);
 const res=document.getElementById('almExpLlmRes_'+evId);
 if(!btn||!res)return;
-btn.disabled=true;btn.textContent='⏳ Санёк анализирует...';res.innerHTML='';
+btn.disabled=true;res.innerHTML='';
+const t0=Date.now();
+let ticker=setInterval(()=>{const s=((Date.now()-t0)/1000)|0;btn.textContent=`⏳ Санёк анализирует... ${s}с`;},1000);
+btn.textContent='⏳ Санёк анализирует... 0с';
+const ac=new AbortController();
+const tId=setTimeout(()=>ac.abort(),90000);
 try{
 const resp=await fetch('/api/alarm-analytics/explain',{method:'POST',headers:{'Content-Type':'application/json'},
-body:JSON.stringify({alarm_code:alarmCode,device_id:deviceId||0,device_type:deviceType||'generator'})});
+body:JSON.stringify({alarm_code:alarmCode,device_id:deviceId||0,device_type:deviceType||'generator'}),signal:ac.signal});
+clearTimeout(tId);clearInterval(ticker);
+const elapsed=((Date.now()-t0)/1000).toFixed(1);
+if(!resp.ok){
+const errText=resp.status===504?'Сервер не ответил вовремя (504). Попробуйте ещё раз.':
+resp.status===502?'Бэкенд недоступен (502).':'Ошибка сервера: '+resp.status;
+res.innerHTML=`<div style="color:#f87171;font-size:12px;margin-top:8px">✗ ${errText}</div>`;
+btn.disabled=false;btn.textContent='🤖 Попробовать снова';return;}
 const data=await resp.json();
 if(data.success&&data.explanation){
 res.innerHTML=`<div style="margin-top:10px;padding:12px;background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rs);font-size:12px;line-height:1.6">
-<div style="font-size:11px;color:var(--t3);margin-bottom:6px">🤖 <b>Санёк</b> — AI-анализ</div>${data.explanation.replace(/\n/g,'<br>')}</div>`;
+<div style="font-size:11px;color:var(--t3);margin-bottom:6px">🤖 <b>Санёк</b> — AI-анализ <span style="opacity:.5">(${elapsed}с)</span></div>${data.explanation.replace(/\n/g,'<br>')}</div>`;
 btn.textContent='✅ Анализ получен';
 }else{
 res.innerHTML=`<div style="color:#f87171;font-size:12px;margin-top:8px">✗ ${data.error||'Не удалось получить анализ'}</div>`;
 btn.disabled=false;btn.textContent='🤖 Попробовать снова';
 }}catch(e){
-res.innerHTML=`<div style="color:#f87171;font-size:12px;margin-top:8px">✗ Ошибка: ${e.message}</div>`;
+clearTimeout(tId);clearInterval(ticker);
+const elapsed=((Date.now()-t0)/1000).toFixed(1);
+const msg=e.name==='AbortError'?`Таймаут (${elapsed}с). Санёк не ответил. Попробуйте ещё раз.`:e.message;
+res.innerHTML=`<div style="color:#f87171;font-size:12px;margin-top:8px">✗ ${msg}</div>`;
 btn.disabled=false;btn.textContent='🤖 Попробовать снова';
 }}
 
@@ -3495,15 +3597,42 @@ var _plSlot=null,_plDeviceId=null,_plDeviceType=null;
 function openPowerLimitModal(slot){
 _plSlot=slot;_plDeviceId=getDeviceIdForSlot(slot);_plDeviceType=null;
 if(!_plDeviceId){ae('⚠ Устройство не найдено');return}
+const isGen=slot==='g1'||slot==='g2';
 const m=$('plModal');if(!m)return;m.classList.add('sh');
 const nm=slot==='g1'?'Генератор 1':slot==='g2'?'Генератор 2':'ШПР';
-$('plTitle').textContent='⚡ Ограничение мощности — '+nm;
+$('plTitle').textContent=(isGen?'📊 Мощность — ':'⚡ Ограничение мощности — ')+nm;
+// Show correct section
+$('plReadOnly').style.display=isGen?'':'none';
+$('plWriteSection').style.display=isGen?'none':'';
+if(isGen){
+// Read-only mode for generators
+$('plRoCurrentP').textContent='—';$('plRoTargetP').textContent='—';
+$('plRoCurrentQ').textContent='—';$('plRoTargetQ').textContent='—';
+$('plRoConfigP').textContent='—';$('plRoConfigQ').textContent='—';
+$('plStatus').innerHTML='';
+if(apiAvailable){
+fetch(API_BASE+'/api/devices/'+_plDeviceId+'/power-limit').then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(d=>{
+if(d.success){
+_plDeviceType=d.device_type;
+if(d.current_p_pct!=null)$('plRoCurrentP').textContent=d.current_p_pct.toFixed(1)+'%';
+if(d.target_p_pct!=null)$('plRoTargetP').textContent=d.target_p_pct.toFixed(1)+'%';
+if(d.current_q_pct!=null)$('plRoCurrentQ').textContent=d.current_q_pct.toFixed(1)+'%';
+if(d.target_q_pct!=null)$('plRoTargetQ').textContent=d.target_q_pct.toFixed(1)+'%';
+if(d.config_p_raw!=null)$('plRoConfigP').textContent=d.config_p_raw;
+if(d.config_q_raw!=null)$('plRoConfigQ').textContent=d.config_q_raw;
+}}).catch(e=>{console.warn('PL read error:',e);$('plStatus').innerHTML='<div style="padding:6px 10px;background:var(--yd);border:1px solid rgba(255,176,32,.2);border-radius:6px;font-size:11px;color:var(--y)">⚠ Не удалось считать: '+e.message+'</div>'})}
+else{const mx=latestMetrics[_plDeviceId];if(mx){
+if(mx.current_p_pct!=null)$('plRoCurrentP').textContent=mx.current_p_pct.toFixed(1)+'%';
+if(mx.target_p_pct!=null)$('plRoTargetP').textContent=mx.target_p_pct.toFixed(1)+'%';
+if(mx.current_q_pct!=null)$('plRoCurrentQ').textContent=mx.current_q_pct.toFixed(1)+'%';
+if(mx.target_q_pct!=null)$('plRoTargetQ').textContent=mx.target_q_pct.toFixed(1)+'%';
+}}}else{
+// Write mode for SPR
 $('plLiveP').textContent='—';$('plLiveQ').textContent='—';
 $('plSliderP').value=75;$('plNumP').textContent='75.0%';
 $('plSliderQ').value=50;$('plNumQ').textContent='50.0%';
 $('plLoadModeWrap').style.display='none';
-$('plStatus').innerHTML='';
-// Load current values from API
+$('plStatusW').innerHTML='';
 if(apiAvailable){
 fetch(API_BASE+'/api/devices/'+_plDeviceId+'/power-limit').then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(d=>{
 if(d.success){
@@ -3513,17 +3642,23 @@ if(d.current_q_pct!=null)$('plLiveQ').textContent=d.current_q_pct.toFixed(1)+'%'
 if(d.config_p_raw!=null){$('plSliderP').value=Math.round(d.config_p_raw/10);$('plNumP').textContent=(d.config_p_raw/10).toFixed(1)+'%'}
 if(d.config_q_raw!=null){$('plSliderQ').value=Math.round(d.config_q_raw/10);$('plNumQ').textContent=(d.config_q_raw/10).toFixed(1)+'%'}
 if(d.device_type==='ats'){$('plLoadModeWrap').style.display='';document.querySelectorAll('input[name=plMode]').forEach(r=>{r.checked=d.load_mode!=null&&+r.value===d.load_mode})}
-}}).catch(e=>{console.warn('PL read error:',e);$('plStatus').innerHTML='<div style="padding:6px 10px;background:var(--yd);border:1px solid rgba(255,176,32,.2);border-radius:6px;font-size:11px;color:var(--y)">⚠ Не удалось считать конфиг: '+e.message+'</div>'})}
-else{
-// Use WS data as fallback
-const mx=latestMetrics[_plDeviceId];
-if(mx){
+}}).catch(e=>{console.warn('PL read error:',e);$('plStatusW').innerHTML='<div style="padding:6px 10px;background:var(--yd);border:1px solid rgba(255,176,32,.2);border-radius:6px;font-size:11px;color:var(--y)">⚠ Не удалось считать конфиг: '+e.message+'</div>'})}
+else{const mx=latestMetrics[_plDeviceId];if(mx){
 if(mx.current_p_pct!=null)$('plLiveP').textContent=mx.current_p_pct.toFixed(1)+'%';
 if(mx.current_q_pct!=null)$('plLiveQ').textContent=mx.current_q_pct.toFixed(1)+'%';
 if(mx.target_p_pct!=null){$('plSliderP').value=Math.round(mx.target_p_pct);$('plNumP').textContent=mx.target_p_pct.toFixed(1)+'%'}
 if(mx.target_q_pct!=null){$('plSliderQ').value=Math.round(mx.target_q_pct);$('plNumQ').textContent=mx.target_q_pct.toFixed(1)+'%'}
-}}}
+}}}}
 function closePowerLimitModal(){const m=$('plModal');if(m)m.classList.remove('sh');_plSlot=null}
+function goToSprControl(){
+// Open SPR card → Управление tab
+const sprCard=$('cspr');if(!sprCard)return;
+if(!sprCard.classList.contains('op'))tog('cspr');
+// Switch to Управление tab
+const tabs=sprCard.querySelectorAll('.tbs .tb');
+tabs.forEach(t=>{if(t.textContent.includes('Управление')){t.click()}});
+sprCard.scrollIntoView({behavior:'smooth',block:'start'});
+}
 function plSliderUpdate(which){
 const sl=$('plSlider'+which),num=$('plNum'+which);
 if(sl&&num)num.textContent=parseFloat(sl.value).toFixed(1)+'%'}
@@ -3532,7 +3667,7 @@ async function savePowerLimit(){
 if(!_plDeviceId){ae('⚠ Нет устройства');return}
 const pVal=parseInt($('plSliderP').value),qVal=parseInt($('plSliderQ').value);
 const pRaw=pVal*10,qRaw=qVal*10;
-const st=$('plStatus');
+const st=$('plStatusW');
 if(!confirm('Записать P='+pVal+'%, Q='+qVal+'% в контроллер?\n\n⚠ Это изменит реальное распределение электрической нагрузки!')){return}
 const body={p_raw:pRaw,q_raw:qRaw};
 const modeEl=document.querySelector('input[name=plMode]:checked');
@@ -4387,6 +4522,33 @@ async function kbDeleteDoc(filename){
 <div class="mod" style="max-width:460px">
 <div class="mhd"><h3 id="plTitle">⚡ Ограничение мощности</h3><button class="mx" onclick="closePowerLimitModal()">&times;</button></div>
 <div class="mbd">
+<!-- READ-ONLY section (generators) -->
+<div id="plReadOnly" style="display:none">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+<div style="padding:10px;background:var(--bg);border:1px solid var(--bd);border-radius:8px;text-align:center"><div style="font-size:9px;color:var(--t3);margin-bottom:3px">Текущая P</div><div style="font-family:var(--m);font-size:20px;font-weight:700;color:var(--g)" id="plRoCurrentP">—</div></div>
+<div style="padding:10px;background:var(--bg);border:1px solid var(--bd);border-radius:8px;text-align:center"><div style="font-size:9px;color:var(--t3);margin-bottom:3px">Целевая P</div><div style="font-family:var(--m);font-size:20px;font-weight:700;color:var(--b)" id="plRoTargetP">—</div></div>
+<div style="padding:10px;background:var(--bg);border:1px solid var(--bd);border-radius:8px;text-align:center"><div style="font-size:9px;color:var(--t3);margin-bottom:3px">Текущая Q</div><div style="font-family:var(--m);font-size:16px;font-weight:600;color:var(--g)" id="plRoCurrentQ">—</div></div>
+<div style="padding:10px;background:var(--bg);border:1px solid var(--bd);border-radius:8px;text-align:center"><div style="font-size:9px;color:var(--t3);margin-bottom:3px">Целевая Q</div><div style="font-family:var(--m);font-size:16px;font-weight:600;color:var(--b)" id="plRoTargetQ">—</div></div>
+</div>
+<div style="padding:8px 10px;background:var(--bg);border:1px solid var(--bd);border-radius:8px;margin-bottom:12px">
+<div style="font-size:10px;color:var(--t3);margin-bottom:4px;font-weight:600">Конфигурация контроллера</div>
+<div style="display:flex;gap:12px;font-family:var(--m);font-size:12px;color:var(--t2)">
+<span>P raw: <b id="plRoConfigP">—</b></span>
+<span>Q raw: <b id="plRoConfigQ">—</b></span>
+</div>
+</div>
+<div style="padding:10px 12px;background:rgba(160,112,255,.06);border:1px solid rgba(160,112,255,.2);border-radius:8px;margin-bottom:12px;font-size:11px;color:var(--t2);line-height:1.5">
+<div style="font-weight:600;color:var(--p);margin-bottom:4px">ℹ Управление мощностью через ШПР</div>
+P% и Q% генератора управляются супервизорным контроллером HGM9560 (ШПР) через MSC-шину. Прямая запись в генератор будет перезаписана ШПР при следующем цикле распределения нагрузки.
+<div style="margin-top:8px"><button class="bp" style="padding:8px 16px;font-size:12px" onclick="closePowerLimitModal();goToSprControl()">⚡ Перейти к управлению ШПР</button></div>
+</div>
+<div id="plStatus"></div>
+<div style="display:flex;gap:8px;margin-top:10px">
+<button class="bs2" style="flex:1;padding:10px" onclick="closePowerLimitModal()">Закрыть</button>
+</div>
+</div>
+<!-- WRITE section (SPR / fallback) -->
+<div id="plWriteSection">
 <div style="display:flex;gap:12px;margin-bottom:12px">
 <div style="flex:1;padding:8px 10px;background:var(--bg);border:1px solid var(--bd);border-radius:6px;text-align:center"><div style="font-size:9px;color:var(--t3);margin-bottom:2px">Текущая P</div><div style="font-family:var(--m);font-size:16px;font-weight:600;color:var(--g)" id="plLiveP">—</div></div>
 <div style="flex:1;padding:8px 10px;background:var(--bg);border:1px solid var(--bd);border-radius:6px;text-align:center"><div style="font-size:9px;color:var(--t3);margin-bottom:2px">Текущая Q</div><div style="font-family:var(--m);font-size:16px;font-weight:600;color:var(--b)" id="plLiveQ">—</div></div>
@@ -4411,10 +4573,11 @@ async function kbDeleteDoc(filename){
 <button class="preset-btn" onclick="plQuickP(10,10)"><div class="preset-name">Минимум</div><div class="preset-desc">P:10 Q:10</div></button>
 </div>
 <div style="padding:8px 10px;background:var(--yd);border:1px solid rgba(255,176,32,.2);border-radius:6px;margin-bottom:12px;font-size:10px;color:var(--y)">⚠ Изменение влияет на реальное распределение электрической нагрузки!</div>
-<div id="plStatus"></div>
+<div id="plStatusW"></div>
 <div style="display:flex;gap:8px;margin-top:10px">
 <button class="bs2" style="flex:1;padding:10px" onclick="closePowerLimitModal()">Отмена</button>
 <button class="bp" style="flex:2" onclick="savePowerLimit()">⚡ Применить</button>
+</div>
 </div>
 </div>
 </div>
