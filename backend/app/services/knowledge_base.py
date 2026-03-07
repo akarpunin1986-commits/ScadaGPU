@@ -147,6 +147,29 @@ _SYNONYMS: dict[str, list[str]] = {
     "trip": ["отключение", "останов", "shutdown", "protection"],
     "блокировка": ["block", "interlock", "блокир"],
     "block": ["блокировка", "interlock", "блокир"],
+    # Economics and maintenance
+    "себестоимость": ["cost", "затраты", "экономика", "газ", "расход"],
+    "расход": ["consumption", "потребление", "газ", "себестоимость"],
+    "то": ["maintenance", "обслуживание", "регламент", "сервис"],
+    "регламент": ["maintenance", "обслуживание", "то", "процедура"],
+    "maintenance": ["то", "обслуживание", "регламент", "сервис"],
+    # Operations
+    "запуск": ["start", "пуск", "cranking", "стартер"],
+    "start": ["запуск", "пуск", "cranking", "crank"],
+    "синхронизация": ["synchronization", "sync", "параллель"],
+    "sync": ["синхронизация", "synchronization", "параллель"],
+    # ATS / parallel
+    "авр": ["ats", "автоматический ввод резерва", "шпр"],
+    "ats": ["авр", "шпр", "автоматический ввод резерва"],
+    "шпр": ["ats", "авр", "параллельная работа", "peak shaving"],
+    # Modbus / connectivity
+    "modbus": ["связь", "communication", "conn_lost", "протокол"],
+    "связь": ["modbus", "communication", "conn_lost", "подключение"],
+    # Gas specific
+    "газ": ["gas", "метан", "топливо", "утечка"],
+    "gas": ["газ", "метан", "топливо", "leak"],
+    "детонация": ["detonation", "стук", "knock"],
+    "detonation": ["детонация", "стук", "knock"],
 }
 
 
@@ -160,7 +183,7 @@ def _expand_synonyms(keywords: list[str]) -> list[str]:
                     if sv not in expanded:
                         expanded.append(sv)
                 break
-    return expanded[:10]  # Cap at 10 total keywords
+    return expanded[:15]  # Cap at 15 total keywords
 
 
 async def search_knowledge(

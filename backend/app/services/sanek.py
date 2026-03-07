@@ -9,7 +9,7 @@
 """
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 import httpx
@@ -345,16 +345,22 @@ SANEK_SYSTEM_PROMPT = """Ты — Санёк, AI-ассистент промыш
 43. gen_status — текущее состояние генератора (регистр контроллера HGM9520N):
     0 = Стоп (Standby) — двигатель остановлен
     1 = Подготовка к запуску (Pre-start)
-    2 = Прокрутка стартером (Cranking)
-    3 = Запуск (Starting)
-    4 = Прогрев (Warming up)
-    5 = Холостой ход (Idle run)
-    6 = Охлаждение (Cooling down)
-    7 = Остановка (Stopping)
-    8 = Аварийный стоп (Emergency stop) — ПРОБЛЕМА!
+    2 = Подача топлива (Fuel supply)
+    3 = Прокрутка стартером (Cranking)
+    4 = Пауза стартера (Crank pause)
+    5 = Контроль запуска (Start check)
+    6 = Холостой ход (Idle run)
+    7 = Прогрев (Warming up)
+    8 = Ожидание нагрузки (Wait for load)
     9 = Работа под нагрузкой (Running) — единственный НОРМАЛЬНЫЙ рабочий режим
+    10 = Охлаждение (Cooling down)
+    11 = Остановка ХХ (Idle stop)
+    12 = Аварийный стоп ETS (Emergency stop) — ПРОБЛЕМА!
+    13 = Ожидание остановки (Wait for stop)
+    14 = Постостановка (Post-stop)
+    15 = Ошибка остановки (Stop failure)
     ТОЛЬКО gen_status=9 означает нормальную работу генератора!
-    Все остальные значения = генератор НЕ работает или в переходном состоянии.
+    Состояния 1-8 = запуск, 10-15 = остановка/проблема, 0 = остановлен.
 
 ПРОВЕРКА СОСТОЯНИЯ СИСТЕМЫ (ОБЯЗАТЕЛЬНЫЕ ПРАВИЛА):
 44. При ЛЮБОМ вопросе о состоянии, статусе, "как дела", "что происходит" — ОБЯЗАТЕЛЬНО:
@@ -388,7 +394,57 @@ SANEK_SYSTEM_PROMPT = """Ты — Санёк, AI-ассистент промыш
     - Ищи пороги срабатывания: "trip setpoint", "alarm setpoint", "protection settings"
     - Ищи процедуры: "troubleshooting", "fault finding", "maintenance procedure"
     - Если первый запрос не дал результатов — попробуй другие ключевые слова (английские/русские)
-    - Объясняй оператору найденное из мануала простым языком"""
+    - Объясняй оператору найденное из мануала простым языком
+
+ТИПИЧНЫЕ ПОРОГИ ЗАЩИТ HGM9520N (уставки по умолчанию, зависят от конфигурации):
+- Over Power: 105-110% номинала (168-176 кВт при 160 кВт номинала)
+- Coolant High Temp: shutdown 95-100°C, warning 85-90°C
+- Oil Pressure Low: shutdown 150-200 кПа, warning 200-250 кПа
+- Overspeed: 1620-1650 об/мин (номинал 1500)
+- Underspeed: 1350-1380 об/мин
+- Gen Overvoltage: 420-440В (номинал 400В)
+- Gen Undervoltage: 360-380В
+- Frequency: shutdown >52Гц/<47Гц, warning >51Гц/<48Гц
+- Battery: undervoltage 20-22В, overvoltage 30-32В (24В система)
+- Current Imbalance: >20-30% разницы между фазами
+ВАЖНО: Фактические уставки зависят от конфигурации контроллера на конкретном объекте.
+
+ЭКОНОМИКА И ЖУРНАЛ:
+48. При вопросах о расходе газа, себестоимости, затратах — вызови get_economics_report.
+    Себестоимость 1 кВт·ч = стоимость газа / выработка электроэнергии.
+    Сравнивай с тарифом на электроэнергию от сети (~8 руб/кВт·ч).
+    КРИТИЧНО: В ответе API есть поля requested_days, actual_days_with_data и data_warning.
+    Если actual_days_with_data < requested_days — ОБЯЗАТЕЛЬНО сообщи пользователю:
+    "Данные доступны только за X дней из запрошенных Y." Покажи data_warning.
+    НИКОГДА не говори "за 7 дней" если данные есть только за 1 день!
+    Всегда указывай ФАКТИЧЕСКИЙ период: "за сегодня", "за последние 3 дня" и т.п.
+49. Расход газа зависит от нагрузки. Оптимальный КПД при 70-80% загрузке.
+    При 30-50% загрузке КПД падает. Рекомендуй оптимальную загрузку 60-80%.
+50. При вопросах "что происходило", "журнал", "переключения", "история" — вызови get_events.
+    Категории событий: GEN_STATUS (пуск/стоп), MODE_CHANGE (авто/ручной), MAINS (сеть), SYSTEM (связь).
+51. При вопросах о конкретной аварии — ВСЕГДА вызови search_knowledge с точным названием аварии
+    (например "over power protection", "coolant high temperature"). Если первый поиск не дал
+    результатов, попробуй другие ключевые слова (RU/EN). Используй найденное для КОНКРЕТНЫХ
+    рекомендаций: уставки, регистры, процедуры диагностики.
+
+52. ВАЖНО — МОСКОВСКОЕ ВРЕМЯ (MSK):
+    Все времена в данных analyze_incident уже переведены в московское время (UTC+3).
+    ВСЕГДА указывай время с пометкой "MSK" или "по Москве".
+    НЕ конвертируй время дополнительно — оно уже MSK!
+
+53. ВАЖНО — ОСТАНОВКИ/ЗАПУСКИ ГЕНЕРАТОРОВ (state_transitions):
+    В ответе analyze_incident есть секция "state_transitions" — это ФАКТИЧЕСКИЕ остановки и запуски
+    генераторов по данным контроллера. Они включают:
+    - Ручные стопы оператором (которых НЕТ в alarms_timeline!)
+    - Аварийные стопы (ETS)
+    - Автоматические запуски/остановки
+    При вопросах "когда остановился", "первая остановка", "что происходило" — ВСЕГДА проверяй
+    state_transitions ПЕРВЫМ ДЕЛОМ, а не только alarms_timeline.
+    alarms_timeline содержит только АВАРИЙНЫЕ события, а НЕ все остановки.
+
+54. При вопросах о регламенте ТО, процедурах, обслуживании, диагностике неисправностей —
+    ВСЕГДА вызови search_knowledge с соответствующими ключевыми словами (ТО-1, ТО-2, maintenance,
+    масло, давление, температура, запуск, safety и т.д.). База знаний содержит подробные руководства."""
 
 # ---------------------------------------------------------------------------
 # SCADA tool definitions for LLM function calling
@@ -689,6 +745,58 @@ SCADA_TOOLS = [
             "required": [],
         },
     },
+    {
+        "name": "get_economics_report",
+        "description": (
+            "Экономический отчёт: расход газа (м³), выработка электроэнергии (кВт·ч), "
+            "стоимость газа, себестоимость 1 кВт·ч. "
+            "Используй при вопросах: 'расход газа', 'себестоимость', 'затраты', "
+            "'сколько газа', 'экономика', 'стоимость электроэнергии'."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "site_id": {
+                    "type": "integer",
+                    "description": "ID объекта",
+                },
+                "last_days": {
+                    "type": "integer",
+                    "description": "За последние N дней (по умолчанию 7)",
+                    "default": 7,
+                },
+            },
+            "required": ["site_id"],
+        },
+    },
+    {
+        "name": "get_events",
+        "description": (
+            "Журнал событий: переходы состояний генераторов (пуск/стоп), "
+            "переключения режимов (авто/ручной), события сети, системные события. "
+            "Используй при вопросах: 'что происходило', 'журнал', 'история переключений', "
+            "'события', 'лог', 'какие были переходы'."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "device_id": {
+                    "type": "integer",
+                    "description": "ID устройства (опционально)",
+                },
+                "site_id": {
+                    "type": "integer",
+                    "description": "ID объекта (опционально)",
+                },
+                "last_hours": {
+                    "type": "integer",
+                    "description": "За последние N часов (по умолчанию 24)",
+                    "default": 24,
+                },
+            },
+            "required": [],
+        },
+    },
 ]
 
 # Commands that are dangerous and require confirmation
@@ -717,18 +825,24 @@ COMMAND_ADDRESSES = {
     "fast_stop": (5, 0x000F, 0xFF00),  # FC05, coil 15: Emergency Fast Stop
 }
 
-# Generator status codes (HGM9520N gen_status register)
+# Generator status codes (HGM9520N gen_status register — must match event_detector.py)
 GEN_STATUS_LABELS = {
     0: "Стоп (Standby)",
     1: "Подготовка к запуску",
-    2: "Прокрутка стартером",
-    3: "Запуск",
-    4: "Прогрев",
-    5: "Холостой ход",
-    6: "Охлаждение",
-    7: "Остановка",
-    8: "Аварийный стоп",
+    2: "Подача топлива",
+    3: "Прокрутка стартером",
+    4: "Пауза стартера",
+    5: "Контроль запуска",
+    6: "Холостой ход",
+    7: "Прогрев",
+    8: "Ожидание нагрузки",
     9: "Работа под нагрузкой",
+    10: "Охлаждение",
+    11: "Остановка ХХ",
+    12: "Аварийный стоп (ETS)",
+    13: "Ожидание остановки",
+    14: "Постостановка",
+    15: "Ошибка остановки",
 }
 
 
@@ -941,6 +1055,20 @@ async def execute_tool(name: str, args: dict) -> dict:
                 args.get("device_id"),
                 args.get("last_hours", 24),
             )
+
+        elif name == "get_economics_report":
+            return await _api_get(
+                f"/api/economics/report/{args['site_id']}",
+                {"last_days": args.get("last_days", 7)},
+            )
+
+        elif name == "get_events":
+            params = {"limit": 50, "last_hours": args.get("last_hours", 24)}
+            if args.get("device_id"):
+                params["device_id"] = args["device_id"]
+            if args.get("site_id"):
+                params["site_id"] = args["site_id"]
+            return await _api_get("/api/events", params)
 
         else:
             return {"error": f"Неизвестный инструмент: {name}"}
@@ -1313,11 +1441,25 @@ async def _analyze_incident(
     }
 
     try:
-        # 1. Get all alarm events for the period
-        alarm_params = {"last_hours": last_hours, "limit": 200}
+        # Helper: convert UTC ISO string to MSK (UTC+3) display string
+        def _utc_to_msk(iso_str: str | None) -> str | None:
+            if not iso_str:
+                return None
+            try:
+                dt = datetime.fromisoformat(str(iso_str).replace("Z", "").replace("+00:00", ""))
+                msk = dt + timedelta(hours=3)
+                return msk.strftime("%Y-%m-%d %H:%M:%S MSK")
+            except Exception:
+                return iso_str
+
+        # 1. Get all alarm events for the period (from alarm_analytics — the working table)
+        alarm_params: dict = {"last_hours": last_hours, "limit": 200}
         if device_id:
             alarm_params["device_id"] = device_id
-        alarms = await _api_get("/api/history/alarms", alarm_params)
+        elif site_id:
+            # Get site device IDs first for filtering
+            pass
+        alarms = await _api_get("/api/alarm-analytics/events", alarm_params)
 
         # Get device names
         devices = await _api_get("/api/devices")
@@ -1339,55 +1481,59 @@ async def _analyze_incident(
                 if site_dev_ids and did not in site_dev_ids:
                     continue
                 dev_info = dev_map.get(did, {})
+                # alarm_analytics fields differ from alarm_events
+                occurred = a.get("occurred_at")
+                cleared = a.get("cleared_at")
                 entry = {
-                    "time": a.get("occurred_at"),
-                    "cleared_at": a.get("cleared_at"),
+                    "time": _utc_to_msk(occurred),
+                    "time_utc": occurred,
+                    "cleared_at": _utc_to_msk(cleared),
                     "device_id": did,
                     "device_name": dev_info.get("name", f"#{did}"),
-                    "device_type": dev_info.get("device_type", "?"),
+                    "device_type": dev_info.get("device_type", a.get("device_type", "?")),
                     "alarm_code": a.get("alarm_code"),
-                    "severity": a.get("severity"),
-                    "message": a.get("message"),
+                    "severity": a.get("alarm_severity") or a.get("severity"),
+                    "message": a.get("alarm_name_ru") or a.get("alarm_name") or a.get("message"),
                     "is_active": a.get("is_active", False),
-                    "duration": _calc_alarm_duration(a.get("occurred_at")) if a.get("is_active") else None,
+                    "duration": _calc_alarm_duration(occurred) if a.get("is_active") else None,
                 }
-                if a.get("cleared_at") and a.get("occurred_at"):
+                if cleared and occurred:
                     try:
-                        t0 = datetime.fromisoformat(str(a["occurred_at"]).replace("Z", "").replace("+00:00", ""))
-                        t1 = datetime.fromisoformat(str(a["cleared_at"]).replace("Z", "").replace("+00:00", ""))
+                        t0 = datetime.fromisoformat(str(occurred).replace("Z", "").replace("+00:00", ""))
+                        t1 = datetime.fromisoformat(str(cleared).replace("Z", "").replace("+00:00", ""))
                         entry["duration_minutes"] = round((t1 - t0).total_seconds() / 60, 1)
                     except Exception:
                         pass
                 report["alarms_timeline"].append(entry)
 
-        # Sort by time
-        report["alarms_timeline"].sort(key=lambda x: x.get("time") or "")
+        # Sort by time_utc (raw UTC for ordering)
+        report["alarms_timeline"].sort(key=lambda x: x.get("time_utc") or "")
 
         # 2.5. Get METRIC SNAPSHOTS at alarm times for root cause analysis
         # For each alarm event on a generator, fetch metrics around the alarm time
-        _all_fields_gen = "power_total,coolant_temp,oil_pressure,engine_speed,fuel_level,gen_uab,frequency"
+        _all_fields_gen = "power_total,coolant_temp,oil_pressure,engine_speed,fuel_level,gen_uab,gen_freq"
         alarm_metrics = []  # List of {alarm_time, device, metrics_before, metrics_at, metrics_after}
         processed_alarm_times = set()  # Avoid duplicate fetches for same device+time
 
         for alarm in report["alarms_timeline"]:
             acode = alarm.get("alarm_code", "")
             did = alarm.get("device_id")
-            atime = alarm.get("time")
+            atime_utc = alarm.get("time_utc")  # Use UTC for API calls
+            atime_msk = alarm.get("time")  # MSK for display
             dtype = alarm.get("device_type", "")
-            if not did or not atime or dtype != "generator":
+            if not did or not atime_utc or dtype != "generator":
                 continue
             if acode == "CONN_LOST":
                 continue
             # Deduplicate: same device within 2 minutes
-            dedup_key = f"{did}_{atime[:16]}"
+            dedup_key = f"{did}_{str(atime_utc)[:16]}"
             if dedup_key in processed_alarm_times:
                 continue
             processed_alarm_times.add(dedup_key)
 
             try:
-                # Get metrics ±5 minutes around alarm time
-                from datetime import timedelta
-                alarm_dt = datetime.fromisoformat(str(atime).replace("Z", "").replace("+00:00", ""))
+                # Get metrics ±5 minutes around alarm time (UTC)
+                alarm_dt = datetime.fromisoformat(str(atime_utc).replace("Z", "").replace("+00:00", ""))
                 t_from = (alarm_dt - timedelta(minutes=5)).isoformat()
                 t_to = (alarm_dt + timedelta(minutes=5)).isoformat()
 
@@ -1404,7 +1550,7 @@ async def _analyze_incident(
                     after = []
                     for pt in snap:
                         pts = pt.get("timestamp", "")
-                        if pts < atime:
+                        if pts < str(atime_utc):
                             before.append(pt)
                         else:
                             after.append(pt)
@@ -1415,7 +1561,7 @@ async def _analyze_incident(
 
                     # Build compact snapshot
                     snapshot = {
-                        "alarm_time": atime,
+                        "alarm_time": atime_msk,
                         "alarm_code": acode,
                         "alarm_message": alarm.get("message", ""),
                         "device_id": did,
@@ -1424,25 +1570,25 @@ async def _analyze_incident(
 
                     if metrics_before:
                         snapshot["metrics_before_alarm"] = {
-                            "timestamp": metrics_before.get("timestamp"),
+                            "timestamp": _utc_to_msk(metrics_before.get("timestamp")),
                             "power_kw": _rnd(metrics_before.get("power_total")),
                             "coolant_temp_C": _rnd(metrics_before.get("coolant_temp")),
                             "oil_pressure_kPa": _rnd(metrics_before.get("oil_pressure")),
                             "engine_speed_rpm": _rnd(metrics_before.get("engine_speed")),
                             "voltage_V": _rnd(metrics_before.get("gen_uab")),
-                            "frequency_Hz": _rnd(metrics_before.get("frequency")),
+                            "frequency_Hz": _rnd(metrics_before.get("gen_freq")),
                             "fuel_level_pct": _rnd(metrics_before.get("fuel_level")),
                         }
 
                     if metrics_at:
                         snapshot["metrics_at_alarm"] = {
-                            "timestamp": metrics_at.get("timestamp"),
+                            "timestamp": _utc_to_msk(metrics_at.get("timestamp")),
                             "power_kw": _rnd(metrics_at.get("power_total")),
                             "coolant_temp_C": _rnd(metrics_at.get("coolant_temp")),
                             "oil_pressure_kPa": _rnd(metrics_at.get("oil_pressure")),
                             "engine_speed_rpm": _rnd(metrics_at.get("engine_speed")),
                             "voltage_V": _rnd(metrics_at.get("gen_uab")),
-                            "frequency_Hz": _rnd(metrics_at.get("frequency")),
+                            "frequency_Hz": _rnd(metrics_at.get("gen_freq")),
                             "fuel_level_pct": _rnd(metrics_at.get("fuel_level")),
                         }
 
@@ -1465,7 +1611,7 @@ async def _analyze_incident(
                     alarm_metrics.append(snapshot)
 
             except Exception as e:
-                logger.warning("Failed to get metric snapshot for alarm at %s: %s", atime, e)
+                logger.warning("Failed to get metric snapshot for alarm at %s: %s", atime_utc, e)
 
         if alarm_metrics:
             report["alarm_metric_snapshots"] = alarm_metrics
@@ -1539,13 +1685,13 @@ async def _analyze_incident(
                 ev_params["site_id"] = site_id
             journal_events = await _api_get("/api/events", ev_params)
             if isinstance(journal_events, list) and journal_events:
-                # Group journal events by device_id
+                # Group journal events by device_id + convert timestamps to MSK
                 _journal_by_device: dict[int, list] = {}
                 for jev in journal_events:
                     did_j = jev.get("device_id")
                     if did_j is not None:
                         _journal_by_device.setdefault(did_j, []).append({
-                            "time": jev.get("created_at"),
+                            "time": _utc_to_msk(jev.get("created_at")),
                             "category": jev.get("category"),
                             "event_code": jev.get("event_code"),
                             "message": jev.get("message"),
@@ -1554,6 +1700,38 @@ async def _analyze_incident(
                         })
                 report["_journal_by_device"] = _journal_by_device
                 report["journal_events_total"] = len(journal_events)
+
+                # 2.8. Extract STATE TRANSITIONS (stops/starts) as first-class data
+                # This is CRITICAL — these show actual generator stop/start times
+                # even when no alarm was triggered (e.g. manual operator stops)
+                state_transitions = []
+                _critical_cats = {"GEN_CRITICAL", "GEN_STATUS", "MODE_CHANGE"}
+                _stop_codes = {"gen_critical_stop", "gs_0", "gs_10", "gs_11", "gs_12", "gs_13", "gs_14", "gs_15"}
+                _start_codes = {"gen_critical_start", "gs_1", "gs_2", "gs_3", "gs_4", "gs_5", "gs_6", "gs_7", "gs_8", "gs_9"}
+                for jev in journal_events:
+                    cat = jev.get("category", "")
+                    code = jev.get("event_code", "")
+                    if cat in _critical_cats and (code in _stop_codes or code in _start_codes or cat == "MODE_CHANGE"):
+                        dev_info_j = dev_map.get(jev.get("device_id"), {})
+                        st_entry = {
+                            "time": _utc_to_msk(jev.get("created_at")),
+                            "device_id": jev.get("device_id"),
+                            "device_name": dev_info_j.get("name", jev.get("device_name", f"#{jev.get('device_id')}")),
+                            "type": "STOP" if code in _stop_codes else ("START" if code in _start_codes else "MODE"),
+                            "message": jev.get("message", ""),
+                            "event_code": code,
+                        }
+                        state_transitions.append(st_entry)
+
+                if state_transitions:
+                    # Sort chronologically (MSK strings sort correctly)
+                    state_transitions.sort(key=lambda x: x.get("time") or "")
+                    report["state_transitions"] = state_transitions
+                    report["state_transitions_note"] = (
+                        "ВАЖНО: state_transitions показывают ФАКТИЧЕСКИЕ остановки/запуски генераторов "
+                        "по данным контроллера. Они включают ручные стопы оператором, которых НЕТ в alarms_timeline. "
+                        "Используй state_transitions для определения ПЕРВОЙ остановки, а alarms_timeline — для причин аварий."
+                    )
         except Exception as e:
             logger.warning("Failed to fetch journal events for incident analysis: %s", e)
 
@@ -1577,7 +1755,7 @@ async def _analyze_incident(
 
             # Get full metric history for the period (extended fields for generators)
             if dtype == "generator":
-                fields = "power_total,coolant_temp,oil_pressure,engine_speed,gen_uab,frequency,energy_kwh,run_hours"
+                fields = "power_total,coolant_temp,oil_pressure,engine_speed,gen_uab,gen_freq,energy_kwh,run_hours"
             else:
                 fields = "mains_total_p,busbar_p,mains_uab,energy_kwh"
 
@@ -1661,14 +1839,17 @@ async def _analyze_incident(
             if rh_delta is not None:
                 dev_analysis["run_hours_delta"] = rh_delta
             if zero_runs:
-                dev_analysis["zero_power_details"] = zero_runs[:10]
+                dev_analysis["zero_power_details"] = [
+                    {"from": _utc_to_msk(zr["from"]), "to": _utc_to_msk(zr["to"]) if zr["to"] != "now" else "сейчас"}
+                    for zr in zero_runs[:10]
+                ]
 
             # Full-period metric ranges for generators
             if dtype == "generator":
                 temps = [pt.get("coolant_temp") for pt in hist if pt.get("coolant_temp") is not None]
                 oils = [pt.get("oil_pressure") for pt in hist if pt.get("oil_pressure") is not None]
                 speeds = [pt.get("engine_speed") for pt in hist if pt.get("engine_speed") is not None]
-                freqs = [pt.get("frequency") for pt in hist if pt.get("frequency") is not None]
+                freqs = [pt.get("gen_freq") for pt in hist if pt.get("gen_freq") is not None]
                 volts = [pt.get("gen_uab") for pt in hist if pt.get("gen_uab") is not None]
 
                 if temps:
@@ -1924,7 +2105,12 @@ class SanekAssistant:
         """
         # Handle pending action confirmation
         if pending_action:
-            last_msg = messages[-1].get("content", "").strip().lower() if messages else ""
+            # Find the last USER message (skip system context hints)
+            last_msg = ""
+            for m in reversed(messages):
+                if m.get("role") == "user":
+                    last_msg = m.get("content", "").strip().lower()
+                    break
             if last_msg in ("да", "yes", "подтверждаю", "ок", "ok", "давай"):
                 # Execute the confirmed action
                 tool_name = pending_action["tool"]

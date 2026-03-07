@@ -16,6 +16,7 @@ from models.ai_provider import AiProviderConfig
 from models.ai_chat import AiChatMessage
 from models.ai_knowledge import AiKnowledgeChunk
 from models.scada_event import ScadaEvent
+from models.gas_price import GasPrice
 
 __all__ = [
     "Base",
@@ -41,4 +42,5 @@ __all__ = [
     "AiProviderConfig",
     "AiKnowledgeChunk",
     "ScadaEvent",
+    "GasPrice",
 ]

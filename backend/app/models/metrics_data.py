@@ -63,6 +63,20 @@ class MetricsData(Base):
     turbo_pressure: Mapped[float | None] = mapped_column(Float, default=None)
     fuel_consumption: Mapped[float | None] = mapped_column(Float, default=None)
 
+    # --- ECU / Gas (Exon-Gas via HGM9520N) ---
+    accumulated_fuel: Mapped[float | None] = mapped_column(Float, default=None)
+    throttle_valve_pos: Mapped[float | None] = mapped_column(Float, default=None)
+    fuel_valve_pos: Mapped[float | None] = mapped_column(Float, default=None)
+    fuel_inlet_pressure: Mapped[float | None] = mapped_column(Float, default=None)
+    exhaust_oxygen: Mapped[float | None] = mapped_column(Float, default=None)
+    ignition_timing: Mapped[float | None] = mapped_column(Float, default=None)
+    engine_target_speed: Mapped[float | None] = mapped_column(Float, default=None)
+    air_gas_ratio: Mapped[float | None] = mapped_column(Float, default=None)
+    gas_pressure: Mapped[float | None] = mapped_column(Float, default=None)
+    gas_temp: Mapped[float | None] = mapped_column(Float, default=None)
+    exhaust_back_pressure: Mapped[float | None] = mapped_column(Float, default=None)
+    throttle_valve_cmd: Mapped[float | None] = mapped_column(Float, default=None)
+
     # --- Mains power (HGM9560 SPR) ---
     mains_total_p: Mapped[float | None] = mapped_column(Float, default=None)
     mains_p_a: Mapped[float | None] = mapped_column(Float, default=None)
@@ -81,6 +95,9 @@ class MetricsData(Base):
     busbar_current: Mapped[float | None] = mapped_column(Float, default=None)
     busbar_p: Mapped[float | None] = mapped_column(Float, default=None)
     busbar_q: Mapped[float | None] = mapped_column(Float, default=None)
+
+    # --- Multiset total (HGM9560 SPR calculated sum of gensets) ---
+    multiset_total_p: Mapped[float | None] = mapped_column(Float, default=None)
 
     # --- Accumulated ---
     run_hours: Mapped[float | None] = mapped_column(Float, default=None)

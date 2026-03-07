@@ -222,7 +222,7 @@ REGISTER_MAP_9520N: dict[str, dict] = {
         },
     },
     "engine": {
-        "address": 212, "count": 30,
+        "address": 212, "count": 32,  # extended from 30 to include accumulated_fuel at 242-243
         "fields": {
             "engine_speed":     lambda regs: None if regs[0] > 5000 or regs[0] == 32766 else regs[0],
             "battery_volt":     lambda regs: _no_data_or(regs[1], regs[1] * 0.1),
@@ -235,6 +235,7 @@ REGISTER_MAP_9520N: dict[str, dict] = {
             "fuel_pressure":    lambda regs: None if regs[24] >= 10000 or regs[24] == 32766 else regs[24],
             "turbo_pressure":   lambda regs: None if regs[28] >= 10000 or regs[28] == 32766 else regs[28],
             "fuel_consumption": lambda regs: None if regs[29] > 10000 or regs[29] == 32766 else regs[29] * 0.1,
+            "accumulated_fuel": lambda regs: (lambda v: None if v < 0 or v > 10_000_000 else v)(_signed32(regs[30], regs[31])),  # reg 242-243, 32-bit, 1 L; sentinel 0x7FFFFFFE filtered
             # Note: regs[13-19] (addresses 225-231) are NOT RTC for HGM9520N —
             # they return sentinel values 65535/32767/0. RTC only available on HGM9560.
         },
@@ -297,6 +298,28 @@ REGISTER_MAP_9520N: dict[str, dict] = {
             "alarm_wn_3": lambda regs: regs[93],
             "alarm_wn_4": lambda regs: regs[94],
             "alarm_wn_5": lambda regs: regs[95],
+        },
+    },
+    # --- ECU Exon-Gas registers (gas piston diagnostics) ---
+    "ecu_throttle": {
+        "address": 562, "count": 16,
+        "fields": {
+            "throttle_valve_pos":  lambda regs: _no_data_or(regs[0], _signed16(regs[0]) * 0.1),   # reg 562, 0.1%
+            "fuel_valve_pos":      lambda regs: _no_data_or(regs[8], _signed16(regs[8]) * 0.1),   # reg 570, 0.1%
+            "fuel_inlet_pressure": lambda regs: _no_data_or(regs[10], _signed16(regs[10]) * 0.1), # reg 572, 0.1 kPa
+            "exhaust_oxygen":      lambda regs: _no_data_or(regs[15], _signed16(regs[15]) * 0.1), # reg 577, 0.1%
+        },
+    },
+    "ecu_gas": {
+        "address": 616, "count": 8,
+        "fields": {
+            "ignition_timing":       lambda regs: _no_data_or(regs[0], _signed16(regs[0]) * 0.1),       # reg 616, 0.1° CA
+            "engine_target_speed":   lambda regs: _no_data_or(regs[1], _signed16(regs[1])),              # reg 617, 1 RPM
+            "air_gas_ratio":         lambda regs: _no_data_or(regs[2], _signed16(regs[2]) * 0.01),       # reg 618, 0.01 lambda
+            "gas_pressure":          lambda regs: _no_data_or(regs[3], _signed16(regs[3]) * 0.01),       # reg 619, 0.01 kPa
+            "gas_temp":              lambda regs: None if _is_bad_temp(regs[4]) else _signed16(regs[4]), # reg 620, 1 deg C
+            "exhaust_back_pressure": lambda regs: _no_data_or(regs[5], _signed16(regs[5]) * 0.01),       # reg 621, 0.01 kPa
+            "throttle_valve_cmd":    lambda regs: _signed32(regs[6], regs[7]) * 0.0001,                  # reg 622-623, 0.0001%
         },
     },
 }
@@ -379,7 +402,7 @@ REGISTER_MAP_9520N_RTU: dict[str, dict] = {
         },
     },
     "engine": {
-        "address": 212, "count": 30,
+        "address": 212, "count": 32,  # extended from 30 to include accumulated_fuel at 242-243
         "fields": {
             "engine_speed":     lambda regs: None if regs[0] > 5000 or regs[0] == 32766 else regs[0],
             "battery_volt":     lambda regs: _no_data_or(regs[1], regs[1] * 0.1),
@@ -392,6 +415,7 @@ REGISTER_MAP_9520N_RTU: dict[str, dict] = {
             "fuel_pressure":    lambda regs: None if regs[24] >= 10000 or regs[24] == 32766 else regs[24],
             "turbo_pressure":   lambda regs: None if regs[28] >= 10000 or regs[28] == 32766 else regs[28],
             "fuel_consumption": lambda regs: None if regs[29] > 10000 or regs[29] == 32766 else regs[29] * 0.1,
+            "accumulated_fuel": lambda regs: (lambda v: None if v < 0 or v > 10_000_000 else v)(_signed32(regs[30], regs[31])),  # reg 242-243, 32-bit, 1 L; sentinel 0x7FFFFFFE filtered
             # Note: regs[13-19] (addresses 225-231) are NOT RTC for HGM9520N —
             # they return sentinel values 65535/32767/0. RTC only available on HGM9560.
         },
@@ -469,6 +493,28 @@ REGISTER_MAP_9520N_RTU: dict[str, dict] = {
             "alarm_wn_3": lambda regs: regs[3],
             "alarm_wn_4": lambda regs: regs[4],
             "alarm_wn_5": lambda regs: regs[5],
+        },
+    },
+    # --- ECU Exon-Gas registers (gas piston diagnostics) ---
+    "ecu_throttle": {
+        "address": 562, "count": 16,
+        "fields": {
+            "throttle_valve_pos":  lambda regs: _no_data_or(regs[0], _signed16(regs[0]) * 0.1),   # reg 562, 0.1%
+            "fuel_valve_pos":      lambda regs: _no_data_or(regs[8], _signed16(regs[8]) * 0.1),   # reg 570, 0.1%
+            "fuel_inlet_pressure": lambda regs: _no_data_or(regs[10], _signed16(regs[10]) * 0.1), # reg 572, 0.1 kPa
+            "exhaust_oxygen":      lambda regs: _no_data_or(regs[15], _signed16(regs[15]) * 0.1), # reg 577, 0.1%
+        },
+    },
+    "ecu_gas": {
+        "address": 616, "count": 8,
+        "fields": {
+            "ignition_timing":       lambda regs: _no_data_or(regs[0], _signed16(regs[0]) * 0.1),       # reg 616, 0.1° CA
+            "engine_target_speed":   lambda regs: _no_data_or(regs[1], _signed16(regs[1])),              # reg 617, 1 RPM
+            "air_gas_ratio":         lambda regs: _no_data_or(regs[2], _signed16(regs[2]) * 0.01),       # reg 618, 0.01 lambda
+            "gas_pressure":          lambda regs: _no_data_or(regs[3], _signed16(regs[3]) * 0.01),       # reg 619, 0.01 kPa
+            "gas_temp":              lambda regs: None if _is_bad_temp(regs[4]) else _signed16(regs[4]), # reg 620, 1 deg C
+            "exhaust_back_pressure": lambda regs: _no_data_or(regs[5], _signed16(regs[5]) * 0.01),       # reg 621, 0.01 kPa
+            "throttle_valve_cmd":    lambda regs: _signed32(regs[6], regs[7]) * 0.0001,                  # reg 622-623, 0.0001%
         },
     },
 }
@@ -662,6 +708,7 @@ _SLOW_POLL_EVERY = 5  # slow block rotation period (each slot read every Nth cyc
 _9520N_RTU_SLOW_SLOTS: dict[str, int] = {
     "breaker": 1,       "mains_voltage": 1,
     "alarms": 2,
+    "ecu_throttle": 3,  "ecu_gas": 3,  # ECU gas data: every 5th cycle (~10s)
 }
 
 # Alarm detail blocks: only read when alarm_common flag is set (or was set)
@@ -688,6 +735,7 @@ _9560_SLOW_BLOCKS = frozenset(_9560_SLOW_SLOTS.keys())
 # Blocks to skip when generator is in standby (gen_status == 0)
 _9520N_STANDBY_SKIP = frozenset({
     "gen_volt_plimit", "gen_current_power", "engine", "mains_voltage",
+    "ecu_throttle", "ecu_gas",  # no ECU data when engine is off
 })
 
 
@@ -1108,6 +1156,9 @@ class HGM9560Reader(BaseReader):
         self._last_result: dict = {}  # cached result from previous cycle
         # Alarm-gated polling: skip alarm detail blocks when no alarms active
         self._last_alarm_active: bool = False
+        # Critical block staleness tracking: consecutive cycles where status+accumulated BOTH failed
+        self._critical_fail_streak: int = 0
+        self._CRITICAL_STALE_THRESHOLD: int = 5  # mark data stale after N consecutive critical failures
 
     async def connect(self) -> None:
         bus_key = f"{self.ip}:{self.port}"
@@ -1952,17 +2003,21 @@ class HGM9520NRtuReader(HGM9560Reader):
                         self.device_id, regs[:16], result.get("power_total", 0),
                     )
 
-            if errors == total_blocks:
+            # Count against ATTEMPTED blocks, not total (skipped blocks don't count)
+            attempted = blocks_read + errors
+            if attempted > 0 and blocks_read == 0:
+                # All attempted blocks failed — no fresh data at all
                 await self.disconnect()
                 raise ConnectionError(
                     f"HGM9520N-RTU device={self.device_id}: "
-                    f"all {total_blocks} blocks failed"
+                    f"all {errors} attempted blocks failed (of {total_blocks} total, "
+                    f"{len(skipped_names)} skipped)"
                 )
 
-            if errors > total_blocks // 2:
+            if errors > 0 and attempted > 0 and errors > attempted // 2:
                 logger.warning(
-                    "HGM9520N-RTU device=%s: %d/%d blocks failed, data may be unreliable",
-                    self.device_id, errors, total_blocks,
+                    "HGM9520N-RTU device=%s: %d/%d attempted blocks failed (total=%d, skipped=%d), data may be unreliable",
+                    self.device_id, errors, attempted, total_blocks, len(skipped_names),
                 )
 
             # HGM9520N status postprocessing (same as HGM9520NReader)
@@ -1991,6 +2046,26 @@ class HGM9520NRtuReader(HGM9560Reader):
                     result["phase_diff"] = pd + 360
                 if abs(result["phase_diff"]) > 180:
                     result["phase_diff"] = None
+
+            # ── Critical block staleness tracking ──
+            # If both status AND accumulated blocks failed, increment streak counter
+            status_read = "mode_auto" in result or "mode_manual" in result
+            accumulated_read = "gen_status" in result
+            if not status_read and not accumulated_read:
+                self._critical_fail_streak += 1
+                if self._critical_fail_streak >= self._CRITICAL_STALE_THRESHOLD:
+                    # Mark data as stale — critical registers not read for too long
+                    result["_data_stale"] = True
+                    result["_stale_cycles"] = self._critical_fail_streak
+                    if self._critical_fail_streak == self._CRITICAL_STALE_THRESHOLD:
+                        logger.warning(
+                            "Device %s: critical blocks (status, accumulated) failed %d consecutive cycles — data is STALE",
+                            self.device_id, self._critical_fail_streak,
+                        )
+            else:
+                if self._critical_fail_streak >= self._CRITICAL_STALE_THRESHOLD:
+                    logger.info("Device %s: critical blocks recovered after %d stale cycles", self.device_id, self._critical_fail_streak)
+                self._critical_fail_streak = 0
 
             # ── Status-field protection ──
             # If status block failed to read this cycle, preserve previous
@@ -2285,7 +2360,11 @@ class ModbusPoller:
                 if self._fail_counts.get(device_id, 0) > 0:
                     logger.info("Device %s back online after %d failures", device_id, self._fail_counts[device_id])
                 self._fail_counts[device_id] = 0
-                await self._publish(device_id, reader, data, online=True)
+                # Check for stale critical data (connection OK but key registers not readable)
+                stale_error = None
+                if data.get("_data_stale"):
+                    stale_error = f"Частичная связь: критические регистры не читаются ({data.get('_stale_cycles', 0)} циклов)"
+                await self._publish(device_id, reader, data, online=True, error=stale_error)
         except Exception as exc:
             self._fail_counts[device_id] = self._fail_counts.get(device_id, 0) + 1
             logger.error(

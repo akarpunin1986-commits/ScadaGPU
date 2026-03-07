@@ -4,6 +4,7 @@ Endpoints for reading stored metrics and alarms from PostgreSQL.
 Supports time range queries, field filtering, downsampling for charts.
 """
 import logging
+import re
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -206,6 +207,12 @@ async def get_metrics_downsampled(
             if src not in physical_fields and src in METRIC_FIELDS:
                 physical_fields.append(src)
 
+    if not physical_fields:
+        physical_fields = ["power_total"]
+
+    # Defence-in-depth: validate field names are safe identifiers
+    _SAFE_IDENT = re.compile(r"^[a-z_][a-z0-9_]*$")
+    physical_fields = [f for f in physical_fields if _SAFE_IDENT.match(f)]
     if not physical_fields:
         physical_fields = ["power_total"]
 

@@ -28,6 +28,7 @@ from alarm_analytics.router import router as alarm_analytics_router
 from alarm_analytics.detector import AlarmAnalyticsDetector
 from api.knowledge import router as knowledge_router
 from api.events import router as events_router
+from api.economics import router as economics_router
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
@@ -181,6 +182,7 @@ app.include_router(power_limit_router)
 app.include_router(alarm_analytics_router)
 app.include_router(knowledge_router)
 app.include_router(events_router)
+app.include_router(economics_router)
 
 # Bitrix24 module router (conditional)
 if settings.BITRIX24_ENABLED:

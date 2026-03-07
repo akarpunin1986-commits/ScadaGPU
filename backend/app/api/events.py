@@ -116,7 +116,7 @@ async def get_events(
 @router.get("/latest", response_model=list[ScadaEventOut])
 async def get_latest_events(
     site_id: Optional[int] = Query(None),
-    limit: int = Query(30, le=100),
+    limit: int = Query(100, le=500),
     session: AsyncSession = Depends(get_session),
 ) -> list[ScadaEventOut]:
     """Return latest events for the monitoring widget (no time filter, just last N)."""

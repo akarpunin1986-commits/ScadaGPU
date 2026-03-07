@@ -73,7 +73,7 @@ body{background:var(--bg);color:var(--t);font-family:var(--u);height:100vh;overf
 .cd-g{background:var(--g);box-shadow:0 0 8px var(--g)}.cd-x{background:var(--t4)}.cd-r{background:var(--r);box-shadow:0 0 8px var(--r);animation:bk 1s infinite}.cd-y{background:var(--y);box-shadow:0 0 8px var(--y)}
 @keyframes bk{50%{opacity:.15}}
 .cn{font-size:13px;font-weight:600}.csb{font-size:10px;color:var(--t3);font-family:var(--m);margin-top:1px}
-.kr{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}.kr5{grid-template-columns:repeat(5,1fr)}
+.kr{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}.kr5{grid-template-columns:repeat(5,1fr)}.kr3{grid-template-columns:repeat(3,1fr)}
 .kp{text-align:center;padding:4px 2px;background:var(--ov);border-radius:var(--rs)}.kl{font-size:8px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;font-weight:500}
 .kv{font-family:var(--m);font-size:14px;font-weight:600}.ku{font-size:8px;color:var(--t3)}
 .vg{color:var(--g)}.vn{color:var(--t)}.vm{color:var(--t4)}.vw{color:var(--y)}.va{color:var(--r)}.vb{color:var(--b)}.vp{color:var(--p)}
@@ -153,6 +153,7 @@ body{background:var(--bg);color:var(--t);font-family:var(--u);height:100vh;overf
 .pline.onR{stroke:var(--g);filter:drop-shadow(0 0 4px rgba(0,224,154,.5));stroke-dasharray:8 4;animation:flowR .8s linear infinite}
 .pline.monR{stroke:var(--b);filter:drop-shadow(0 0 4px rgba(64,144,255,.4));stroke-dasharray:8 4;animation:flowR .8s linear infinite}
 .pline.lon{stroke:var(--y);filter:drop-shadow(0 0 5px rgba(255,176,32,.5));stroke-dasharray:8 4;animation:flowA .8s linear infinite}
+.pline.off{stroke:var(--r);filter:drop-shadow(0 0 3px rgba(255,64,96,.4));stroke-dasharray:6 6;opacity:.6}
 .bk-item{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--ov);border:1px solid var(--bd);border-radius:6px;margin-bottom:4px;font-size:11px;font-family:var(--m)}
 .bk-item:hover{border-color:var(--bd2)}
 .bk-acts{display:flex;gap:4px}
@@ -193,7 +194,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .ev{background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);padding:0;overflow:hidden}
 .ev-t{font-size:11px;color:var(--t3);padding:10px 16px;text-transform:uppercase;letter-spacing:.8px;font-weight:500;cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
 .ev-t:hover{background:var(--bg4)}.ev-arrow{font-size:9px;transition:transform .2s}.ev.collapsed .ev-arrow{transform:rotate(-90deg)}
-.ev-body{max-height:300px;overflow-y:auto;padding:0 16px 12px}.ev.collapsed .ev-body{display:none}
+.ev-body{max-height:400px;overflow-y:auto;padding:0 16px 12px}.ev.collapsed .ev-body{display:none}
+.er-crit{background:rgba(255,50,50,.08);border-left:3px solid var(--r);padding-left:6px;font-weight:600}
 .ev-badge{font-size:9px;background:var(--p);color:#fff;padding:1px 6px;border-radius:8px;margin-left:6px;font-weight:700}
 .er{font-size:11px;font-family:var(--m);padding:4px 0;color:var(--t2);display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--bg4)}.er:last-child{border:none}
 .et{color:var(--t4);flex-shrink:0;font-size:10px;min-width:54px}
@@ -201,6 +203,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .ev-cat-gs{background:rgba(0,224,154,.12);color:var(--g)}.ev-cat-mode{background:rgba(100,149,237,.12);color:cornflowerblue}
 .ev-cat-ats{background:rgba(255,176,32,.12);color:var(--y)}.ev-cat-mains{background:rgba(255,77,77,.12);color:var(--r)}
 .ev-cat-op{background:rgba(168,130,255,.12);color:#a882ff}.ev-cat-sys{background:rgba(150,150,150,.12);color:var(--t3)}
+.ev-cat-crit{background:rgba(255,50,50,.2);color:#ff4444;font-weight:700}
 .to-iv{padding:12px;background:var(--bg4);border:1px solid var(--bd);border-radius:8px;margin-bottom:8px}.to-iv-bar{height:3px;background:var(--bg);border-radius:2px;overflow:hidden;margin-top:6px}.to-iv-fill{height:100%;border-radius:2px}
 .chk-item{display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:var(--rs);cursor:pointer;font-size:12px;transition:background .15s}.chk-item:hover{background:var(--bg4)}.chk-item.crit{background:rgba(255,64,96,.03)}.chk-item input{margin-top:2px;accent-color:var(--g)}
 .ta{width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--rs);color:var(--t2);font-size:11px;font-family:var(--u);resize:vertical;min-height:60px;outline:none}.ta:focus{border-color:var(--g)}
@@ -316,6 +319,34 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .b24-task:hover{border-color:var(--b)!important;box-shadow:0 0 0 1px rgba(64,144,255,.2)}
 .b24-eq:hover{border-color:var(--g)!important;box-shadow:0 0 0 1px rgba(0,224,154,.2)}
 #b24StatOpen:hover,#b24StatClosed:hover,#b24StatMaint:hover,#b24StatAlarm:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,.15);transition:all .15s}
+/* Economics view */
+.econ-wrap{padding:4px 0}
+.econ-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:16px}
+.econ-card{background:var(--bg3);border:1px solid var(--bd);border-radius:10px;padding:14px;text-align:center;transition:border-color .2s}
+.econ-card:hover{border-color:var(--bd2)}
+.econ-val{font-size:22px;font-weight:700;color:var(--g);margin:6px 0;font-family:var(--m)}
+.econ-lbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px}
+.econ-unit{font-size:11px;color:var(--t3);font-weight:400}
+.econ-section{background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rad);padding:14px;margin-bottom:12px}
+.econ-section-hdr{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.econ-add-row{display:flex;gap:8px;margin-bottom:12px;align-items:flex-end;flex-wrap:wrap}
+.econ-add-row .fg{margin-bottom:0;flex:1;min-width:100px}
+.econ-add-row .fi{padding:7px 10px;font-size:12px}
+.econ-add-row .fl{font-size:10px;margin-bottom:3px}
+.econ-tbl{width:100%;border-collapse:collapse;font-size:12px;font-family:var(--m)}
+.econ-tbl th{text-align:left;font-weight:500;color:var(--t3);padding:8px 10px;border-bottom:1px solid var(--bd);font-size:10px;text-transform:uppercase}
+.econ-tbl td{padding:8px 10px;border-bottom:1px solid var(--ov);color:var(--t2)}
+.econ-tbl td:last-child{text-align:center}
+.econ-tbl .totals td{font-weight:700;color:var(--t);border-top:2px solid var(--bd2);border-bottom:none}
+.econ-del{background:none;border:1px solid var(--bd);border-radius:4px;color:var(--t3);cursor:pointer;padding:2px 8px;font-size:11px;transition:all .15s}
+.econ-del:hover{color:var(--r);border-color:rgba(255,64,96,.3);background:var(--rd)}
+.econ-period{display:flex;gap:4px;margin-bottom:12px}
+.econ-pb{padding:5px 12px;border-radius:var(--rs);border:1px solid var(--bd);background:var(--bg3);color:var(--t3);cursor:pointer;font-size:11px;font-family:var(--m);transition:all .15s}
+.econ-pb:hover{background:var(--bg4);color:var(--t)}
+.econ-pb.on{background:var(--gd);border-color:rgba(0,224,154,.25);color:var(--g)}
+.econ-chart-wrap{position:relative;height:300px;margin-top:12px}
+.econ-note{font-size:11px;color:var(--t3);font-style:italic;margin-top:4px}
+.econ-clickable{cursor:pointer;transition:all .15s;border-radius:4px}.econ-clickable:hover{background:var(--bg4);color:var(--g)}
 [data-theme="light"] ::-webkit-scrollbar-thumb{background:#a0aabb}
 [data-theme="light"] .mbg{background:rgba(0,0,0,.35)}
 [data-theme="light"] .ov-sw-line.on::after{background:linear-gradient(90deg,transparent,rgba(0,0,0,.15),transparent)}
@@ -765,7 +796,8 @@ async function loadFromAPI() {
                 code: s.code,
                 desc: s.description || '',
                 responsible: '',
-                g1: {}, g2: {}, spr: {},
+                _genCount: 0,
+                spr: {},
             };
         }
         // Load devices for each site
@@ -776,27 +808,19 @@ async function loadFromAPI() {
                 const gens = devices.filter(d => d.device_type === 'generator').sort((a, b) => a.id - b.id);
                 const ats = devices.filter(d => d.device_type === 'ats');
 
-                if (gens[0]) {
-                    S[key].g1 = {
-                        _deviceId: gens[0].id,
-                        ip: gens[0].ip_address,
-                        port: gens[0].port,
-                        slaveId: gens[0].slave_id,
-                        proto: gens[0].protocol || 'tcp',
+                // Dynamic N generators → g1, g2, g3, ...
+                S[key]._genCount = gens.length;
+                for (let i = 0; i < gens.length; i++) {
+                    const slot = 'g' + (i + 1);
+                    S[key][slot] = {
+                        _deviceId: gens[i].id,
+                        ip: gens[i].ip_address,
+                        port: gens[i].port,
+                        slaveId: gens[i].slave_id,
+                        proto: gens[i].protocol || 'tcp',
                         runHours: 0,
                     };
-                    deviceSlotIndex[gens[0].id] = {siteKey: key, slot: 'g1'};
-                }
-                if (gens[1]) {
-                    S[key].g2 = {
-                        _deviceId: gens[1].id,
-                        ip: gens[1].ip_address,
-                        port: gens[1].port,
-                        slaveId: gens[1].slave_id,
-                        proto: gens[1].protocol || 'tcp',
-                        runHours: 0,
-                    };
-                    deviceSlotIndex[gens[1].id] = {siteKey: key, slot: 'g2'};
+                    deviceSlotIndex[gens[i].id] = {siteKey: key, slot};
                 }
                 if (ats[0]) {
                     S[key].spr = {
@@ -854,7 +878,8 @@ const ALARM_FIELDS_GEN = [
     'alarm_wn_0','alarm_wn_1','alarm_wn_2','alarm_wn_3','alarm_wn_4','alarm_wn_5',
 ];
 const ALARM_FIELDS_ATS = [
-    'alarm_reg_00','alarm_reg_01','alarm_reg_02','alarm_reg_08',
+    // alarm_reg_00 excluded: it's status/mode register (bits 0-3: alarm flags, 8-11: modes) — not an alarm register
+    'alarm_reg_01','alarm_reg_02','alarm_reg_08',
     'alarm_reg_12','alarm_reg_14','alarm_reg_16',
     'alarm_reg_20','alarm_reg_21','alarm_reg_24',
     'alarm_reg_30','alarm_reg_44',
@@ -949,7 +974,7 @@ function connectWebSocket() {
             } else if (msg.device_id !== undefined) {
                 handleMetricsUpdate(msg);
             }
-        } catch(e) {}
+        } catch(e) { console.error('WS message parse error:', e, ev.data?.substring?.(0, 200)); }
     };
 }
 
@@ -988,7 +1013,7 @@ function handleMetricsUpdate(m) {
     // Only update if this site is currently displayed
     if (siteKey !== cur) return;
 
-    if (slot === 'g1' || slot === 'g2') {
+    if (slot.startsWith('g')) {
         // Update runHours in S from WS data
         if (m.run_hours != null && S[siteKey]?.[slot]) {
             S[siteKey][slot].runHours = m.run_hours + (m.run_minutes ? m.run_minutes / 60 : 0);
@@ -1020,7 +1045,7 @@ function handleMetricsUpdate(m) {
         const mC = (m.mains_switch === 3);  // 3 = closed
 
         applySpr(gOn, mN, bC, mC, m.online !== false);
-        if(m.online !== false) applySprDetailed(m);
+        applySprDetailed(m);
 
         updateSummary();
         updateFlowFromMetrics();
@@ -1080,6 +1105,13 @@ function _f2(v){return v!=null?v.toFixed(2):'—'}
 
 function applySprDetailed(m) {
     if (!m) return;
+    // SPR offline — show offline placeholder in all tabs
+    if (m.online === false) {
+        const offHtml = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 10px;color:var(--t4)"><div style="font-size:32px;margin-bottom:8px;opacity:.4">⚡</div><div style="font-size:13px;font-weight:600;color:var(--r)">ШПР ОФЛАЙН</div><div style="font-size:11px;margin-top:4px">Нет связи с контроллером</div></div>';
+        ['sprov','sprb','sprm','sprs'].forEach(id => { const el=$(id); if(el) el.innerHTML=offHtml; });
+        updateSprControlMode(m);
+        return;
+    }
     const mN = (m.mains_status === 0);
     const bC = (m.busbar_switch === 3);
     const mC = (m.mains_switch === 3);
@@ -1243,13 +1275,14 @@ function updateSummary() {
     let allOffline = true, deviceCount = 0, anyOffline = false, onlineCount = 0;
     const issues = [];
 
-    const slotNames = {g1: 'Генератор 1', g2: 'Генератор 2', spr: 'ШПР'};
+    // Dynamic slot names: g1→Генератор 1, g2→Генератор 2, ... spr→ШПР
+    const _slotName = (sl) => sl === 'spr' ? 'ШПР' : sl.startsWith('g') ? 'Генератор ' + sl.slice(1) : 'Устройство';
 
     for (const [devId, m] of Object.entries(latestMetrics)) {
         const info = deviceSlotIndex[devId];
         if (!info || info.siteKey !== cur) continue;
         deviceCount++;
-        const devName = slotNames[info.slot] || ('Устройство ' + devId);
+        const devName = _slotName(info.slot);
 
         if (m.online === false) {
             anyOffline = true;
@@ -1259,7 +1292,7 @@ function updateSummary() {
             onlineCount++;
         }
 
-        if (info.slot === 'g1' || info.slot === 'g2') {
+        if (info.slot.startsWith('g')) {
             const p = m.power_total || 0;
             if (m.online !== false && m.gen_status === 9) { genP += p; running++; }
             if (m.online !== false && (m.alarm_common || m.alarm_shutdown)) {
@@ -1347,25 +1380,32 @@ function updateFlowFromMetrics() {
     if (!pf || !cur || !S[cur]) return;
 
     let g1on = false, g2on = false, mN = false, bC = false, mC = false, p1 = 0, p2 = 0, mP = 0, busP = 0;
-    // g1st/g2st: 0=не настроен, 1=офлайн, 2=онлайн
-    const g1id = getDeviceIdForSlot('g1'), g2id = getDeviceIdForSlot('g2');
-    let g1st = g1id ? 1 : 0, g2st = g2id ? 1 : 0;
+    // g1st/g2st: 0=не настроен, 1=офлайн, 2=онлайн; sprSt: 0=не настроен, 1=офлайн, 2=онлайн
+    const g1id = getDeviceIdForSlot('g1'), g2id = getDeviceIdForSlot('g2'), sprId = getDeviceIdForSlot('spr');
+    let g1st = g1id ? 1 : 0, g2st = g2id ? 1 : 0, sprSt = sprId ? 1 : 0;
 
     for (const [devId, m] of Object.entries(latestMetrics)) {
         const info = deviceSlotIndex[devId];
         if (!info || info.siteKey !== cur) continue;
-        if (info.slot === 'g1') { g1on = m.gen_status === 9; p1 = m.power_total || 0; if(m.online !== false) g1st = 2; }
-        if (info.slot === 'g2') { g2on = m.gen_status === 9; p2 = m.power_total || 0; if(m.online !== false) g2st = 2; }
+        if (info.slot === 'g1') { g1on = m.gen_status === 9; p1 = (m.online !== false) ? (m.power_total || 0) : 0; if(m.online !== false) g1st = 2; }
+        else if (info.slot === 'g2') { g2on = m.gen_status === 9; p2 = (m.online !== false) ? (m.power_total || 0) : 0; if(m.online !== false) g2st = 2; }
+        else if (info.slot.startsWith('g')) {
+            // g3+ generators: aggregate power into p2 for flow display
+            const gp = (m.online !== false) ? (m.power_total || 0) : 0;
+            if (m.gen_status === 9) { g2on = true; p2 += gp; }
+            if(m.online !== false) g2st = 2;
+        }
         if (info.slot === 'spr') {
-            mN = (m.mains_status === 0);
-            bC = (m.busbar_switch === 3);
-            mC = (m.mains_switch === 3);
-            mP = m.mains_total_p || 0;
-            busP = m.busbar_p || 0;
+            if(m.online !== false) { sprSt = 2; }
+            mN = (m.online !== false) ? (m.mains_status === 0) : false;
+            bC = (m.online !== false) ? (m.busbar_switch === 3) : false;
+            mC = (m.online !== false) ? (m.mains_switch === 3) : false;
+            mP = (m.online !== false) ? (m.mains_total_p || 0) : 0;
+            busP = (m.online !== false) ? (m.busbar_p || 0) : 0;
         }
     }
 
-    pf.innerHTML = flowSvg(g1on, g2on, mN, bC, mC, p1, p2, mP, busP, g1st, g2st);
+    pf.innerHTML = flowSvg(g1on, g2on, mN, bC, mC, p1, p2, mP, busP, g1st, g2st, sprSt);
 }
 
 function getDeviceIdForSlot(slot) {
@@ -1375,7 +1415,16 @@ function getDeviceIdForSlot(slot) {
 function getDeviceIdsForSite(siteKey) {
     const s = S[siteKey];
     if (!s) return [];
-    return [s.g1?._deviceId, s.g2?._deviceId, s.spr?._deviceId].filter(Boolean);
+    const ids = [];
+    for (let i = 1; s['g' + i]; i++) { if (s['g' + i]._deviceId) ids.push(s['g' + i]._deviceId); }
+    if (s.spr?._deviceId) ids.push(s.spr._deviceId);
+    return ids;
+}
+function getGenSlots(siteKey) {
+    const s = S[siteKey]; if (!s) return [];
+    const slots = [];
+    for (let i = 1; s['g' + i]; i++) slots.push('g' + i);
+    return slots;
 }
 function toggleAdmin(){
     const el=$('sbAdmin');if(!el)return;
@@ -1425,24 +1474,25 @@ function sv(){localStorage.setItem('s5s',JSON.stringify(S));localStorage.setItem
 function esc(s){const d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML}
 function ae(m){evts.unshift({t:now(),m,category:'LOCAL'});if(evts.length>40)evts.pop();_renderEvtPanel()}
 let _serverEvts=[];let _evtNewCount=0;
-const _catLabels={GEN_STATUS:'Статус',MODE_CHANGE:'Режим',ATS_STATUS:'АВР',MAINS:'Сеть',OPERATOR:'Оператор',SYSTEM:'Связь',LOCAL:'UI'};
-const _catCls={GEN_STATUS:'gs',MODE_CHANGE:'mode',ATS_STATUS:'ats',MAINS:'mains',OPERATOR:'op',SYSTEM:'sys',LOCAL:'sys'};
+const _catLabels={GEN_STATUS:'Статус',GEN_CRITICAL:'КРИТИЧ',MODE_CHANGE:'Режим',ATS_STATUS:'АВР',MAINS:'Сеть',OPERATOR:'Оператор',SYSTEM:'Связь',LOCAL:'UI'};
+const _catCls={GEN_STATUS:'gs',GEN_CRITICAL:'crit',MODE_CHANGE:'mode',ATS_STATUS:'ats',MAINS:'mains',OPERATOR:'op',SYSTEM:'sys',LOCAL:'sys'};
 async function loadServerEvents(){
   if(!cur)return;
   try{
     const siteId=siteApiIds[cur];if(!siteId)return;
-    const r=await fetch(API_BASE+'/api/events/latest?site_id='+siteId+'&limit=30');
+    const r=await fetch(API_BASE+'/api/events/latest?site_id='+siteId+'&limit=100');
     if(r.ok){_serverEvts=await r.json();_renderEvtPanel()}
   }catch(e){console.warn('loadServerEvents:',e)}
 }
 function _addRealtimeEvent(ev){
-  _serverEvts.unshift(ev);if(_serverEvts.length>50)_serverEvts.pop();
+  _serverEvts.unshift(ev);if(_serverEvts.length>120)_serverEvts.pop();
   const panel=$('evPanel');if(panel&&panel.classList.contains('collapsed'))_evtNewCount++;
   _renderEvtPanel()
 }
 function _fmtEvTime(iso){
   if(!iso)return '';
-  const d=new Date(iso),now=new Date();
+  // Server stores UTC — append Z so JS converts to local (MSK) timezone
+  const d=new Date(iso.endsWith('Z')||iso.includes('+')?iso:iso+'Z'),now=new Date();
   const time=d.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   // Show date if not today
   if(d.toDateString()!==now.toDateString()){
@@ -1454,14 +1504,14 @@ function _renderEvtPanel(){
   const el=$('evL');if(!el)return;
   // Merge: server events first, then local UI events
   const all=[];
-  for(const e of _serverEvts.slice(0,30)){
-    all.push({t:_fmtEvTime(e.created_at),m:e.message||'',cat:e.category||'SYSTEM'})
+  for(const e of _serverEvts.slice(0,100)){
+    all.push({t:_fmtEvTime(e.created_at),m:e.message||'',cat:e.category||'SYSTEM',code:e.event_code||''})
   }
-  for(const e of evts.slice(0,Math.max(0,30-all.length))){
-    all.push({t:e.t,m:e.m,cat:e.category||'LOCAL'})
+  for(const e of evts.slice(0,Math.max(0,10))){
+    all.push({t:e.t,m:e.m,cat:e.category||'LOCAL',code:''})
   }
   if(!all.length){el.innerHTML='<div style="color:var(--t4);font-size:11px;padding:4px 0">Нет событий</div>';return}
-  el.innerHTML=all.map(e=>`<div class="er"><span class="et">${e.t}</span><span class="ev-cat ev-cat-${_catCls[e.cat]||'sys'}">${_catLabels[e.cat]||e.cat}</span><span>${esc(e.m)}</span></div>`).join('');
+  el.innerHTML=all.map(e=>{const isCrit=e.code==='gen_critical_stop'||e.code==='gen_critical_start';const cls=isCrit?' er-crit':'';return`<div class="er${cls}"><span class="et">${e.t}</span><span class="ev-cat ev-cat-${_catCls[e.cat]||'sys'}">${_catLabels[e.cat]||e.cat}</span><span>${esc(e.m)}</span></div>`}).join('');
   // Badge
   const badge=$('evBadge');if(badge)badge.textContent=_evtNewCount>0?_evtNewCount:'';
 }
@@ -1476,10 +1526,10 @@ document.querySelectorAll('.mbg').forEach(m=>m.addEventListener('click',e=>{if(e
 function R(a,b){return+(a+Math.random()*(b-a)).toFixed(1)}function RI(a,b){return Math.floor(a+Math.random()*(b-a))}
 function now(){return new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
 let curView='monitoring';let curEq={};const sbExp=new Set();
-function renderSB(){const k=Object.keys(S);$('sbSites').innerHTML=k.length?k.map(id=>{const s=S[id],exp=sbExp.has(id),active=id===cur,gpuOpen=exp&&curEq[id]==='gpu';return`<div class="sb-tree${exp?' open':''}"><div class="si${active?' on':''}" onclick="togSite('${id}')"><span class="si-arrow">${exp?'▼':'▶'}</span><span class="si-name">${esc(s.name)}</span><div class="si-acts"><button class="si-btn" onclick="event.stopPropagation();openEdit('${id}')">✏</button><button class="si-btn del" onclick="event.stopPropagation();openDel('${id}')">✕</button></div></div>${exp?`<div class="sb-sub sb-eq-list"><div class="sb-eq-row${gpuOpen?' open':''}" onclick="event.stopPropagation();toggleEq('${id}','gpu')"><span class="sb-eq-arrow">${gpuOpen?'▼':'▶'}</span><span class="sb-eq-name">🔌 ГПУ «Кама Энерго»</span></div>${gpuOpen?`<div class="sb-sub sb-eq-sub"><button class="sb-sub-btn${active&&curView==='monitoring'?' on':''}" onclick="event.stopPropagation();selView('${id}','monitoring')">⚡ Мониторинг</button><button class="sb-sub-btn${active&&curView==='alarms'?' on':''}" onclick="event.stopPropagation();selView('${id}','alarms')">🚨 Аварии</button><button class="sb-sub-btn${active&&curView==='archive'?' on':''}" onclick="event.stopPropagation();selView('${id}','archive')">📊 Архив</button><button class="sb-sub-btn${active&&curView==='to'?' on':''}" onclick="event.stopPropagation();selView('${id}','to')">📋 ТО</button></div>`:''}</div>`:''}</div>`}).join(''):'<div style="padding:20px;text-align:center;font-size:11px;color:var(--t4)">Нет объектов. Нажмите «+ Объект»</div>'}
+function renderSB(){const k=Object.keys(S);$('sbSites').innerHTML=k.length?k.map(id=>{const s=S[id],exp=sbExp.has(id),active=id===cur,gpuOpen=exp&&curEq[id]==='gpu';return`<div class="sb-tree${exp?' open':''}"><div class="si${active?' on':''}" onclick="togSite('${id}')"><span class="si-arrow">${exp?'▼':'▶'}</span><span class="si-name">${esc(s.name)}</span><div class="si-acts"><button class="si-btn" onclick="event.stopPropagation();openEdit('${id}')">✏</button><button class="si-btn del" onclick="event.stopPropagation();openDel('${id}')">✕</button></div></div>${exp?`<div class="sb-sub sb-eq-list"><div class="sb-eq-row${gpuOpen?' open':''}" onclick="event.stopPropagation();toggleEq('${id}','gpu')"><span class="sb-eq-arrow">${gpuOpen?'▼':'▶'}</span><span class="sb-eq-name">🔌 ГПУ «Кама Энерго»</span></div>${gpuOpen?`<div class="sb-sub sb-eq-sub"><button class="sb-sub-btn${active&&curView==='monitoring'?' on':''}" onclick="event.stopPropagation();selView('${id}','monitoring')">⚡ Мониторинг</button><button class="sb-sub-btn${active&&curView==='alarms'?' on':''}" onclick="event.stopPropagation();selView('${id}','alarms')">🚨 Аварии</button><button class="sb-sub-btn${active&&curView==='archive'?' on':''}" onclick="event.stopPropagation();selView('${id}','archive')">📊 Архив</button><button class="sb-sub-btn${active&&curView==='to'?' on':''}" onclick="event.stopPropagation();selView('${id}','to')">📋 ТО</button><button class="sb-sub-btn${active&&curView==='economics'?' on':''}" onclick="event.stopPropagation();selView('${id}','economics')">💰 Экономика</button></div>`:''}</div>`:''}</div>`}).join(''):'<div style="padding:20px;text-align:center;font-size:11px;color:var(--t4)">Нет объектов. Нажмите «+ Объект»</div>'}
 function togSite(id){if(sbExp.has(id)){sbExp.delete(id);renderSB()}else{sbExp.add(id);curEq[id]=curEq[id]||'gpu';sel(id)}}
 function sel(id){archiveMode=false;curView='monitoring';cur=id;sv();renderSB();renderDash();if(_snOpen)_snUpdateCtxBadge()}
-function selView(id,view){cur=id;curView=view;archiveMode=view==='archive';sv();renderSB();if(view==='monitoring')renderDash();else if(view==='alarms')showAlarms();else if(view==='archive')showArchive(id);else if(view==='to')openTOTemplates();if(_snOpen)_snUpdateCtxBadge()}
+function selView(id,view){cur=id;curView=view;archiveMode=view==='archive';sv();renderSB();if(view==='monitoring')renderDash();else if(view==='alarms')showAlarms();else if(view==='archive')showArchive(id);else if(view==='to')openTOTemplates();else if(view==='economics')showEconomics(id);if(_snOpen)_snUpdateCtxBadge()}
 function toggleEq(siteId,eqId){curEq[siteId]=(curEq[siteId]===eqId?null:eqId);renderSB()}
 function openAddSite(){editId=null;$('smT').textContent='Новый объект';$('fN').value='';$('fC').value='';$('fC').disabled=false;$('fD').value='';populateRespSelect('');$('smA').innerHTML='<button class="bp" onclick="saveSite()">Создать</button>';showM('site')}
 function openEdit(id){editId=id;const s=S[id];$('smT').textContent='Редактировать: '+s.name;$('fN').value=s.name;$('fC').value=id;$('fC').disabled=true;$('fD').value=s.desc||'';populateRespSelect(s.responsible||'');$('smA').innerHTML=`<div style="display:flex;gap:8px"><button class="bp" style="flex:1" onclick="saveSite()">Сохранить</button><button class="bdn" style="flex:0;padding:10px 16px" onclick="hideM('site');openDel('${id}')">🗑</button></div>`;showM('site')}
@@ -1502,25 +1552,28 @@ localStorage.removeItem('s5alm_'+delId+'_g1');localStorage.removeItem('s5alm_'+d
 localStorage.removeItem('s5_spr_backups_'+delId);
 ae('🗑 '+dName+' удалён');sv();hideM('del');renderSB();renderDash();delId=null}
 // === TABBED SETTINGS ===
+function _genSettingsPanel(sl, s) {
+const g = s[sl] || {};
+const n = sl.slice(1);
+const td = getTOData(cur, sl);
+return `<div class="cfs"><div class="cft"><span class="dot dot-g"></span>Генератор ${n} — HGM9520N<span class="conn-test" onclick="testConn('${sl}')">🔌 Тест</span></div>
+<div class="fr2"><div class="fg"><label class="fl">Протокол</label><select class="fi" id="c${sl}proto" onchange="updGenProtoLabel('${sl}')"><option value="tcp"${(g.proto||'tcp')==='tcp'?' selected':''}>Modbus TCP (напрямую)</option><option value="rtu_over_tcp"${g.proto==='rtu_over_tcp'?' selected':''}>RTU через конвертер</option></select></div><div class="fg"><label class="fl">IP-адрес <span class="req">*</span></label><input class="fi" id="c${sl}i" value="${esc(g.ip||'')}" placeholder="192.168.97.${9+parseInt(n)}"></div></div>
+<div class="fr2"><div class="fg"><label class="fl" id="c${sl}plbl">${g.proto==='rtu_over_tcp'?'Порт конвертера':'Порт Modbus TCP'}</label><input class="fi" id="c${sl}p" value="${g.port||(g.proto==='rtu_over_tcp'?26:502)}" type="number"></div><div class="fg"><label class="fl">Slave ID</label><input class="fi" id="c${sl}s" value="${g.slaveId||1}" type="number"></div></div>
+<div class="fr2"><div class="fg"><label class="fl">Моточасы</label><input class="fi" id="c${sl}h" value="${g.runHours||0}" type="number"></div><div class="fg"></div></div>
+<div class="fr2"><div class="fg"><label class="fl">Последнее ТО</label><select class="fi" id="c${sl}lt"><option value="">Не указано</option>${getTpl().intervals.map(iv=>`<option value="${iv.id}"${(td.lastTOId===iv.id)?' selected':''}>${iv.name}</option>`).join('')}</select></div><div class="fg"><label class="fl">При моточасах</label><input class="fi" id="c${sl}lth" value="${td.hoursAtLastTO||0}" type="number" placeholder="0"></div></div>
+<button class="bp" style="margin-top:8px;width:100%;background:var(--bg4);border:1px solid var(--bd);color:var(--t2);font-size:12px;padding:8px 0" onclick="testConn('${sl}')">🔌 Проверить связь с контроллером</button><div id="${sl}test"></div></div>`;
+}
 function openSet(){if(!cur||!S[cur])return;const s=S[cur];
+const gSlots = getGenSlots(cur);
+const sprIdx = gSlots.length;
+const objIdx = sprIdx + 1;
 $('setTitle').textContent='⚙ '+s.name+' — Настройки';
-$('setBody').innerHTML=`<div class="set-tabs"><button class="set-tab on" onclick="setTab(this,0)">Генератор 1</button><button class="set-tab" onclick="setTab(this,1)">Генератор 2</button><button class="set-tab" onclick="setTab(this,2)">ШПР</button><button class="set-tab" onclick="setTab(this,3)">Объект</button></div>
-<div class="set-panel on" id="sp0"><div class="cfs"><div class="cft"><span class="dot dot-g"></span>Генератор 1 — HGM9520N<span class="conn-test" onclick="testConn('g1')">🔌 Тест</span></div>
-<div class="fr2"><div class="fg"><label class="fl">Протокол</label><select class="fi" id="cg1proto" onchange="updGenProtoLabel('g1')"><option value="tcp"${(s.g1?.proto||'tcp')==='tcp'?' selected':''}>Modbus TCP (напрямую)</option><option value="rtu_over_tcp"${s.g1?.proto==='rtu_over_tcp'?' selected':''}>RTU через конвертер</option></select></div><div class="fg"><label class="fl">IP-адрес <span class="req">*</span></label><input class="fi" id="cg1i" value="${esc(s.g1?.ip||'')}" placeholder="192.168.97.10"></div></div>
-<div class="fr2"><div class="fg"><label class="fl" id="cg1plbl">${s.g1?.proto==='rtu_over_tcp'?'Порт конвертера':'Порт Modbus TCP'}</label><input class="fi" id="cg1p" value="${s.g1?.port||(s.g1?.proto==='rtu_over_tcp'?26:502)}" type="number"></div><div class="fg"><label class="fl">Slave ID</label><input class="fi" id="cg1s" value="${s.g1?.slaveId||1}" type="number"></div></div>
-<div class="fr2"><div class="fg"><label class="fl">Моточасы</label><input class="fi" id="cg1h" value="${s.g1?.runHours||0}" type="number"></div><div class="fg"></div></div>
-<div class="fr2"><div class="fg"><label class="fl">Последнее ТО</label><select class="fi" id="cg1lt"><option value="">Не указано</option>${getTpl().intervals.map(iv=>`<option value="${iv.id}"${(getTOData(cur,'g1').lastTOId===iv.id)?' selected':''}>${iv.name}</option>`).join('')}</select></div><div class="fg"><label class="fl">При моточасах</label><input class="fi" id="cg1lth" value="${getTOData(cur,'g1').hoursAtLastTO||0}" type="number" placeholder="0"></div></div>
-<button class="bp" style="margin-top:8px;width:100%;background:var(--bg4);border:1px solid var(--bd);color:var(--t2);font-size:12px;padding:8px 0" onclick="testConn('g1')">🔌 Проверить связь с контроллером</button><div id="g1test"></div></div></div>
-<div class="set-panel" id="sp1"><div class="cfs"><div class="cft"><span class="dot dot-g"></span>Генератор 2 — HGM9520N<span class="conn-test" onclick="testConn('g2')">🔌 Тест</span></div>
-<div class="fr2"><div class="fg"><label class="fl">Протокол</label><select class="fi" id="cg2proto" onchange="updGenProtoLabel('g2')"><option value="tcp"${(s.g2?.proto||'tcp')==='tcp'?' selected':''}>Modbus TCP (напрямую)</option><option value="rtu_over_tcp"${s.g2?.proto==='rtu_over_tcp'?' selected':''}>RTU через конвертер</option></select></div><div class="fg"><label class="fl">IP-адрес <span class="req">*</span></label><input class="fi" id="cg2i" value="${esc(s.g2?.ip||'')}" placeholder="192.168.97.11"></div></div>
-<div class="fr2"><div class="fg"><label class="fl" id="cg2plbl">${s.g2?.proto==='rtu_over_tcp'?'Порт конвертера':'Порт Modbus TCP'}</label><input class="fi" id="cg2p" value="${s.g2?.port||(s.g2?.proto==='rtu_over_tcp'?26:502)}" type="number"></div><div class="fg"><label class="fl">Slave ID</label><input class="fi" id="cg2s" value="${s.g2?.slaveId||1}" type="number"></div></div>
-<div class="fr2"><div class="fg"><label class="fl">Моточасы</label><input class="fi" id="cg2h" value="${s.g2?.runHours||0}" type="number"></div><div class="fg"></div></div>
-<div class="fr2"><div class="fg"><label class="fl">Последнее ТО</label><select class="fi" id="cg2lt"><option value="">Не указано</option>${getTpl().intervals.map(iv=>`<option value="${iv.id}"${(getTOData(cur,'g2').lastTOId===iv.id)?' selected':''}>${iv.name}</option>`).join('')}</select></div><div class="fg"><label class="fl">При моточасах</label><input class="fi" id="cg2lth" value="${getTOData(cur,'g2').hoursAtLastTO||0}" type="number" placeholder="0"></div></div>
-<button class="bp" style="margin-top:8px;width:100%;background:var(--bg4);border:1px solid var(--bd);color:var(--t2);font-size:12px;padding:8px 0" onclick="testConn('g2')">🔌 Проверить связь с контроллером</button><div id="g2test"></div></div></div>
-<div class="set-panel" id="sp2"><div class="cfs"><div class="cft"><span class="dot dot-p"></span>ШПР — HGM9560 (RS-485→Ethernet)<span class="conn-test" onclick="testConn('spr')">🔌 Тест</span></div>
+$('setBody').innerHTML=`<div class="set-tabs">${gSlots.map((sl,i)=>`<button class="set-tab${i===0?' on':''}" onclick="setTab(this,${i})">Генератор ${sl.slice(1)}</button>`).join('')}<button class="set-tab" onclick="setTab(this,${sprIdx})">ШПР</button><button class="set-tab" onclick="setTab(this,${objIdx})">Объект</button></div>
+${gSlots.map((sl,i)=>`<div class="set-panel${i===0?' on':''}" id="sp${i}">${_genSettingsPanel(sl,s)}</div>`).join('')}
+<div class="set-panel" id="sp${sprIdx}"><div class="cfs"><div class="cft"><span class="dot dot-p"></span>ШПР — HGM9560 (RS-485→Ethernet)<span class="conn-test" onclick="testConn('spr')">🔌 Тест</span></div>
 <div class="fr2"><div class="fg"><label class="fl">IP конвертера <span class="req">*</span></label><input class="fi" id="csi" value="${esc(s.spr?.ip||'')}" placeholder="10.11.0.2"></div><div class="fg"><label class="fl">Порт</label><input class="fi" id="csp" value="${s.spr?.port||26}" type="number"></div></div>
 <div class="fr2"><div class="fg"><label class="fl">Slave ID</label><input class="fi" id="css" value="${s.spr?.slaveId||1}" type="number"></div><div class="fg"><label class="fl">Протокол</label><div style="padding:9px 12px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--rs);font-size:13px;color:var(--t3)">RTU 9600/8N2</div></div></div><button class="bp" style="margin-top:8px;width:100%;background:var(--bg4);border:1px solid var(--bd);color:var(--t2);font-size:12px;padding:8px 0" onclick="testConn('spr')">🔌 Проверить связь с контроллером</button><div id="sprtest"></div></div></div>
-<div class="set-panel" id="sp3"><div class="cfs"><div class="cft"><span class="dot dot-g"></span>Общие настройки</div>
+<div class="set-panel" id="sp${objIdx}"><div class="cfs"><div class="cft"><span class="dot dot-g"></span>Общие настройки</div>
 <div class="fg"><label class="fl">Название</label><input class="fi" id="csn" value="${esc(s.name)}"></div>
 <div class="fg"><label class="fl">Описание</label><input class="fi" id="csd" value="${esc(s.desc||'')}"></div>
 <div class="fg"><label class="fl">Интервал опроса (мс)</label><input class="fi" id="csi2" value="${s.pollInterval||2000}" type="number"></div>
@@ -1531,8 +1584,7 @@ function updGenProtoLabel(sl){const sel=$('c'+sl+'proto');const lbl=$('c'+sl+'pl
 async function testConn(dev){const el=$(dev+'test');el.innerHTML='<div style="padding:6px 10px;background:var(--yd);border:1px solid rgba(255,176,32,.2);border-radius:6px;font-size:11px;color:var(--y);font-family:var(--m);margin-top:6px">⏳ Тест подключения...</div>';
 const s=S[cur];if(!s)return;
 let ip='',port=502,slaveId=1,proto='tcp';
-if(dev==='g1'){ip=$('cg1i')?.value||s.g1?.ip||'';port=+($('cg1p')?.value)||502;slaveId=+($('cg1s')?.value)||1;proto=$('cg1proto')?.value||s.g1?.proto||'tcp'}
-else if(dev==='g2'){ip=$('cg2i')?.value||s.g2?.ip||'';port=+($('cg2p')?.value)||502;slaveId=+($('cg2s')?.value)||1;proto=$('cg2proto')?.value||s.g2?.proto||'tcp'}
+if(dev.startsWith('g')){ip=$('c'+dev+'i')?.value||s[dev]?.ip||'';port=+($('c'+dev+'p')?.value)||502;slaveId=+($('c'+dev+'s')?.value)||1;proto=$('c'+dev+'proto')?.value||s[dev]?.proto||'tcp'}
 else if(dev==='spr'){ip=$('csi')?.value||s.spr?.ip||'';port=+($('csp')?.value)||26;slaveId=+($('css')?.value)||1;proto='rtu_over_tcp'}
 if(!ip){el.innerHTML='<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r);font-family:var(--m);margin-top:6px">Укажите IP-адрес</div>';return}
 try{const ac=new AbortController();const tid=setTimeout(()=>ac.abort(),45000);
@@ -1541,22 +1593,31 @@ let r;try{const resp=await fetch(API_BASE+'/api/devices/test-connection',{method
 if(r.success){el.innerHTML=`<div style="padding:6px 10px;background:var(--gd);border:1px solid rgba(0,224,154,.2);border-radius:6px;font-size:11px;color:var(--g);font-family:var(--m);margin-top:6px">✅ ${r.message}</div>`}
 else{el.innerHTML=`<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r);font-family:var(--m);margin-top:6px">❌ ${r.message}</div>`}
 }catch(e){el.innerHTML=`<div style="padding:6px 10px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:6px;font-size:11px;color:var(--r);font-family:var(--m);margin-top:6px">❌ ${e.message}</div>`}}
-async function saveSet(){const s=S[cur];s.g1={...s.g1,ip:$('cg1i').value.trim(),port:+$('cg1p').value||502,slaveId:+$('cg1s').value||1,proto:$('cg1proto')?.value||s.g1?.proto||'tcp',runHours:+$('cg1h').value||0};s.g2={...s.g2,ip:$('cg2i').value.trim(),port:+$('cg2p').value||502,slaveId:+$('cg2s').value||1,proto:$('cg2proto')?.value||s.g2?.proto||'tcp',runHours:+$('cg2h').value||0};s.spr={...s.spr,ip:$('csi').value.trim(),port:+$('csp').value||26,slaveId:+$('css').value||1};s.name=$('csn')?.value.trim()||s.name;s.desc=$('csd')?.value.trim()||'';s.responsible=$('csResp')?.value||s.responsible||'';s.pollInterval=+$('csi2')?.value||2000;
-// Save last TO data for G1/G2
-for(const sl of['g1','g2']){const ltSel=$('c'+sl+'lt'),lthInp=$('c'+sl+'lth');if(ltSel){const td=getTOData(cur,sl);const newId=ltSel.value||null;const newH=+(lthInp?.value)||0;if(newId!==td.lastTOId||newH!==td.hoursAtLastTO){td.lastTOId=newId;td.hoursAtLastTO=newH;saveTOData(cur,sl,td)}}}
+async function saveSet(){const s=S[cur];
+// Save generator settings dynamically
+const gSlots=getGenSlots(cur);
+for(const sl of gSlots){s[sl]={...s[sl],ip:$('c'+sl+'i').value.trim(),port:+$('c'+sl+'p').value||502,slaveId:+$('c'+sl+'s').value||1,proto:$('c'+sl+'proto')?.value||s[sl]?.proto||'tcp',runHours:+$('c'+sl+'h').value||0}}
+s.spr={...s.spr,ip:$('csi').value.trim(),port:+$('csp').value||26,slaveId:+$('css').value||1};s.name=$('csn')?.value.trim()||s.name;s.desc=$('csd')?.value.trim()||'';s.responsible=$('csResp')?.value||s.responsible||'';s.pollInterval=+$('csi2')?.value||2000;
+// Save last TO data for all generators
+for(const sl of gSlots){const ltSel=$('c'+sl+'lt'),lthInp=$('c'+sl+'lth');if(ltSel){const td=getTOData(cur,sl);const newId=ltSel.value||null;const newH=+(lthInp?.value)||0;if(newId!==td.lastTOId||newH!==td.hoursAtLastTO){td.lastTOId=newId;td.hoursAtLastTO=newH;saveTOData(cur,sl,td)}}}
 sv();
 // API: sync devices
 if(apiAvailable&&siteApiIds[cur]){const siteId=siteApiIds[cur];try{
 // Update site name/desc
 await api.patch('/api/sites/'+siteId,{name:s.name,description:s.desc});
-// Sync each device slot
-for(const [slot,dtype] of [['g1','generator'],['g2','generator'],['spr','ats']]){
-const d=s[slot];if(!d?.ip)continue;
-const proto=slot==='spr'?'rtu_over_tcp':(d.proto||'tcp');
-if(d._deviceId){await api.patch('/api/devices/'+d._deviceId,{ip_address:d.ip,port:d.port,slave_id:d.slaveId||1,protocol:proto,name:slot==='spr'?'ШПР':('Генератор '+(slot==='g1'?'1':'2'))})}
-else{const created=await api.post('/api/devices',{site_id:siteId,name:slot==='spr'?'ШПР':('Генератор '+(slot==='g1'?'1':'2')),device_type:dtype,ip_address:d.ip,port:d.port,slave_id:d.slaveId||1,protocol:proto});
-d._deviceId=created.id;deviceSlotIndex[created.id]={siteKey:cur,slot}}
-}}catch(e){console.warn('API sync devices error:',e)}}
+// Sync generator slots
+for(const sl of gSlots){
+const d=s[sl];if(!d?.ip)continue;
+const proto=d.proto||'tcp';const nm='Генератор '+sl.slice(1);
+if(d._deviceId){await api.patch('/api/devices/'+d._deviceId,{ip_address:d.ip,port:d.port,slave_id:d.slaveId||1,protocol:proto,name:nm})}
+else{const created=await api.post('/api/devices',{site_id:siteId,name:nm,device_type:'generator',ip_address:d.ip,port:d.port,slave_id:d.slaveId||1,protocol:proto});
+d._deviceId=created.id;deviceSlotIndex[created.id]={siteKey:cur,slot:sl}}}
+// Sync SPR slot
+{const d=s.spr;if(d?.ip){const proto='rtu_over_tcp';
+if(d._deviceId){await api.patch('/api/devices/'+d._deviceId,{ip_address:d.ip,port:d.port,slave_id:d.slaveId||1,protocol:proto,name:'ШПР'})}
+else{const created=await api.post('/api/devices',{site_id:siteId,name:'ШПР',device_type:'ats',ip_address:d.ip,port:d.port,slave_id:d.slaveId||1,protocol:proto});
+d._deviceId=created.id;deviceSlotIndex[created.id]={siteKey:cur,slot:'spr'}}}}
+}catch(e){console.warn('API sync devices error:',e)}}
 ae('✅ Настройки сохранены');hideM('settings');renderSB();renderDash()}
 async function smartReset(slot,name){
 if(!confirm(`Сбросить аварию на ${name}?\n\nСистема пробует несколько методов сброса и проверяет результат.`))return;
@@ -1685,11 +1746,12 @@ function saveTemplates(){const tpl=getTpl();tpl.intervals.forEach((iv,i)=>{iv.na
 // Когда оба автомата замкнуты (параллель): P нагрузки = P шины + P сети
 // Когда только авт.шины замкнут (островной): P нагрузки = P шины
 // Когда только авт.сети замкнут (только сеть): P нагрузки = P сети
-function flowSvg(g1on,g2on,mN,bC,mC,p1,p2,mP,busP,g1st,g2st){
+function flowSvg(g1on,g2on,mN,bC,mC,p1,p2,mP,busP,g1st,g2st,sprSt){
 p1=p1||0;p2=p2||0;mP=mP||0;busP=busP||0;
-g1st=g1st||0;g2st=g2st||0; // 0=не настроен, 1=офлайн, 2=онлайн
-const gAct=(g1on||g2on)&&bC,mAct=mN&&mC,busAct=gAct||mAct;
-const g1act=g1on&&bC,g2act=g2on&&bC;
+g1st=g1st||0;g2st=g2st||0;sprSt=sprSt===undefined?2:sprSt; // 0=не настроен, 1=офлайн, 2=онлайн
+const sprOff=sprSt===1;
+const gAct=(g1on||g2on)&&bC&&!sprOff,mAct=mN&&mC&&!sprOff,busAct=gAct||mAct;
+const g1act=g1on&&bC&&!sprOff,g2act=g2on&&bC&&!sprOff;
 const genTotal=p1+p2;
 // P нагрузки = P генераторов + P сети (через замкнутые автоматы)
 const loadP=(bC?genTotal:0)+(mC?mP:0);
@@ -1697,6 +1759,13 @@ const loadP=(bC?genTotal:0)+(mC?mP:0);
 const g1w=g1act?Math.max(2,Math.min(5,p1/100)):2.5;
 const g2w=g2act?Math.max(2,Math.min(5,p2/100)):2.5;
 const mw=mAct?Math.max(2,Math.min(5,mP/100)):2.5;
+// Line class for offline segments
+const g1line=g1st===1?'off':(g1act?'on':'');
+const g2line=g2st===1?'off':(g2act?'on':'');
+const sprBusL=sprOff?'off':(gAct?'on':(busAct?'on':''));
+const sprBusR=sprOff?'off':(mAct?'monR':(busAct?'on':''));
+const sprLoad=sprOff?'off':(busAct?'lon':'');
+const sprMainsLine=sprOff?'off':(mAct?'monR':'');
 // Power label formatting
 const _pw=v=>Math.abs(v)>=1000?(v/1000).toFixed(1)+' МВт':v.toFixed(1)+' кВт';
 // Generator circle colors: 0=grey(не настроен), 1=red(офлайн), 2=green(онлайн)
@@ -1715,59 +1784,59 @@ return`<svg viewBox="0 0 740 96" style="width:100%">
 <text x="38" y="12" fill="${c1.txt}" font-size="8" text-anchor="middle" font-family="var(--m)" font-weight="700">Г1</text>
 <text x="38" y="21" fill="${c1.sub}" font-size="6.5" text-anchor="middle" font-family="var(--m)" font-weight="600">${c1.lbl||(p1>0?_pws(p1)+' кВт':'РАБ')}</text>
 <!-- G1 → Y-join -->
-<line x1="54" y1="16" x2="100" y2="16" class="pline ${g1act?'on':''}" stroke-width="${g1w}"/>
-<line x1="100" y1="16" x2="100" y2="38" class="pline ${g1act?'on':''}" stroke-width="${g1w}"/>
+<line x1="54" y1="16" x2="100" y2="16" class="pline ${g1line}" stroke-width="${g1w}"/>
+<line x1="100" y1="16" x2="100" y2="38" class="pline ${g1line}" stroke-width="${g1w}"/>
 <!-- G2 (source, bottom-left) -->
 <circle cx="38" cy="60" r="16" fill="${c2.fill}" stroke="${c2.stroke}" stroke-width="1.5"/>
 <text x="38" y="56" fill="${c2.txt}" font-size="8" text-anchor="middle" font-family="var(--m)" font-weight="700">Г2</text>
 <text x="38" y="65" fill="${c2.sub}" font-size="6.5" text-anchor="middle" font-family="var(--m)" font-weight="600">${c2.lbl||(p2>0?_pws(p2)+' кВт':'РАБ')}</text>
 <!-- G2 → Y-join -->
-<line x1="54" y1="60" x2="100" y2="60" class="pline ${g2act?'on':''}" stroke-width="${g2w}"/>
-<line x1="100" y1="60" x2="100" y2="38" class="pline ${g2act?'on':''}" stroke-width="${g2w}"/>
+<line x1="54" y1="60" x2="100" y2="60" class="pline ${g2line}" stroke-width="${g2w}"/>
+<line x1="100" y1="60" x2="100" y2="38" class="pline ${g2line}" stroke-width="${g2w}"/>
 <!-- Y-join → Busbar Switch -->
-<line x1="100" y1="38" x2="150" y2="38" class="pline ${gAct?'on':''}"/>
+<line x1="100" y1="38" x2="150" y2="38" class="pline ${(g1st===1&&g2st===1)?'off':(gAct?'on':'')}"/>
 <!-- GEN POWER LABEL: P генераторов (сумма G1+G2) — над линией авт.шины→шина -->
-${gAct&&genTotal>0?`<text x="270" y="34" fill="var(--g)" font-size="7.5" text-anchor="middle" font-family="var(--m)" font-weight="700" style="cursor:pointer" onclick="showPwChart('bus')">${_pw(genTotal)}</text>`:''}
+${gAct&&genTotal>0&&!sprOff?`<text x="270" y="34" fill="var(--g)" font-size="7.5" text-anchor="middle" font-family="var(--m)" font-weight="700" style="cursor:pointer" onclick="showPwChart('bus')">${_pw(genTotal)}</text>`:''}
 <!-- Busbar Switch -->
-<rect x="150" y="28" width="48" height="20" rx="4" fill="${bC?'rgba(0,224,154,.08)':'var(--ov)'}" stroke="${bC?'var(--g)':'var(--t4)'}" stroke-width="1.5"/>
-<text x="174" y="41" fill="${bC?'var(--g)':'var(--t3)'}" font-size="6.5" text-anchor="middle" font-family="var(--m)" font-weight="600">${bC?'ЗАМКН':'РАЗОМК'}</text>
-<text x="174" y="23" fill="var(--t3)" font-size="5.5" text-anchor="middle" font-family="var(--m)">Авт. шины</text>
+<rect x="150" y="28" width="48" height="20" rx="4" fill="${sprOff?'rgba(255,64,96,.06)':(bC?'rgba(0,224,154,.08)':'var(--ov)')}" stroke="${sprOff?'#ff4060':(bC?'var(--g)':'var(--t4)')}" stroke-width="1.5"/>
+<text x="174" y="41" fill="${sprOff?'#ff4060':(bC?'var(--g)':'var(--t3)')}" font-size="6.5" text-anchor="middle" font-family="var(--m)" font-weight="600">${sprOff?'ОФЛАЙН':(bC?'ЗАМКН':'РАЗОМК')}</text>
+<text x="174" y="23" fill="${sprOff?'rgba(255,64,96,.5)':'var(--t3)'}" font-size="5.5" text-anchor="middle" font-family="var(--m)">Авт. шины</text>
 <!-- Busbar Switch → BUS LEFT -->
-<line x1="198" y1="38" x2="340" y2="38" class="pline bus ${gAct?'on':(busAct?'on':'')}" stroke-width="4"/>
+<line x1="198" y1="38" x2="340" y2="38" class="pline bus ${sprBusL}" stroke-width="4"/>
 <!-- BUS CENTER LABEL -->
-<rect x="340" y="29" width="64" height="18" rx="4" fill="var(--bg3)" stroke="${busAct?'var(--g)':'var(--t4)'}" stroke-width="1"/>
-<text x="372" y="41" fill="${busAct?'var(--g)':'var(--t3)'}" font-size="8" text-anchor="middle" font-family="var(--m)" font-weight="700">ШИНА</text>
-<text x="372" y="24" fill="var(--p)" font-size="5.5" text-anchor="middle" font-family="var(--m)" font-weight="600">ШПР</text>
+<rect x="340" y="29" width="64" height="18" rx="4" fill="${sprOff?'rgba(255,64,96,.06)':'var(--bg3)'}" stroke="${sprOff?'#ff4060':(busAct?'var(--g)':'var(--t4)')}" stroke-width="1"/>
+<text x="372" y="41" fill="${sprOff?'#ff4060':(busAct?'var(--g)':'var(--t3)')}" font-size="8" text-anchor="middle" font-family="var(--m)" font-weight="700">${sprOff?'ОФЛАЙН':'ШИНА'}</text>
+<text x="372" y="24" fill="${sprOff?'rgba(255,64,96,.5)':'var(--p)'}" font-size="5.5" text-anchor="middle" font-family="var(--m)" font-weight="600">ШПР</text>
 <!-- BUS RIGHT → Mains Switch -->
-<line x1="404" y1="38" x2="520" y2="38" class="pline bus ${mAct?'monR':(busAct?'on':'')}" stroke-width="4"/>
+<line x1="404" y1="38" x2="520" y2="38" class="pline bus ${sprBusR}" stroke-width="4"/>
 <!-- MAINS POWER LABEL: P сети (ТТ сетевого ввода) — над линией шина→авт.сети -->
-${mC&&mP>0?`<text x="462" y="34" fill="#4090ff" font-size="7.5" text-anchor="middle" font-family="var(--m)" font-weight="700" style="cursor:pointer" onclick="showPwChart('mains')">${_pw(mP)}</text>`:''}
+${mC&&mP>0&&!sprOff?`<text x="462" y="34" fill="#4090ff" font-size="7.5" text-anchor="middle" font-family="var(--m)" font-weight="700" style="cursor:pointer" onclick="showPwChart('mains')">${_pw(mP)}</text>`:''}
 <!-- Mains Switch -->
-<rect x="520" y="28" width="48" height="20" rx="4" fill="${mC?'rgba(64,144,255,.1)':'var(--ov)'}" stroke="${mC?'#4090ff':'var(--t4)'}" stroke-width="1.5"/>
-<text x="544" y="41" fill="${mC?'#4090ff':'var(--t3)'}" font-size="6.5" text-anchor="middle" font-family="var(--m)" font-weight="600">${mC?'ЗАМКН':'РАЗОМК'}</text>
-<text x="544" y="23" fill="var(--t3)" font-size="5.5" text-anchor="middle" font-family="var(--m)">Авт. сети</text>
+<rect x="520" y="28" width="48" height="20" rx="4" fill="${sprOff?'rgba(255,64,96,.06)':(mC?'rgba(64,144,255,.1)':'var(--ov)')}" stroke="${sprOff?'#ff4060':(mC?'#4090ff':'var(--t4)')}" stroke-width="1.5"/>
+<text x="544" y="41" fill="${sprOff?'#ff4060':(mC?'#4090ff':'var(--t3)')}" font-size="6.5" text-anchor="middle" font-family="var(--m)" font-weight="600">${sprOff?'ОФЛАЙН':(mC?'ЗАМКН':'РАЗОМК')}</text>
+<text x="544" y="23" fill="${sprOff?'rgba(255,64,96,.5)':'var(--t3)'}" font-size="5.5" text-anchor="middle" font-family="var(--m)">Авт. сети</text>
 <!-- Mains Switch → MAINS -->
-<line x1="568" y1="38" x2="630" y2="38" class="pline ${mAct?'monR':''}" stroke-width="${mw}"/>
+<line x1="568" y1="38" x2="630" y2="38" class="pline ${sprMainsLine}" stroke-width="${mw}"/>
 <!-- MAINS (source, right) -->
-<rect x="630" y="26" width="56" height="24" rx="5" fill="${mN?'rgba(64,144,255,.1)':'rgba(255,64,96,.06)'}" stroke="${mN?'#4090ff':'#ff4060'}" stroke-width="1.5"/>
-<text x="658" y="42" fill="${mN?'#4090ff':'#ff4060'}" font-size="8.5" text-anchor="middle" font-family="var(--m)" font-weight="600">СЕТЬ</text>
-<text x="658" y="20" fill="${mN?'rgba(64,144,255,.6)':'rgba(255,64,96,.5)'}" font-size="5.5" text-anchor="middle" font-family="var(--m)">${mN?'НОРМА':'АВАРИЯ'}</text>
+<rect x="630" y="26" width="56" height="24" rx="5" fill="${sprOff?'var(--ov)':(mN?'rgba(64,144,255,.1)':'rgba(255,64,96,.06)')}" stroke="${sprOff?'var(--t4)':(mN?'#4090ff':'#ff4060')}" stroke-width="1.5"/>
+<text x="658" y="42" fill="${sprOff?'var(--t3)':(mN?'#4090ff':'#ff4060')}" font-size="8.5" text-anchor="middle" font-family="var(--m)" font-weight="600">СЕТЬ</text>
+<text x="658" y="20" fill="${sprOff?'var(--t4)':(mN?'rgba(64,144,255,.6)':'rgba(255,64,96,.5)')}" font-size="5.5" text-anchor="middle" font-family="var(--m)">${sprOff?'—':(mN?'НОРМА':'АВАРИЯ')}</text>
 <!-- BUS → LOAD -->
-<line x1="372" y1="47" x2="372" y2="68" class="pline ${busAct?'lon':''}" stroke-width="3.5"/>
+<line x1="372" y1="47" x2="372" y2="68" class="pline ${sprLoad}" stroke-width="3.5"/>
 <!-- LOAD POWER LABEL: P нагрузки = P шины + P сети -->
-${busAct&&loadP>0?`<text x="398" y="60" fill="var(--y)" font-size="7.5" text-anchor="start" font-family="var(--m)" font-weight="700" style="cursor:pointer" onclick="showPwChart('load')">${_pw(loadP)}</text>`:''}
-<rect x="342" y="68" width="60" height="22" rx="5" fill="${busAct?'rgba(255,176,32,.06)':'var(--ov)'}" stroke="${busAct?'var(--y)':'var(--t4)'}" stroke-width="1.5"/>
-<text x="372" y="82" fill="${busAct?'var(--y)':'var(--t3)'}" font-size="7.5" text-anchor="middle" font-family="var(--m)" font-weight="600">НАГРУЗКА</text>
+${busAct&&loadP>0&&!sprOff?`<text x="398" y="60" fill="var(--y)" font-size="7.5" text-anchor="start" font-family="var(--m)" font-weight="700" style="cursor:pointer" onclick="showPwChart('load')">${_pw(loadP)}</text>`:''}
+<rect x="342" y="68" width="60" height="22" rx="5" fill="${sprOff?'rgba(255,64,96,.06)':(busAct?'rgba(255,176,32,.06)':'var(--ov)')}" stroke="${sprOff?'#ff4060':(busAct?'var(--y)':'var(--t4)')}" stroke-width="1.5"/>
+<text x="372" y="82" fill="${sprOff?'#ff4060':(busAct?'var(--y)':'var(--t3)')}" font-size="7.5" text-anchor="middle" font-family="var(--m)" font-weight="600">${sprOff?'—':'НАГРУЗКА'}</text>
 </svg>`}
 // === RENDER ===
 function renderDash(){stopB24Poll();curView='monitoring';const mn=$('mainArea');
 if(!cur||!S[cur]){mn.innerHTML='<div class="empty-dash" style="height:100%"><div style="font-size:48px;margin-bottom:16px;opacity:.4">🏭</div><p style="font-size:14px">Выберите объект или <span style="color:var(--g);cursor:pointer" onclick="openAddSite()">создайте новый</span></p></div>';return}
-const s=S[cur],hg1=!!s.g1?.ip,hg2=!!s.g2?.ip,hs=!!s.spr?.ip,cfg=[hg1,hg2,hs].filter(Boolean).length;
+const s=S[cur],genSlots=getGenSlots(cur),hs=!!s.spr?.ip,cfg=genSlots.filter(sl=>!!s[sl]?.ip).length+(hs?1:0),totalSlots=genSlots.length+(hs?1:0);
 mn.innerHTML=`<div class="dh"><div class="dt"><div class="ld"></div><h1>${esc(s.name)}${s.desc?' — '+esc(s.desc):''}</h1></div><div style="display:flex;align-items:center;gap:16px"><div class="da"><button onclick="openSet()">⚙ Настройки</button><button id="demoBtn" class="${demo?'demo-on':''}" onclick="togDemo()">${demo?'⏹ Стоп':'▶ Демо'}</button></div><span class="ck" id="ck"></span></div></div>
-<div class="ss"><div class="sc"><div class="sl2">P нагр.</div><div class="sv" style="color:var(--y)" id="sP">—<span class="su">кВт</span></div></div><div class="sc"><div class="sl2">P генераторов</div><div class="sv" style="color:var(--g)" id="sPg">—<span class="su">кВт</span></div></div><div class="sc"><div class="sl2">U сети</div><div class="sv" id="sU">—<span class="su">В</span></div></div><div class="sc"><div class="sl2">Устройства</div><div class="sv" id="sG">${cfg}<span class="su">/3</span></div></div><div class="sc"><div class="sl2">Состояние</div><div id="sSt"><span class="bdg bdg-off">${cfg?'Ожидание':'—'}</span></div></div><div class="sc"><div class="sl2">Ответственный</div><div class="sv" id="sResp" style="font-size:12px">—</div></div></div>
+<div class="ss"><div class="sc"><div class="sl2">P нагр.</div><div class="sv" style="color:var(--y)" id="sP">—<span class="su">кВт</span></div></div><div class="sc"><div class="sl2">P генераторов</div><div class="sv" style="color:var(--g)" id="sPg">—<span class="su">кВт</span></div></div><div class="sc"><div class="sl2">U сети</div><div class="sv" id="sU">—<span class="su">В</span></div></div><div class="sc"><div class="sl2">Устройства</div><div class="sv" id="sG">${cfg}<span class="su">/${totalSlots||3}</span></div></div><div class="sc"><div class="sl2">Состояние</div><div id="sSt"><span class="bdg bdg-off">${cfg?'Ожидание':'—'}</span></div></div><div class="sc"><div class="sl2">Ответственный</div><div class="sv" id="sResp" style="font-size:12px">—</div></div></div>
 ${cfg===0?'<div class="empty-dash" style="padding:40px"><div style="font-size:32px;margin-bottom:10px;opacity:.4">⚙</div><p>Нажмите <b>Настройки</b></p></div>':`
-<div class="gg">${genCard('g1','Генератор 1',s.g1)}${genCard('g2','Генератор 2',s.g2)}</div>
-<div class="pflow" id="pflow">${flowSvg(false,false,false,false,false,0,0,0,0,hg1?1:0,hg2?1:0)}</div>
+<div class="gg">${genSlots.map(sl=>genCard(sl,'Генератор '+sl.slice(1),s[sl])).join('')}</div>
+<div class="pflow" id="pflow">${flowSvg(false,false,false,false,false,0,0,0,0,genSlots.length>=1&&s.g1?.ip?1:0,genSlots.length>=2&&s.g2?.ip?1:0,hs?1:0)}</div>
 ${hs?sprCard(s.spr):''}
 `}<div class="ev${localStorage.getItem('evCollapsed')==='1'?' collapsed':''}" id="evPanel"><div class="ev-t" onclick="toggleEvPanel()">📋 Журнал событий <span class="ev-badge" id="evBadge"></span><span class="ev-arrow" id="evArrow">▼</span></div><div class="ev-body" id="evBody"><div id="evL"><div style="color:var(--t4);font-size:11px">Загрузка...</div></div></div></div>`;uCk();if(demo)demoTick();loadServerEvents()}
 function genCard(sl,nm,c){
@@ -1776,6 +1845,7 @@ const rh=c.runHours||0,to=getNextTO(rh,cur,sl),tc=to.remain<0?'to-r':to.pct>85?'
 return`<div class="cc s-stb" id="c${sl}"><div class="ch" onclick="tog('c${sl}')">
 <div class="cr1"><div class="cid"><div class="cdot cd-x"></div><div><div class="cn">${nm}</div><div class="csb">HGM9520N${c.proto==='rtu_over_tcp'?' (RTU)':''} · ${esc(c.ip)}:${c.port||(c.proto==='rtu_over_tcp'?26:502)} <span id="${sl}-rh" style="color:var(--t);font-weight:600;margin-left:6px">⏱ ${rh} ч</span></div></div></div><span class="bdg bdg-off" onclick="event.stopPropagation();openAlarms('c${sl}','${sl}a')" title="Нажми для просмотра аварий">ОЖИДАНИЕ</span></div>
 <div class="kr kr5"><div class="kp"><div class="kl">P</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">U</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">I</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">f</div><div class="kv vm">—</div></div><div class="kp"><div class="kl">Синхр.</div><div class="kv vm">—</div></div></div>
+<div class="kr kr3" id="${sl}-gas" style="display:none"><div class="kp"><div class="kl">Газ</div><div class="kv vm">— кПа</div></div><div class="kp"><div class="kl">Расход</div><div class="kv vm">— м³/ч</div></div><div class="kp"><div class="kl">λ</div><div class="kv vm">—</div></div></div>
 <div class="to-block" id="${sl}-to" onclick="event.stopPropagation();${to.unknown?'openSet()':'this.classList.toggle(&quot;exp&quot;)'}"><div class="to-head"><span class="to-name ${to.unknown?'to-y':tc}">${to.unknown?'⚠ Укажите последнее ТО':to.name+' → '+to.dueAt+'ч'}</span><span class="to-remain">${to.unknown?'<span style=&quot;color:var(--y);cursor:pointer&quot;>Настройки →</span>':(to.remain>0?to.remain+'ч ост.':(to.remain<0?'просроч. '+Math.abs(to.remain)+'ч':'сейчас'))+' · '+rh+'ч'}</span></div>${to.unknown?'':`<div class="to-bar"><div class="to-fill" style="width:${to.pct}%;background:${bc}"></div></div><div class="to-tasks">${to.tasks?.slice(0,5).map(t=>'• '+(t.c?'<b>':'')+t.text+(t.c?'</b>':'')).join('<br>')||''}</div><div class="to-hint">▼ работы · <span style="color:var(--g);cursor:pointer" onclick="event.stopPropagation();openTO('${sl}')">ТО</span></div>`}</div>
 <div class="mds"><span class="mdt">AUTO</span><span class="mdt">MAN</span><span class="mdt">TEST</span><span class="mdt">STOP</span></div>
 <div class="pl-block" id="${sl}-pl" style="display:none">
@@ -1803,9 +1873,10 @@ return`<div class="cc s-stb" id="c${sl}"><div class="ch" onclick="tog('c${sl}')"
 </div><div class="cmd-st" id="cs-${nm.replace(/[\s\/]/g,'')}"></div></div>
 <div class="cv" onclick="tog('c${sl}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
 <div class="ce"><div class="ei">
-<div class="tbs"><button class="tb on" onclick="stab(this,'${sl}e')">Электрика</button><button class="tb" onclick="stab(this,'${sl}m')">Двигатель</button><button class="tb" onclick="stab(this,'${sl}a')">Аварии</button><button class="tb" onclick="stab(this,'${sl}c')">Все команды</button></div>
+<div class="tbs"><button class="tb on" onclick="stab(this,'${sl}e')">Электрика</button><button class="tb" onclick="stab(this,'${sl}m')">Двигатель</button><button class="tb" onclick="stab(this,'${sl}g')">Газ</button><button class="tb" onclick="stab(this,'${sl}a')">Аварии</button><button class="tb" onclick="stab(this,'${sl}c')">Все команды</button></div>
 <div class="tp on" id="${sl}e"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Ожидание данных...</div></div>
 <div class="tp" id="${sl}m"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Ожидание...</div></div>
+<div class="tp" id="${sl}g"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Ожидание данных ECU...</div></div>
 <div class="tp" id="${sl}a">
 <div style="display:flex;gap:4px;margin-bottom:8px"><button class="spr-b" style="flex:1;font-weight:600;color:var(--r)" id="${sl}a-act-btn" onclick="showAlarmSub('${sl}','act')">🔴 Активные</button><button class="spr-b" style="flex:1" id="${sl}a-arc-btn" onclick="showAlarmSub('${sl}','arc')">📋 Архив</button></div>
 <div id="${sl}a-act"><div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Нет аварий ✓</div></div>
@@ -1971,7 +2042,7 @@ if(_g2id){if(!latestMetrics[_g2id])latestMetrics[_g2id]={};latestMetrics[_g2id].
 // Pass actual power values to applyGen for display
 applyGen('g1',s1,S[cur].g1?.runHours||1227,p1base,true);applyGen('g2',s2,S[cur].g2?.runHours||489,p2base,true);applySpr(on1||on2,mN,bC,mC,true);
 const p1=on1?p1base+R(-10,10):0,p2=on2?p2base+R(-10,10):0,mP=mN&&mC?R(100,200):0;const busP2=p1+p2+(mN&&mC?mP:0);const el=n=>document.getElementById(n);
-const pf=$('pflow');if(pf)pf.innerHTML=flowSvg(on1,on2,mN,bC,mC,p1,p2,mP,busP2,2,2);
+const pf=$('pflow');if(pf)pf.innerHTML=flowSvg(on1,on2,mN,bC,mC,p1,p2,mP,busP2,2,2,2);
 if(el('sP'))el('sP').innerHTML=`${(p1+p2+mP).toFixed(1)}<span class="su">кВт</span>`;
 if(el('sPg'))el('sPg').innerHTML=`${(p1+p2).toFixed(1)}<span class="su">кВт</span>`;
 if(el('sU')){if(mN)el('sU').innerHTML=`${RI(398,406)}<span class="su">В</span>`;else el('sU').innerHTML='<span style="color:var(--r)">АВАР</span>'}
@@ -1993,7 +2064,7 @@ const kvs=card.querySelectorAll('.kv');
 if(on&&isOnline){kvs[0].className='kv vg';kvs[0].innerHTML=p.toFixed(1)+'<span class="ku">кВт</span>';kvs[1].className='kv vn';kvs[1].innerHTML=u.toFixed(0)+'<span class="ku">В</span>';kvs[2].className='kv vn';kvs[2].innerHTML=Math.round(I)+'<span class="ku">А</span>';kvs[3].className='kv vn';kvs[3].innerHTML=f.toFixed(2)+'<span class="ku">Гц</span>'}else{kvs[0].className='kv vm';kvs[0].textContent='—';kvs[1].className='kv vm';kvs[1].textContent='—';kvs[2].className='kv vm';kvs[2].textContent='—';kvs[3].className='kv vm';kvs[3].textContent='—'}
 if(kvs[4]){const ats=mx?.gen_ats_status;if(ats!=null&&isOnline){const hasSd=mx.volt_diff!=null||mx.freq_diff!=null||mx.phase_diff!=null;if(ats===0&&hasSd){const sU=mx.volt_diff!=null&&Math.abs(mx.volt_diff)<5,sF=mx.freq_diff!=null&&Math.abs(mx.freq_diff)<0.3,sP=mx.phase_diff!=null&&Math.abs(mx.phase_diff)<10;const cnt=(sU?1:0)+(sF?1:0)+(sP?1:0);kvs[4].className='kv '+(cnt===3?'vg':cnt>=1?'vw':'va')+' sync-pulse';kvs[4].innerHTML=(sU?'✓':'✗')+(sF?'✓':'✗')+(sP?'✓':'✗')}else if(ats===3){kvs[4].className='kv vg';kvs[4].textContent='✓ Замкн.'}else{const atsTxt=ATS_ST_TEXT[ats]||'?';kvs[4].className='kv '+(ats===7?'vm':ats===0?'vw sync-pulse':'vn');kvs[4].textContent=atsTxt}}else{kvs[4].className='kv vm';kvs[4].textContent='—'}}
 const modes=card.querySelectorAll('.mdt');modes.forEach(m=>m.classList.remove('on'));
-if(mx){if(mx.mode_auto)modes[0]?.classList.add('on');if(mx.mode_manual)modes[1]?.classList.add('on');if(mx.mode_test)modes[2]?.classList.add('on');if(mx.mode_stop)modes[3]?.classList.add('on')}else{if(on)modes[0]?.classList.add('on');else modes[3]?.classList.add('on')}
+if(isOnline&&mx){if(mx.mode_auto)modes[0]?.classList.add('on');if(mx.mode_manual)modes[1]?.classList.add('on');if(mx.mode_test)modes[2]?.classList.add('on');if(mx.mode_stop)modes[3]?.classList.add('on')}else if(isOnline){if(on)modes[0]?.classList.add('on');else modes[3]?.classList.add('on')}
 if(typeof updateQuickButtons==='function')updateQuickButtons('c'+sl,mx);
 // Power Limit block — always visible when online (disabled placeholder if no data)
 const plb=$(sl+'-pl');if(plb){const hasPL=mx&&(mx.current_p_pct!=null||mx.target_p_pct!=null);if(hasPL&&isOnline){plb.style.display='';plb.classList.remove('disabled');const cpP=mx.current_p_pct??0,tpP=mx.target_p_pct,cpQ=mx.current_q_pct??0,tpQ=mx.target_q_pct;const pfEl=$(sl+'-pl-pf'),qfEl=$(sl+'-pl-qf'),pvEl=$(sl+'-pl-pv'),qvEl=$(sl+'-pl-qv');if(pfEl){pfEl.style.width=Math.min(cpP,100)+'%';pfEl.className='pl-fill'+(cpP>80?' pl-crit':cpP>50?' pl-warn':'')}if(qfEl){qfEl.style.width=Math.min(Math.abs(cpQ),100)+'%';qfEl.className='pl-fill pl-q'+(Math.abs(cpQ)>80?' pl-crit':Math.abs(cpQ)>50?' pl-warn':'')}if(pvEl)pvEl.textContent=cpP.toFixed(1)+'%'+(tpP!=null?' → '+tpP.toFixed(1)+'%':'');if(qvEl)qvEl.textContent=cpQ.toFixed(1)+'%'+(tpQ!=null?' → '+tpQ.toFixed(1)+'%':'')}else if(isOnline){plb.style.display='';plb.classList.add('disabled');const pfEl=$(sl+'-pl-pf'),qfEl=$(sl+'-pl-qf'),pvEl=$(sl+'-pl-pv'),qvEl=$(sl+'-pl-qv');if(pfEl)pfEl.style.width='0%';if(qfEl)qfEl.style.width='0%';if(pvEl)pvEl.textContent='—';if(qvEl)qvEl.textContent='—'}else{plb.style.display='none'}}
@@ -2044,8 +2115,30 @@ const batt=mx?.battery_volt!=null?mx.battery_volt:R(27,28.5);
 const ctC=(typeof ct==='number'&&ct>95)?'va':(typeof ct==='number'&&ct>88)?'vw':'vn';
 const opC=(typeof op==='number'&&op<300)?'va':'vn';
 const fuelC=(typeof fuel==='number'&&fuel<50)?'vw':'vn';
-mT.innerHTML=`<div class="mg"><div class="mc mc-click" onclick="openFieldArchive('${sl}','engine_speed')"><div class="ml">Обороты 📈</div><div class="mv vn">${rpm}</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','coolant_temp')"><div class="ml">Темп.ОЖ 📈</div><div class="mv ${ctC}">${ct}°C</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','oil_pressure')"><div class="ml">Давл.масла 📈</div><div class="mv ${opC}">${op} кПа</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','oil_temp')"><div class="ml">Темп.масла 📈</div><div class="mv vn">${oilT}°C</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','fuel_level')"><div class="ml">Топливо 📈</div><div class="mv ${fuelC}">${fuel}%</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','fuel_consumption')"><div class="ml">Расход 📈</div><div class="mv vn">${typeof fc==='number'?fc.toFixed(1):fc} л/ч</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','turbo_pressure')"><div class="ml">Турбо 📈</div><div class="mv vn">${turbo} кПа</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','battery_volt')"><div class="ml">Батарея 📈</div><div class="mv vn">${typeof batt==='number'?batt.toFixed(1):batt}В</div></div></div>`}
+// Specific gas consumption: fuel_consumption / power_total (м³/кВт·ч)
+const sgcPt=mx?.power_total!=null?mx.power_total:0;
+const sgcFc=typeof fc==='number'?fc:0;
+const sgcVal=(sgcPt>5&&sgcFc>0)?(sgcFc/sgcPt):null;
+const sgcTxt=sgcVal!=null?sgcVal.toFixed(3):'---';
+const sgcC=sgcVal!=null?(sgcVal>0.5?'va':sgcVal>0.35?'vw':'vg'):'vm';
+mT.innerHTML=`<div class="mg"><div class="mc mc-click" onclick="openFieldArchive('${sl}','engine_speed')"><div class="ml">Обороты 📈</div><div class="mv vn">${rpm}</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','coolant_temp')"><div class="ml">Темп.ОЖ 📈</div><div class="mv ${ctC}">${ct}°C</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','oil_pressure')"><div class="ml">Давл.масла 📈</div><div class="mv ${opC}">${op} кПа</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','oil_temp')"><div class="ml">Темп.масла 📈</div><div class="mv vn">${oilT}°C</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','fuel_level')"><div class="ml">Топливо 📈</div><div class="mv ${fuelC}">${fuel}%</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','fuel_consumption')"><div class="ml">Расход 📈</div><div class="mv vn">${typeof fc==='number'?fc.toFixed(1):fc} м³/ч</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}',null,'efficiency')"><div class="ml">Уд. расход 📈</div><div class="mv ${sgcC}">${sgcTxt}<span class="mu"> м³/кВт·ч</span></div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','turbo_pressure')"><div class="ml">Турбо 📈</div><div class="mv vn">${turbo} кПа</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','battery_volt')"><div class="ml">Батарея 📈</div><div class="mv vn">${typeof batt==='number'?batt.toFixed(1):batt}В</div></div></div>`}
 else if(mT&&!isOnline)mT.innerHTML=`<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Нет связи</div>`;
+// --- Gas quick row (below P/U/I/f/Sync) ---
+const gasRow=$(sl+'-gas');if(gasRow){const gp=mx?.gas_pressure,fcRaw=mx?.fuel_consumption,agr=mx?.air_gas_ratio;
+const hasGas=gp!=null||agr!=null;
+if(hasGas&&isOnline&&on){gasRow.style.display='';const gkvs=gasRow.querySelectorAll('.kv');
+if(gp!=null){const gpC=gp<2?'va':gp<5?'vw':'vn';gkvs[0].className='kv '+gpC;gkvs[0].innerHTML=gp.toFixed(1)+'<span class="ku">кПа</span>'}
+if(fcRaw!=null){gkvs[1].className='kv vn';gkvs[1].innerHTML=fcRaw.toFixed(1)+'<span class="ku">м³/ч</span>'}
+if(agr!=null){const agrC=(agr>=0.95&&agr<=1.05)?'vg':(agr<0.8||agr>1.2)?'va':'vw';gkvs[2].className='kv '+agrC;gkvs[2].innerHTML=agr.toFixed(2)}}
+else{gasRow.style.display='none'}}
+// --- Gas tab ---
+const gT=$(sl+'g');if(gT&&isOnline){
+const ign=mx?.ignition_timing,gasT=mx?.gas_temp,ebp=mx?.exhaust_back_pressure,tvp=mx?.throttle_valve_pos,exO2=mx?.exhaust_oxygen,fvp=mx?.fuel_valve_pos,fip=mx?.fuel_inlet_pressure,tvc=mx?.throttle_valve_cmd,ets=mx?.engine_target_speed,accF=mx?.accumulated_fuel;
+const gasTempC=(typeof gasT==='number'&&gasT>70)?'va':(typeof gasT==='number'&&gasT>50)?'vw':'vn';
+const ebpC=(typeof ebp==='number'&&ebp>25)?'va':(typeof ebp==='number'&&ebp>15)?'vw':'vn';
+const exO2C=(typeof exO2==='number'&&(exO2>8||exO2<0.5))?'va':(typeof exO2==='number'&&exO2>5)?'vw':'vn';
+gT.innerHTML=`<div class="mg"><div class="mc mc-click" onclick="openFieldArchive('${sl}','ignition_timing')"><div class="ml">Зажигание 📈</div><div class="mv vn">${ign!=null?ign.toFixed(1):'---'}°</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','gas_temp')"><div class="ml">Темп. газа 📈</div><div class="mv ${gasTempC}">${gasT!=null?gasT:'---'}°C</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','exhaust_back_pressure')"><div class="ml">Противодавл. 📈</div><div class="mv ${ebpC}">${ebp!=null?ebp.toFixed(1):'---'} кПа</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','throttle_valve_pos')"><div class="ml">Дроссель 📈</div><div class="mv vn">${tvp!=null?tvp.toFixed(1):'---'}%</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','exhaust_oxygen')"><div class="ml">O₂ выхлоп 📈</div><div class="mv ${exO2C}">${exO2!=null?exO2.toFixed(1):'---'}%</div></div><div class="mc mc-click" onclick="openFieldArchive('${sl}','fuel_valve_pos')"><div class="ml">Клап. топлива 📈</div><div class="mv vn">${fvp!=null?fvp.toFixed(1):'---'}%</div></div></div><div class="mg" style="margin-top:10px"><div class="mc"><div class="ml">Давл. на входе</div><div class="mv vn">${fip!=null?fip.toFixed(1):'---'} кПа</div></div><div class="mc"><div class="ml">Цель оборотов</div><div class="mv vn">${ets!=null?ets:'---'} об/мин</div></div><div class="mc"><div class="ml">Накопл. топливо</div><div class="mv vn">${accF!=null?accF.toLocaleString():'---'} л</div></div></div>`}
+else if(gT&&!isOnline)gT.innerHTML=`<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Нет связи</div>`;
 const aT=$(sl+'a-act');if(aT){let ah='';
 if(!connOk) ah+=`<div class="ai aa">🔴 <b style="color:var(--r)">CONN_LOST</b> Нет связи с HGM9520N<span style="margin-left:auto;color:var(--t4)">${now()}</span></div>`;
 const _did = getDeviceIdForSlot(sl);
@@ -2327,14 +2420,15 @@ const devId=getDeviceIdForSlot(sl);
 if(!devId){el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:15px">Устройство не настроено</div>';return}
 el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:15px">⏳ Загрузка...</div>';
 try{
-const alarms=await api.get('/api/history/alarms?device_id='+devId+'&limit=50&last_hours=168');
+const alarms=await api.get('/api/alarm-analytics/events?device_id='+devId+'&limit=50');
 if(!alarms.length){el.innerHTML='<div style="color:var(--t3);font-size:12px;text-align:center;padding:15px">Архив пуст</div>';return}
 el.innerHTML='<div style="max-height:220px;overflow-y:auto">'+alarms.map(function(a){
-var isErr=a.severity==='error';var ico=isErr?'🔴':'⚠';var col=isErr?'var(--r)':'var(--y)';
+var sev=a.alarm_severity||'';var isErr=sev==='shutdown'||sev==='error'||sev==='trip_stop';var ico=isErr?'🔴':'⚠';var col=isErr?'var(--r)':'var(--y)';
+var msg=a.alarm_name_ru||a.alarm_name||a.alarm_code;
 var t=new Date(a.occurred_at+'Z').toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 var dur='';if(a.cleared_at){var ms=new Date(a.cleared_at+'Z')-new Date(a.occurred_at+'Z');dur=ms<60000?(Math.round(ms/1000)+'с'):(Math.round(ms/60000)+'мин')}
 var status=a.is_active?'<span style="color:var(--r);font-size:9px">● активна</span>':'<span style="color:var(--t4);font-size:9px">✓ '+(dur||'')+'</span>';
-return'<div class="ai '+(isErr?'aa':'aw')+'" style="margin-bottom:2px"><span style="font-size:10px">'+ico+'</span><b style="color:'+col+';font-size:10px;margin:0 4px">'+esc(a.alarm_code)+'</b><span style="font-size:11px;flex:1">'+esc(a.message)+'</span>'+status+'<span style="color:var(--t4);font-size:9px;white-space:nowrap;margin-left:4px">'+t+'</span></div>'
+return'<div class="ai '+(isErr?'aa':'aw')+'" style="margin-bottom:2px"><span style="font-size:10px">'+ico+'</span><b style="color:'+col+';font-size:10px;margin:0 4px">'+esc(a.alarm_code)+'</b><span style="font-size:11px;flex:1">'+esc(msg)+'</span>'+status+'<span style="color:var(--t4);font-size:9px;white-space:nowrap;margin-left:4px">'+t+'</span></div>'
 }).join('')+'</div>'
 }catch(e){el.innerHTML='<div style="color:var(--r);font-size:11px;text-align:center;padding:15px">Ошибка: '+esc(e.message)+'</div>'}
 }
@@ -2425,11 +2519,14 @@ function setSprLoadMode(mode){
 function updateQuickButtons(cardId, mx){
     if(!mx)return;
     const card=$(cardId);if(!card)return;
+    const isOffline=mx.online===false;
     const isRunning=mx.gen_status===9||mx.genset_status===9;
     const qbs=card.querySelectorAll('.qb,.cb2.q-start,.cb2.q-stop,.cb2.q-auto,.cb2.q-manual');
     let hasOn=false;
     qbs.forEach(b=>{
         b.classList.remove('on','dim');
+        if(isOffline){b.disabled=true;b.style.opacity='.3';b.style.pointerEvents='none';return}
+        b.disabled=false;b.style.opacity='';b.style.pointerEvents='';
         if(b.classList.contains('q-start')&&isRunning){b.classList.add('on');hasOn=true}
         else if(b.classList.contains('q-auto')&&mx.mode_auto){b.classList.add('on');hasOn=true}
         else if(b.classList.contains('q-manual')&&mx.mode_manual){b.classList.add('on');hasOn=true}
@@ -2439,6 +2536,7 @@ function updateQuickButtons(cardId, mx){
 }
 function updateSprControlMode(mx){
     if(!mx)return;
+    const isOffline=mx.online===false;
     // --- Quick buttons (top row) ---
     updateQuickButtons('cspr',mx);
     // --- Command buttons: Авто / Ручн. / Стоп ---
@@ -2452,6 +2550,8 @@ function updateSprControlMode(mx){
     cmdMap.forEach(c=>{
         const btn=$(c.id);if(!btn)return;
         btn.classList.remove('act-g','act-r','act-b','act-y');
+        if(isOffline){btn.disabled=true;btn.style.opacity='.3';btn.style.pointerEvents='none';return}
+        btn.disabled=false;btn.style.opacity='';btn.style.pointerEvents='';
         let active=false;
         if(c.id==='sprCmdStart') active=isRunning;
         else if(c.flag) active=!!mx[c.flag];
@@ -2459,8 +2559,8 @@ function updateSprControlMode(mx){
     });
     // --- Switch buttons: Авт.сети / Авт.шины ---
     const mSwBtn=$('sprCmdMains'), bSwBtn=$('sprCmdBusbar');
-    if(mSwBtn){mSwBtn.classList.remove('act-g','act-r','act-b','act-y');if(mx.mains_switch===3)mSwBtn.classList.add('act-g');else if(mx.mains_switch===7)mSwBtn.classList.add('act-r')}
-    if(bSwBtn){bSwBtn.classList.remove('act-g','act-r','act-b','act-y');if(mx.busbar_switch===3)bSwBtn.classList.add('act-g');else if(mx.busbar_switch===7)bSwBtn.classList.add('act-r')}
+    if(mSwBtn){mSwBtn.classList.remove('act-g','act-r','act-b','act-y');if(isOffline){mSwBtn.disabled=true;mSwBtn.style.opacity='.3';mSwBtn.style.pointerEvents='none'}else{mSwBtn.disabled=false;mSwBtn.style.opacity='';mSwBtn.style.pointerEvents='';if(mx.mains_switch===3)mSwBtn.classList.add('act-g');else if(mx.mains_switch===7)mSwBtn.classList.add('act-r')}}
+    if(bSwBtn){bSwBtn.classList.remove('act-g','act-r','act-b','act-y');if(isOffline){bSwBtn.disabled=true;bSwBtn.style.opacity='.3';bSwBtn.style.pointerEvents='none'}else{bSwBtn.disabled=false;bSwBtn.style.opacity='';bSwBtn.style.pointerEvents='';if(mx.busbar_switch===3)bSwBtn.classList.add('act-g');else if(mx.busbar_switch===7)bSwBtn.classList.add('act-r')}}
 }
 
 // Save current configuration to controller (LoadMode + P% + Q%)
@@ -2536,17 +2636,26 @@ power:{fields:'power_total,power_a,power_b,power_c',labels:{power_total:'Общ�
 desc:'Активная мощность генератора. «Общая мощность» — суммарная нагрузка на генератор (P = Pa + Pb + Pc). Фазные значения A, B, C показывают распределение нагрузки по фазам. Перекос более 15% между фазами — ненормально.'},
 voltage:{fields:'gen_uab,gen_ubc,gen_uca,mains_uab',labels:{gen_uab:'Генератор UAB (линейное)',gen_ubc:'Генератор UBC (линейное)',gen_uca:'Генератор UCA (линейное)',mains_uab:'Напряжение сети UAB'},unit:'В',colors:['#00e09a','#4090ff','#ffb020','#ff4060'],
 desc:'Линейные (межфазные) напряжения генератора и вводного напряжения сети. UAB — между фазами A и B, UBC — между B и C, UCA — между C и A. Норма 380-400В. Красная линия — напряжение внешней сети на вводе.'},
-engine:{fields:'engine_speed,coolant_temp,oil_pressure,oil_temp,fuel_level,fuel_consumption,turbo_pressure,battery_volt',labels:{engine_speed:'Обороты двигателя (об/мин)',coolant_temp:'Температура ОЖ (°C)',oil_pressure:'Давление масла (кПа)',oil_temp:'Температура масла (°C)',fuel_level:'Уровень топлива (%)',fuel_consumption:'Расход топлива (л/ч)',turbo_pressure:'Давление турбины (кПа)',battery_volt:'Напряжение АКБ (В)'},unit:'',colors:['#00e09a','#ff4060','#ffb020','#f97316','#a070ff','#4090ff','#f472b6','#22d3ee'],
+engine:{fields:'engine_speed,coolant_temp,oil_pressure,oil_temp,fuel_level,fuel_consumption,turbo_pressure,battery_volt',labels:{engine_speed:'Обороты двигателя (об/мин)',coolant_temp:'Температура ОЖ (°C)',oil_pressure:'Давление масла (кПа)',oil_temp:'Температура масла (°C)',fuel_level:'Уровень топлива (%)',fuel_consumption:'Расход газа (м³/ч)',turbo_pressure:'Давление турбины (кПа)',battery_volt:'Напряжение АКБ (В)'},unit:'',colors:['#00e09a','#ff4060','#ffb020','#f97316','#a070ff','#4090ff','#f472b6','#22d3ee'],
 desc:'Параметры двигателя генератора. Обороты: номинал 1500 об/мин. Температура ОЖ: норма 70-95°C, выше 100°C — перегрев. Давление масла: норма 200-500 кПа, падение ниже 100 — аварийное. АКБ: норма 24-28В (24В система). Топливо: процент заполнения бака.'},
 current:{fields:'current_a,current_b,current_c,load_pct',labels:{current_a:'Ток генератора фаза A (А)',current_b:'Ток генератора фаза B (А)',current_c:'Ток генератора фаза C (А)',load_pct:'Нагрузка генератора (%)'},unit:'А',colors:['#4090ff','#00e09a','#ffb020','#a070ff'],
-desc:'Токи на выходе генератора по трём фазам и процент нагрузки от номинала. Равномерное распределение токов по фазам — признак сбалансированной нагрузки. Нагрузка выше 80% длительно — повышенный износ.'}
+desc:'Токи на выходе генератора по трём фазам и процент нагрузки от номинала. Равномерное распределение токов по фазам — признак сбалансированной нагрузки. Нагрузка выше 80% длительно — повышенный износ.'},
+gas:{fields:'gas_pressure,air_gas_ratio,gas_temp,ignition_timing,exhaust_back_pressure,throttle_valve_pos,exhaust_oxygen,fuel_inlet_pressure',labels:{gas_pressure:'Давление газа (кПа)',air_gas_ratio:'Коэфф. воздух-газ λ',gas_temp:'Температура газа (°C)',ignition_timing:'Угол зажигания (°)',exhaust_back_pressure:'Противодавление выхлопа (кПа)',throttle_valve_pos:'Положение дросселя (%)',exhaust_oxygen:'Кислород в выхлопе (%)',fuel_inlet_pressure:'Давление на входе (кПа)'},unit:'',colors:['#00e09a','#4090ff','#ff4060','#ffb020','#a070ff','#f472b6','#22d3ee','#f97316'],
+desc:'Параметры газовой системы ECU Exon-Gas. Давление газа: норма 5-30 кПа. λ (лямбда): оптимум 1.00-1.05 для метана, отклонение — проблемы смесеобразования. Угол зажигания: типично 15-25° до ВМТ. Температура газа: норма 10-40°C. Противодавление: рост = забитый катализатор/глушитель.'},
+efficiency:{fields:'fuel_consumption,power_total',labels:{fuel_consumption:'Расход газа (м³/ч)',power_total:'Мощность (кВт)'},unit:'',colors:['#4090ff','#00e09a'],
+desc:'Удельный расход газа — отношение расхода газа (м³/ч) к вырабатываемой мощности (кВт). Показывает эффективность преобразования топлива в электроэнергию. Норма для газопоршневых ГПУ: 0.25-0.35 м³/кВт·ч. Рост удельного расхода = снижение КПД (износ свечей, разрегулировка, проблемы зажигания).',
+_computed:[{label:'Уд. расход газа (м³/кВт·ч)',color:'#f97316',calc:row=>{const fc=row.fuel_consumption!=null?Number(row.fuel_consumption):null;const pt=row.power_total!=null?Number(row.power_total):null;if(fc==null||pt==null||pt<5)return null;return fc/pt}}]}
 };
 const ARC_GROUPS_SPR={
-balance:{fields:'busbar_p,mains_total_p',labels:{busbar_p:'P генераторов (кВт)',mains_total_p:'P сети (кВт)'},unit:'кВт',colors:['#00e09a','#4090ff'],
-desc:'Баланс мощности на объекте. <b>P генераторов</b> — мощность от генераторов на шине. <b>P сети</b> — мощность от внешней сети. P нагрузки = P генераторов + P сети.',
-_computed:[{label:'P нагрузки (кВт)',color:'#ffb020',calc:row=>{const b=row.busbar_p!=null?Number(row.busbar_p):0;const m=row.mains_total_p!=null?Number(row.mains_total_p):0;return b+m}}]},
-power:{fields:'mains_total_p,mains_p_a,mains_p_b,mains_p_c,busbar_p',labels:{mains_total_p:'Σ P сети (кВт)',mains_p_a:'P сети ф.A (кВт)',mains_p_b:'P сети ф.B (кВт)',mains_p_c:'P сети ф.C (кВт)',busbar_p:'P генераторов (кВт)'},unit:'кВт',colors:['#00e09a','#4090ff','#ffb020','#a070ff','#ff4060'],
-desc:'Активная мощность на вводе от внешней сети и на общей шине. <b>Σ P сети</b> = сумма трёх фаз ввода. <b>P генераторов</b> — реальная мощность на потребителей. Разница P сети − P генераторов = потери в коммутации.'},
+balance:{fields:'mains_total_p',_extraFetch:'multiset_total_p,busbar_p',labels:{mains_total_p:'P сети (кВт)'},unit:'кВт',colors:['#4090ff'],
+desc:'Баланс мощности на объекте. <b>P генераторов</b> — суммарная мощность всех генераторов. <b>P сети</b> — мощность от внешней сети. P нагрузки = P генераторов + P сети.',
+_computed:[
+{label:'P генераторов (кВт)',color:'#00e09a',calc:row=>{const v=row.multiset_total_p!=null?Number(row.multiset_total_p):(row.busbar_p!=null?Number(row.busbar_p):null);return v}},
+{label:'P нагрузки (кВт)',color:'#ffb020',calc:row=>{const g=row.multiset_total_p!=null?Number(row.multiset_total_p):(row.busbar_p!=null?Number(row.busbar_p):0);const m=row.mains_total_p!=null?Number(row.mains_total_p):0;return g+m}}
+]},
+power:{fields:'mains_total_p,mains_p_a,mains_p_b,mains_p_c',_extraFetch:'multiset_total_p,busbar_p',labels:{mains_total_p:'Σ P сети (кВт)',mains_p_a:'P сети ф.A (кВт)',mains_p_b:'P сети ф.B (кВт)',mains_p_c:'P сети ф.C (кВт)'},unit:'кВт',colors:['#00e09a','#4090ff','#ffb020','#a070ff'],
+desc:'Активная мощность на вводе от внешней сети и суммарная мощность генераторов. <b>Σ P сети</b> = сумма трёх фаз ввода. <b>Σ P генераторов</b> — суммарная мощность генераторов.',
+_computed:[{label:'Σ P генераторов (кВт)',color:'#ff4060',calc:row=>{const v=row.multiset_total_p!=null?Number(row.multiset_total_p):(row.busbar_p!=null?Number(row.busbar_p):null);return v}}]},
 voltage:{fields:'mains_uab,mains_ubc,mains_uca,busbar_uab,busbar_ubc,busbar_uca',labels:{mains_uab:'Напряжение сети UAB (В)',mains_ubc:'Напряжение сети UBC (В)',mains_uca:'Напряжение сети UCA (В)',busbar_uab:'Напряжение шины UAB (В)',busbar_ubc:'Напряжение шины UBC (В)',busbar_uca:'Напряжение шины UCA (В)'},unit:'В',colors:['#4090ff','#00e09a','#ffb020','#ff4060','#a070ff','#f472b6'],
 desc:'Линейные напряжения на вводе от внешней сети и на общей шине (после коммутации). Сеть — входящее напряжение от энергосбыта. Шина — напряжение, подаваемое потребителям. Норма 380-400В. Просадка шины при нагрузке — нормально до 5%.'},
 current:{fields:'mains_ia,mains_ib,mains_ic,busbar_current',labels:{mains_ia:'Ток ввода сети ф.A (А)',mains_ib:'Ток ввода сети ф.B (А)',mains_ic:'Ток ввода сети ф.C (А)',busbar_current:'Σ ток шины (А)'},unit:'А',colors:['#4090ff','#00e09a','#ffb020','#ff4060'],
@@ -2555,7 +2664,7 @@ frequency:{fields:'mains_freq,busbar_freq',labels:{mains_freq:'Частота в
 desc:'Частота электрической сети на вводе и на общей шине. Номинал 50.0 Гц. Отклонение ±0.5 Гц — допустимо. Провалы частоты сети ниже 49 Гц указывают на перегрузку энергосистемы. При работе от генератора частота зависит от оборотов двигателя.'}
 };
 // Tabs definition per device type: [{key, label}]
-const ARC_TABS_GEN=[{key:'power',label:'⚡ Мощность'},{key:'voltage',label:'🔌 Напряжение'},{key:'engine',label:'🛢 Двигатель'},{key:'current',label:'〰 Токи'}];
+const ARC_TABS_GEN=[{key:'power',label:'⚡ Мощность'},{key:'voltage',label:'🔌 Напряжение'},{key:'engine',label:'🛢 Двигатель'},{key:'gas',label:'🔥 Газ/ECU'},{key:'current',label:'〰 Токи'},{key:'efficiency',label:'⛽ Эффективность'}];
 const ARC_TABS_SPR=[{key:'balance',label:'⚖ Баланс'},{key:'power',label:'⚡ Мощность'},{key:'voltage',label:'🔌 Напряжение'},{key:'current',label:'〰 Токи'},{key:'frequency',label:'📶 Частота'}];
 function arcGetGroups(){return arcState.slot==='spr'?ARC_GROUPS_SPR:ARC_GROUPS_GEN}
 function arcGetTabs(){return arcState.slot==='spr'?ARC_TABS_SPR:ARC_TABS_GEN}
@@ -2636,11 +2745,11 @@ const s=S[sk],mn=$('mainArea');
 // Site selector options
 let siteOpts=keys.map(k=>`<option value="${k}"${k===sk?' selected':''}>${esc(S[k].name)}</option>`).join('');
 // Device buttons for selected site
-const firstSlot=s.g1?.ip?'g1':s.g2?.ip?'g2':s.spr?.ip?'spr':null;
+const _gSlots=getGenSlots(sk);
+const firstSlot=_gSlots.find(sl=>s[sl]?.ip)||( s.spr?.ip?'spr':null);
 let devBtns='';
-if(s.g1?.ip)devBtns+=`<button class="arc-dev${firstSlot==='g1'?' on':''}" onclick="arcDev(this,'g1')">Генератор 1</button>`;
-if(s.g2?.ip)devBtns+=`<button class="arc-dev${firstSlot==='g2'&&!s.g1?.ip?' on':''}" onclick="arcDev(this,'g2')">Генератор 2</button>`;
-if(s.spr?.ip)devBtns+=`<button class="arc-dev${firstSlot==='spr'?' on':''}" onclick="arcDev(this,'spr')">ШПР</button>`;
+for(const sl of _gSlots){if(s[sl]?.ip)devBtns+=`<button class="arc-dev${sl===firstSlot?' on':''}" onclick="arcDev(this,'${sl}')">Генератор ${sl.slice(1)}</button>`}
+if(s.spr?.ip)devBtns+=`<button class="arc-dev${'spr'===firstSlot?' on':''}" onclick="arcDev(this,'spr')">ШПР</button>`;
 arcState.slot=firstSlot||'g1';arcState.hours=1;arcState.group='power';arcState.almPage=0;arcState.selectedFields=null;
 mn.innerHTML=`
 <div class="dh"><div class="dt"><h1>📊 Архив</h1>
@@ -2691,21 +2800,21 @@ function openFieldArchive(slot,field,group){
 showArchive(cur,{skipLoad:true});
 arcState.slot=slot;
 arcState.group=group||'engine';
-arcState.selectedFields=new Set([field]);
+arcState.selectedFields=field?new Set([field]):null;
 // Update device button selection
 const devWrap=$('arcDevsWrap');
 if(devWrap){devWrap.querySelectorAll('.arc-dev').forEach(b=>{
-b.classList.toggle('on',b.textContent.includes(slot==='g1'?'1':slot==='g2'?'2':'ШПР'))})}
+b.classList.toggle('on',b.textContent.includes(slot.startsWith('g')?slot.slice(1):'ШПР'))})}
 arcRenderChartTabs();arcRenderFieldChecks();arcLoadChart();arcLoadAlarms();arcLoadDisk();
 }
 function arcSwitchSite(siteKey){
 if(!S[siteKey])return;arcState.siteKey=siteKey;
 const s=S[siteKey];
-const firstSlot=s.g1?.ip?'g1':s.g2?.ip?'g2':s.spr?.ip?'spr':null;
+const _gs2=getGenSlots(siteKey);
+const firstSlot=_gs2.find(sl=>s[sl]?.ip)||(s.spr?.ip?'spr':null);
 let devBtns='';
-if(s.g1?.ip)devBtns+=`<button class="arc-dev${firstSlot==='g1'?' on':''}" onclick="arcDev(this,'g1')">Генератор 1</button>`;
-if(s.g2?.ip)devBtns+=`<button class="arc-dev${firstSlot==='g2'&&!s.g1?.ip?' on':''}" onclick="arcDev(this,'g2')">Генератор 2</button>`;
-if(s.spr?.ip)devBtns+=`<button class="arc-dev${firstSlot==='spr'?' on':''}" onclick="arcDev(this,'spr')">ШПР</button>`;
+for(const sl of _gs2){if(s[sl]?.ip)devBtns+=`<button class="arc-dev${sl===firstSlot?' on':''}" onclick="arcDev(this,'${sl}')">Генератор ${sl.slice(1)}</button>`}
+if(s.spr?.ip)devBtns+=`<button class="arc-dev${'spr'===firstSlot?' on':''}" onclick="arcDev(this,'spr')">ШПР</button>`;
 const wrap=$('arcDevsWrap');if(wrap)wrap.innerHTML=devBtns;
 arcState.slot=firstSlot||'g1';arcState.almPage=0;
 arcRenderChartTabs();arcLoadChart();arcLoadAlarms();arcLoadDisk();
@@ -2871,7 +2980,9 @@ if(!grp){arcRenderNoData('Нет данных для этой вкладки');r
 const allFields=grp.fields.split(',');
 const activeFields=arcState.selectedFields?allFields.filter(f=>arcState.selectedFields.has(f)):allFields;
 if(!activeFields.length){arcRenderNoData('Выберите хотя бы один параметр');return}
-const fieldsParam=activeFields.join(',');
+// _extraFetch: additional fields needed for _computed but not rendered directly
+const extraFields=grp._extraFetch?grp._extraFetch.split(','):[];
+const fieldsParam=[...new Set([...activeFields,...extraFields])].join(',');
 const bucket=hours?arcBucket(hours):0;
 let url;
 if(hours){
@@ -2954,7 +3065,7 @@ const datasets=fieldNames.map((f,i)=>{
     pointHitRadius:8,
     tension:0.25,
     fill:fieldNames.length<=2,
-    spanGaps:true
+    spanGaps:false
   };
 }).filter(Boolean);
 
@@ -2967,7 +3078,7 @@ grp._computed.forEach(c=>{
     label:c.label,data:pts,borderColor:c.color,backgroundColor:c.color+'18',
     borderWidth:2.2,pointRadius:showPts?ptRadius:0,pointHoverRadius:hoverRadius,
     pointBackgroundColor:c.color,pointBorderColor:c.color,pointHitRadius:8,
-    tension:0.25,fill:false,spanGaps:true
+    tension:0.25,fill:false,spanGaps:false
   });
 });
 }
@@ -3046,13 +3157,10 @@ async function pwLoadChart(){
 if(!cur||!S[cur])return;
 const sprId=S[cur].spr?._deviceId;
 if(!sprId){pwRenderNoData('ШПР не настроен');return}
-const fields=[];
-if(pwMetrics.bus)fields.push('busbar_p');
-if(pwMetrics.mains)fields.push('mains_total_p');
-if(pwMetrics.load){
-if(!fields.includes('busbar_p'))fields.push('busbar_p');
-if(!fields.includes('mains_total_p'))fields.push('mains_total_p');
-}
+// Always fetch both multiset_total_p and busbar_p for backward compat
+// (old data has multiset_total_p=NULL, fallback to busbar_p)
+const fields=['multiset_total_p','busbar_p'];
+if(pwMetrics.mains||pwMetrics.load)fields.push('mains_total_p');
 const bucket=arcBucket(pwHours);
 let url;
 if(bucket>0)url=`/api/history/metrics/${sprId}/downsampled?last_hours=${pwHours}&bucket_seconds=${bucket}&fields=${fields.join(',')}`;
@@ -3081,27 +3189,29 @@ const totalPts=data.length;
 const showPts=totalPts<80;
 const ptRadius=totalPts<30?3:totalPts<80?2:0;
 const hoverRadius=totalPts<200?4:3;
+// Helper: prefer multiset_total_p (correct gen sum), fallback to busbar_p (old data)
+const _genP=r=>r.multiset_total_p!=null?Number(r.multiset_total_p):(r.busbar_p!=null?Number(r.busbar_p):null);
 const datasets=[];
 if(pwMetrics.bus){
-datasets.push({label:'P генераторов',data:data.map(r=>({x:new Date(r[timeKey]),y:r.busbar_p!=null?Number(r.busbar_p):null})),
+datasets.push({label:'P генераторов',data:data.map(r=>({x:new Date(r[timeKey]),y:_genP(r)})),
 borderColor:PW_COLORS.bus,backgroundColor:PW_COLORS.bus+'18',borderWidth:2.2,
 pointRadius:showPts?ptRadius:0,pointHoverRadius:hoverRadius,pointBackgroundColor:PW_COLORS.bus,
-pointBorderColor:PW_COLORS.bus,pointHitRadius:8,tension:0.25,fill:false,spanGaps:true});
+pointBorderColor:PW_COLORS.bus,pointHitRadius:8,tension:0.25,fill:false,spanGaps:false});
 }
 if(pwMetrics.mains){
 datasets.push({label:'P сети',data:data.map(r=>({x:new Date(r[timeKey]),y:r.mains_total_p!=null?Number(r.mains_total_p):null})),
 borderColor:PW_COLORS.mains,backgroundColor:PW_COLORS.mains+'18',borderWidth:2.2,
 pointRadius:showPts?ptRadius:0,pointHoverRadius:hoverRadius,pointBackgroundColor:PW_COLORS.mains,
-pointBorderColor:PW_COLORS.mains,pointHitRadius:8,tension:0.25,fill:false,spanGaps:true});
+pointBorderColor:PW_COLORS.mains,pointHitRadius:8,tension:0.25,fill:false,spanGaps:false});
 }
 if(pwMetrics.load){
 datasets.push({label:'P нагрузки',data:data.map(r=>{
-const b=r.busbar_p!=null?Number(r.busbar_p):0;
+const b=_genP(r)||0;
 const m=r.mains_total_p!=null?Number(r.mains_total_p):0;
 return{x:new Date(r[timeKey]),y:b+m};
 }),borderColor:PW_COLORS.load,backgroundColor:PW_COLORS.load+'18',borderWidth:2.2,
 pointRadius:showPts?ptRadius:0,pointHoverRadius:hoverRadius,pointBackgroundColor:PW_COLORS.load,
-pointBorderColor:PW_COLORS.load,pointHitRadius:8,tension:0.25,fill:false,spanGaps:true});
+pointBorderColor:PW_COLORS.load,pointHitRadius:8,tension:0.25,fill:false,spanGaps:false});
 }
 if(!datasets.length){pwRenderNoData('Выберите хотя бы одну метрику');return}
 const c=getChartColors();
@@ -3321,8 +3431,7 @@ let alarmsMode=false;
 function resolveDeviceName(deviceId){
 const info=deviceSlotIndex[deviceId];
 if(!info)return'Устр. #'+deviceId;
-const slotNames={g1:'Г1',g2:'Г2',spr:'ШПР'};
-const name=slotNames[info.slot]||info.slot;
+const name=info.slot==='spr'?'ШПР':info.slot.startsWith('g')?'Г'+info.slot.slice(1):info.slot;
 const siteName=S[info.siteKey]?.name||info.siteKey;
 return name+' · '+siteName;
 }
@@ -3597,9 +3706,9 @@ var _plSlot=null,_plDeviceId=null,_plDeviceType=null;
 function openPowerLimitModal(slot){
 _plSlot=slot;_plDeviceId=getDeviceIdForSlot(slot);_plDeviceType=null;
 if(!_plDeviceId){ae('⚠ Устройство не найдено');return}
-const isGen=slot==='g1'||slot==='g2';
+const isGen=slot.startsWith('g');
 const m=$('plModal');if(!m)return;m.classList.add('sh');
-const nm=slot==='g1'?'Генератор 1':slot==='g2'?'Генератор 2':'ШПР';
+const nm=slot.startsWith('g')?'Генератор '+slot.slice(1):'ШПР';
 $('plTitle').textContent=(isGen?'📊 Мощность — ':'⚡ Ограничение мощности — ')+nm;
 // Show correct section
 $('plReadOnly').style.display=isGen?'':'none';
@@ -4514,6 +4623,239 @@ async function kbDeleteDoc(filename){
   }catch(e){
     alert('Ошибка удаления: '+e.message);
   }
+}
+
+// ========================================================================
+// ECONOMICS VIEW
+// ========================================================================
+let _econChart=null;
+let _econPeriod=7;
+let _econReportData=null; // cached report for detail popups
+
+function showEconomics(siteKey){
+  stopB24Poll();curView='economics';archiveMode=false;
+  const sk=siteKey||(cur&&S[cur]?cur:Object.keys(S)[0]);
+  if(!sk||!S[sk]){ae('Нет объектов');return}
+  const apiSiteId=siteApiIds[sk];
+  if(!apiSiteId){ae('Нет API ID для объекта');return}
+  const mn=$('mainArea');
+  mn.innerHTML=`
+<div class="dh"><div class="dt"><h1>💰 Экономика — ${esc(S[sk].name)}</h1></div></div>
+<div class="econ-wrap">
+  <div id="econDataWarning" style="display:none;padding:8px 14px;margin-bottom:10px;background:rgba(255,180,0,.1);border:1px solid rgba(255,180,0,.3);border-radius:8px;font-size:12px;color:#ffb020;line-height:1.4"></div>
+  <div class="econ-cards" id="econCards">
+    <div class="econ-card"><div class="econ-lbl">Расход газа</div><div class="econ-val" id="econGas">—</div><div class="econ-unit" id="econGasUnit">м³ итого</div></div>
+    <div class="econ-card"><div class="econ-lbl">Выработка</div><div class="econ-val" id="econEnergy">—</div><div class="econ-unit" id="econEnergyUnit">кВт·ч итого</div></div>
+    <div class="econ-card"><div class="econ-lbl">Уд. расход</div><div class="econ-val" id="econSGC">—</div><div class="econ-unit">м³/кВт·ч (средн.)</div></div>
+    <div class="econ-card"><div class="econ-lbl">Себестоимость</div><div class="econ-val" id="econCost">—</div><div class="econ-unit">₽/кВт·ч (средн.)</div></div>
+  </div>
+  <div id="econPeriodInfo" style="text-align:center;font-size:11px;color:var(--t3);margin-top:-4px;margin-bottom:8px"></div>
+  <div class="econ-section">
+    <div class="econ-section-hdr">⛽ Цены на газ</div>
+    <div class="econ-add-row">
+      <div class="fg"><label class="fl">Дата начала</label><input type="date" class="fi" id="econPrDate" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div class="fg"><label class="fl">Цена ₽/м³</label><input type="number" step="0.01" min="0" class="fi" id="econPrVal" placeholder="8.50"></div>
+      <div class="fg"><label class="fl">Примечание</label><input type="text" class="fi" id="econPrNote" placeholder="Необязательно"></div>
+      <button class="bp" style="padding:8px 16px;white-space:nowrap" onclick="econAddPrice(${apiSiteId})">+ Добавить</button>
+    </div>
+    <div id="econPricesTable"></div>
+  </div>
+  <div class="econ-section">
+    <div class="econ-section-hdr">📊 Отчёт за период</div>
+    <div class="econ-period">
+      <button class="econ-pb${_econPeriod===1?' on':''}" onclick="econSetPeriod(${apiSiteId},1,this)">1 день</button>
+      <button class="econ-pb${_econPeriod===7?' on':''}" onclick="econSetPeriod(${apiSiteId},7,this)">7 дней</button>
+      <button class="econ-pb${_econPeriod===14?' on':''}" onclick="econSetPeriod(${apiSiteId},14,this)">14 дней</button>
+      <button class="econ-pb${_econPeriod===30?' on':''}" onclick="econSetPeriod(${apiSiteId},30,this)">30 дней</button>
+      <button class="econ-pb${_econPeriod===90?' on':''}" onclick="econSetPeriod(${apiSiteId},90,this)">90 дней</button>
+    </div>
+    <div id="econReport"></div>
+    <div class="econ-chart-wrap"><canvas id="econChartCanvas"></canvas></div>
+  </div>
+</div>`;
+  econLoadPrices(apiSiteId);
+  econLoadReport(apiSiteId,_econPeriod);
+}
+
+async function econLoadPrices(apiSiteId){
+  const el=$('econPricesTable');if(!el)return;
+  try{
+    const prices=await api.get('/api/economics/gas-prices/'+apiSiteId);
+    if(!prices.length){el.innerHTML='<div class="econ-note">Нет записей. Добавьте цену на газ.</div>';return}
+    let html='<table class="econ-tbl"><thead><tr><th>С даты</th><th>Цена ₽/м³</th><th>Примечание</th><th></th></tr></thead><tbody>';
+    for(const p of prices){
+      html+=`<tr><td>${p.effective_from}</td><td style="font-weight:600;color:var(--g)">${p.price_per_m3.toFixed(2)}</td><td style="color:var(--t3)">${esc(p.note||'—')}</td><td><button class="econ-del" onclick="econDelPrice(${p.id},${apiSiteId})">🗑</button></td></tr>`;
+    }
+    html+='</tbody></table>';
+    el.innerHTML=html;
+  }catch(e){el.innerHTML='<div class="econ-note">Ошибка загрузки цен: '+e.message+'</div>'}
+}
+
+async function econAddPrice(apiSiteId){
+  const dt=$('econPrDate')?.value;
+  const val=parseFloat($('econPrVal')?.value);
+  const note=$('econPrNote')?.value||'';
+  if(!dt||isNaN(val)||val<=0){ae('⚠ Укажите дату и цену > 0');return}
+  try{
+    await api.post('/api/economics/gas-prices',{site_id:apiSiteId,effective_from:dt,price_per_m3:val,note:note||null});
+    ae('✅ Цена добавлена: '+val+' ₽/м³ с '+dt);
+    $('econPrVal').value='';$('econPrNote').value='';
+    econLoadPrices(apiSiteId);
+    econLoadReport(apiSiteId,_econPeriod);
+  }catch(e){ae('⚠ Ошибка: '+e.message)}
+}
+
+async function econDelPrice(priceId,apiSiteId){
+  if(!confirm('Удалить эту запись цены?'))return;
+  try{
+    await api.del('/api/economics/gas-prices/'+priceId);
+    ae('🗑 Цена удалена');
+    econLoadPrices(apiSiteId);
+    econLoadReport(apiSiteId,_econPeriod);
+  }catch(e){ae('⚠ Ошибка: '+e.message)}
+}
+
+function econSetPeriod(apiSiteId,days,btn){
+  _econPeriod=days;
+  document.querySelectorAll('.econ-pb').forEach(b=>b.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  econLoadReport(apiSiteId,days);
+}
+
+// Show detail popup for a day row (gas or energy)
+function econShowDetail(e,dayIdx,type){
+  e.stopPropagation();
+  let pop=document.getElementById('econDetailPop');
+  if(pop){pop.remove()}
+  if(!_econReportData||!_econReportData.days[dayIdx])return;
+  const d=_econReportData.days[dayIdx];
+  const devs=d.devices||[];
+  if(!devs.length)return;
+  pop=document.createElement('div');
+  pop.id='econDetailPop';
+  pop.className='sum-popup';
+  pop.style.maxWidth='480px';pop.style.minWidth='380px';
+  const isGas=type==='gas';
+  const dtSuf=d.last_ts?` (до ${d.last_ts} МСК)`:'';
+  const title=isGas?`⛽ Расход газа — ${d.date}${dtSuf}`:`⚡ Выработка — ${d.date}${dtSuf}`;
+  let html=`<div class="sum-pop-hdr">${title}</div>`;
+  html+='<table style="width:100%;border-collapse:collapse;font-size:11px;font-family:var(--m)">';
+  if(isGas){
+    html+='<tr style="color:var(--t3);font-size:10px"><td style="padding:4px 6px">Генератор</td><td style="padding:4px 6px;text-align:right">Ср. расход</td><td style="padding:4px 6px;text-align:right">Время</td><td style="padding:4px 6px;text-align:right;font-weight:600">Объём</td></tr>';
+    for(const dv of devs){
+      const active=dv.avg_gas_m3h>0;
+      const c=active?'var(--t)':'var(--t4)';
+      html+=`<tr style="color:${c};border-top:1px solid var(--ov)"><td style="padding:5px 6px">${esc(dv.name)}</td><td style="padding:5px 6px;text-align:right">${dv.avg_gas_m3h.toFixed(1)} <span style="color:var(--t3)">м³/ч</span></td><td style="padding:5px 6px;text-align:right">${dv.hours.toFixed(1)} <span style="color:var(--t3)">ч</span></td><td style="padding:5px 6px;text-align:right;font-weight:600;color:${active?'var(--b)':'var(--t4)'}">${dv.gas_m3.toFixed(1)} <span style="color:var(--t3)">м³</span></td></tr>`;
+      if(active)html+=`<tr style="font-size:9px;color:var(--t4)"><td colspan="4" style="padding:1px 6px 4px">= ${dv.avg_gas_m3h.toFixed(1)} м³/ч × ${dv.hours.toFixed(1)} ч = ${dv.gas_m3.toFixed(1)} м³</td></tr>`;
+    }
+    html+=`<tr style="border-top:2px solid var(--bd2);font-weight:700"><td style="padding:6px">ИТОГО</td><td></td><td></td><td style="padding:6px;text-align:right;color:var(--g)">${d.gas_m3.toFixed(1)} м³</td></tr>`;
+  }else{
+    html+='<tr style="color:var(--t3);font-size:10px"><td style="padding:4px 6px">Генератор</td><td style="padding:4px 6px;text-align:right">Ср. мощность</td><td style="padding:4px 6px;text-align:right">Время</td><td style="padding:4px 6px;text-align:right;font-weight:600">Выработка</td></tr>';
+    for(const dv of devs){
+      const active=dv.avg_power_kw>0;
+      const c=active?'var(--t)':'var(--t4)';
+      html+=`<tr style="color:${c};border-top:1px solid var(--ov)"><td style="padding:5px 6px">${esc(dv.name)}</td><td style="padding:5px 6px;text-align:right">${dv.avg_power_kw.toFixed(1)} <span style="color:var(--t3)">кВт</span></td><td style="padding:5px 6px;text-align:right">${dv.hours.toFixed(1)} <span style="color:var(--t3)">ч</span></td><td style="padding:5px 6px;text-align:right;font-weight:600;color:${active?'var(--g)':'var(--t4)'}">${dv.energy_kwh.toFixed(0)} <span style="color:var(--t3)">кВт·ч</span></td></tr>`;
+      if(active)html+=`<tr style="font-size:9px;color:var(--t4)"><td colspan="4" style="padding:1px 6px 4px">= ${dv.avg_power_kw.toFixed(1)} кВт × ${dv.hours.toFixed(1)} ч = ${dv.energy_kwh.toFixed(0)} кВт·ч</td></tr>`;
+    }
+    html+=`<tr style="border-top:2px solid var(--bd2);font-weight:700"><td style="padding:6px">ИТОГО</td><td></td><td></td><td style="padding:6px;text-align:right;color:var(--g)">${d.energy_kwh.toFixed(0)} кВт·ч</td></tr>`;
+  }
+  html+='</table>';
+  pop.innerHTML=html;
+  const rect=e.target.getBoundingClientRect();
+  pop.style.top=(rect.bottom+6)+'px';
+  pop.style.left=Math.max(8,Math.min(rect.left-100,window.innerWidth-500))+'px';
+  document.body.appendChild(pop);
+  setTimeout(()=>{document.addEventListener('click',function _c(){const p=document.getElementById('econDetailPop');if(p)p.remove();document.removeEventListener('click',_c)},{once:true})},50);
+}
+
+async function econLoadReport(apiSiteId,days){
+  const el=$('econReport');if(!el)return;
+  const end=new Date().toISOString().slice(0,10);
+  const start=new Date(Date.now()-days*864e5).toISOString().slice(0,10);
+  try{
+    const rpt=await api.get(`/api/economics/report/${apiSiteId}?start=${start}&end=${end}`);
+    _econReportData=rpt;
+    const t=rpt.totals;
+    const nDays=rpt.days.length;
+    const avgSGC=t.energy_kwh>0?(t.gas_m3/t.energy_kwh):0;
+    // Top cards: show TOTALS for gas & energy, AVERAGES for SGC & cost
+    const el_gas=$('econGas');if(el_gas)el_gas.textContent=t.gas_m3>0?t.gas_m3.toFixed(1):'—';
+    const el_gasU=$('econGasUnit');if(el_gasU)el_gasU.textContent=nDays===1?'м³ за день':'м³ итого';
+    const el_en=$('econEnergy');if(el_en)el_en.textContent=t.energy_kwh>0?t.energy_kwh.toFixed(0):'—';
+    const el_enU=$('econEnergyUnit');if(el_enU)el_enU.textContent=nDays===1?'кВт·ч за день':'кВт·ч итого';
+    const el_sgc=$('econSGC');if(el_sgc){el_sgc.textContent=avgSGC>0?avgSGC.toFixed(3):'—';el_sgc.style.color=avgSGC>0.5?'var(--r)':avgSGC>0.35?'var(--y)':'var(--g)'}
+    const el_cost=$('econCost');if(el_cost){el_cost.textContent=t.avg_cost_per_kwh!=null?t.avg_cost_per_kwh.toFixed(2):'—';el_cost.style.color=t.avg_cost_per_kwh!=null?(t.avg_cost_per_kwh>5?'var(--r)':t.avg_cost_per_kwh>3?'var(--y)':'var(--g)'):'var(--t3)'}
+    // Period info subtitle
+    const el_pi=$('econPeriodInfo');if(el_pi){
+      if(nDays===0)el_pi.textContent='Нет данных';
+      else if(nDays===1)el_pi.textContent='Данные за '+rpt.days[0].date;
+      else el_pi.textContent='Данные за '+nDays+' '+(nDays<5?'дня':'дней')+': '+rpt.days[0].date+' — '+rpt.days[nDays-1].date;
+    }
+    // Data warning banner
+    const el_warn=$('econDataWarning');if(el_warn){
+      if(rpt.data_warning){el_warn.style.display='block';el_warn.textContent='⚠ '+rpt.data_warning}
+      else{el_warn.style.display='none'}
+    }
+    if(!rpt.days.length){el.innerHTML='<div class="econ-note">Нет данных за выбранный период.</div>';econRenderChart([]);return}
+    let html='<table class="econ-tbl"><thead><tr><th>Дата</th><th style="text-align:right">Газ, м³</th><th style="text-align:right">Энергия, кВт·ч</th><th style="text-align:right">Цена, ₽/м³</th><th style="text-align:right">Затраты, ₽</th><th style="text-align:right">Себест., ₽/кВт·ч</th></tr></thead><tbody>';
+    rpt.days.forEach((d,i)=>{
+      const cpk=d.cost_per_kwh!=null?d.cost_per_kwh.toFixed(2):'—';
+      const cpkC=d.cost_per_kwh!=null?(d.cost_per_kwh>5?'var(--r)':d.cost_per_kwh>3?'var(--y)':'var(--g)'):'var(--t3)';
+      const dtLabel=d.last_ts?`${d.date} <span style="color:var(--t4);font-size:10px">(до ${d.last_ts})</span>`:d.date;
+      html+=`<tr><td>${dtLabel}</td><td class="econ-clickable" style="text-align:right;cursor:pointer" onclick="econShowDetail(event,${i},'gas')">${d.gas_m3.toFixed(1)} 🔍</td><td class="econ-clickable" style="text-align:right;cursor:pointer" onclick="econShowDetail(event,${i},'energy')">${d.energy_kwh.toFixed(0)} 🔍</td><td style="text-align:right">${d.price_per_m3!=null?d.price_per_m3.toFixed(2):'—'}</td><td style="text-align:right">${d.cost_rub!=null?d.cost_rub.toFixed(0):'—'}</td><td style="text-align:right;color:${cpkC};font-weight:600">${cpk}</td></tr>`;
+    });
+    html+=`<tr class="totals"><td>Итого (${rpt.days.length} дн.)</td><td style="text-align:right">${t.gas_m3.toFixed(1)}</td><td style="text-align:right">${t.energy_kwh.toFixed(0)}</td><td style="text-align:right">—</td><td style="text-align:right">${t.total_cost!=null?t.total_cost.toFixed(0):'—'}</td><td style="text-align:right;color:var(--g)">${t.avg_cost_per_kwh!=null?t.avg_cost_per_kwh.toFixed(2):'—'}</td></tr>`;
+    html+='</tbody></table>';
+    el.innerHTML=html;
+    econRenderChart(rpt.days);
+  }catch(e){el.innerHTML='<div class="econ-note">Ошибка загрузки отчёта: '+e.message+'</div>'}
+}
+
+function econRenderChart(days){
+  const canvas=$('econChartCanvas');if(!canvas)return;
+  if(_econChart){_econChart.destroy();_econChart=null}
+  if(!days.length)return;
+  const labels=days.map(d=>d.date.slice(5));  // MM-DD for shorter labels
+  const costData=days.map(d=>d.cost_per_kwh);
+  const gasData=days.map(d=>d.gas_m3);
+  const energyData=days.map(d=>d.energy_kwh);
+  const style=getComputedStyle(document.documentElement);
+  const gridColor=style.getPropertyValue('--bd').trim();
+  const txtColor=style.getPropertyValue('--t3').trim();
+  _econChart=new Chart(canvas,{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        {type:'line',label:'Себестоимость ₽/кВт·ч',data:costData,borderColor:'#00e09a',backgroundColor:'rgba(0,224,154,.15)',fill:true,tension:.3,yAxisID:'yCost',pointRadius:4,pointBackgroundColor:'#00e09a',borderWidth:2.5,order:0},
+        {type:'bar',label:'Газ, м³',data:gasData,backgroundColor:'rgba(64,144,255,.6)',borderColor:'#4090ff',borderWidth:1,yAxisID:'yGas',borderRadius:3,order:1},
+        {type:'bar',label:'Энергия, кВт·ч',data:energyData,backgroundColor:'rgba(255,176,32,.5)',borderColor:'#ffb020',borderWidth:1,yAxisID:'yEnergy',borderRadius:3,order:2}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{intersect:false,mode:'index'},
+      plugins:{
+        legend:{position:'top',labels:{color:txtColor,font:{size:11,family:'Outfit'},usePointStyle:true,padding:16}},
+        tooltip:{backgroundColor:'rgba(10,15,26,.95)',titleColor:'#e8edf5',bodyColor:'#94a3b8',borderColor:gridColor,borderWidth:1,padding:10,bodyFont:{family:'JetBrains Mono',size:11},
+          callbacks:{label:function(ctx){
+            const v=ctx.parsed.y;if(v==null)return '';
+            if(ctx.dataset.yAxisID==='yCost')return 'Себестоимость: '+v.toFixed(2)+' ₽/кВт·ч';
+            if(ctx.dataset.yAxisID==='yGas')return 'Газ: '+v.toFixed(1)+' м³';
+            return 'Энергия: '+v.toFixed(0)+' кВт·ч';
+          }}
+        }
+      },
+      scales:{
+        x:{grid:{color:gridColor,lineWidth:.5},ticks:{color:txtColor,font:{size:10,family:'JetBrains Mono'}}},
+        yCost:{position:'left',title:{display:true,text:'Себестоимость, ₽/кВт·ч',color:'#00e09a',font:{size:10}},grid:{color:gridColor,lineWidth:.5},ticks:{color:'#00e09a',font:{size:10,family:'JetBrains Mono'}},beginAtZero:true},
+        yGas:{position:'right',title:{display:true,text:'Газ, м³',color:'#4090ff',font:{size:10}},grid:{drawOnChartArea:false},ticks:{color:'#4090ff',font:{size:10,family:'JetBrains Mono'}},beginAtZero:true},
+        yEnergy:{position:'right',title:{display:true,text:'Энергия, кВт·ч',color:'#ffb020',font:{size:10}},grid:{drawOnChartArea:false},ticks:{color:'#ffb020',font:{size:10,family:'JetBrains Mono'}},beginAtZero:true,
+          // Offset third axis to prevent overlap
+          afterFit:function(axis){axis.width+=50}}
+      }
+    }
+  });
 }
 </script>
 <script src="/alarm_modal.js"></script>

@@ -1,11 +1,14 @@
 """EventDetector — detects state transitions and persists to scada_events.
 
 Subscribes to Redis PubSub 'metrics:updates'. Tracks:
-- GEN_STATUS:   gen_status (0-15) changes
-- MODE_CHANGE:  mode_auto/manual/test/stop flag changes
-- ATS_STATUS:   gen_ats_status / mains_ats_status changes
-- MAINS:        mains_normal / mains_load flag changes
-- SYSTEM:       online True↔False transitions
+- GEN_STATUS:   gen_status (HGM9520N) / genset_status (HGM9560) changes
+- GEN_CRITICAL: consolidated STOP/START events with root cause
+- MODE_CHANGE:  mode_auto/manual/test/stop flag changes (both types)
+- ATS_STATUS:   gen_ats_status/mains_ats_status (HGM9520N) /
+                busbar_switch/mains_switch (HGM9560) changes
+- MAINS:        mains_normal/mains_load (HGM9520N) /
+                mains_status (HGM9560) changes
+- SYSTEM:       online True↔False transitions (both types)
 """
 import asyncio
 import json
@@ -26,6 +29,7 @@ logger = logging.getLogger("scada.event_detector")
 # Human-readable labels
 # ---------------------------------------------------------------------------
 
+# HGM9520N generator gen_status (0-15)
 GEN_STATUS_LABELS = {
     0: "Стоп (Standby)",
     1: "Подготовка к запуску",
@@ -45,6 +49,25 @@ GEN_STATUS_LABELS = {
     15: "Ошибка остановки",
 }
 
+# HGM9560 ATS panel genset_status (0-14)
+GENSET_STATUS_9560_LABELS = {
+    0: "Стоп (Standby)",
+    1: "Прогрев свечей",
+    2: "Подача топлива",
+    3: "Прокрутка стартером",
+    4: "Пауза стартера",
+    5: "Контроль запуска",
+    6: "Холостой ход",
+    7: "Прогрев",
+    8: "Ожидание нагрузки",
+    9: "Работа под нагрузкой",
+    10: "Охлаждение",
+    11: "Остановка ХХ",
+    12: "Аварийный стоп (ETS)",
+    13: "Ожидание остановки",
+    14: "Ошибка остановки",
+}
+
 MODE_LABELS = {
     "auto": "AUTO",
     "manual": "MANUAL",
@@ -52,6 +75,7 @@ MODE_LABELS = {
     "stop": "STOP",
 }
 
+# HGM9520N: gen_ats_status / mains_ats_status (0-7)
 ATS_STATUS_LABELS = {
     0: "Синхронизация",
     1: "Задержка вкл.",
@@ -63,10 +87,39 @@ ATS_STATUS_LABELS = {
     7: "Отключён (Opened)",
 }
 
+# HGM9560: busbar_switch / mains_switch (same codes 0-7)
+SWITCH_STATUS_LABELS = ATS_STATUS_LABELS  # same encoding
+
+# HGM9560: mains_status (0-3)
+MAINS_STATUS_LABELS = {
+    0: "Норма",
+    1: "Норма (задержка)",
+    2: "Авария сети",
+    3: "Авария сети (задержка)",
+}
+
 GEN_STATUS_ICONS = {
     0: "⏹", 1: "🔄", 2: "⛽", 3: "🔧", 4: "⏸", 5: "🔍",
     6: "💨", 7: "🔥", 8: "⏳", 9: "⚡", 10: "❄", 11: "🛑",
     12: "🚨", 13: "⏳", 14: "✅", 15: "❌",
+}
+
+# States where generator is "running" (producing or about to produce power)
+GEN_RUNNING_STATES = {6, 7, 8, 9}  # idle, warmup, wait_load, working
+# States where generator is "stopping/stopped"
+GEN_STOP_STATES = {0, 10, 11, 12, 13, 14, 15}
+# States where generator is "starting"
+GEN_START_STATES = {1, 2, 3, 4, 5}
+
+# Root cause mapping based on the stop state entered
+STOP_CAUSE = {
+    0: "штатная остановка",
+    10: "охлаждение → останов",
+    11: "остановка ХХ",
+    12: "АВАРИЙНЫЙ СТОП (ETS)",
+    13: "ожидание остановки",
+    14: "постостановка",
+    15: "ОШИБКА ОСТАНОВКИ",
 }
 
 
@@ -80,7 +133,7 @@ class EventDetector:
         self.redis = redis
         self.session_factory = session_factory
         self._running = False
-        self._prev: dict[int, dict] = {}  # device_id → {gen_status, mode, gen_ats, mains_ats, mains_normal, mains_load, online}
+        self._prev: dict[int, dict] = {}  # device_id → tracked state
         self._device_names: dict[int, str] = {}  # device_id → name cache
         self._initialized: set[int] = set()  # devices that have been initialized (skip first message)
 
@@ -154,13 +207,25 @@ class EventDetector:
         name = self._dev_name(device_id)
         device_type = payload.get("device_type", "generator")
 
-        # === 1. GEN_STATUS (only for generators) ===
-        cur_gs = payload.get("gen_status")
+        # =============================================================
+        # 1. GEN_STATUS
+        #    - HGM9520N generators: field "gen_status" (0-15)
+        #    - HGM9560 ATS panel:   field "genset_status" (0-14)
+        # =============================================================
+        if device_type == "ats":
+            cur_gs = payload.get("genset_status")
+            gs_labels = GENSET_STATUS_9560_LABELS
+            gs_prev_key = "genset_status"
+        else:
+            cur_gs = payload.get("gen_status")
+            gs_labels = GEN_STATUS_LABELS
+            gs_prev_key = "gen_status"
+
         if cur_gs is not None:
-            prev_gs = prev.get("gen_status")
+            prev_gs = prev.get(gs_prev_key)
             if prev_gs is not None and cur_gs != prev_gs and not is_first:
-                old_label = GEN_STATUS_LABELS.get(prev_gs, f"#{prev_gs}")
-                new_label = GEN_STATUS_LABELS.get(cur_gs, f"#{cur_gs}")
+                old_label = gs_labels.get(prev_gs, f"#{prev_gs}")
+                new_label = gs_labels.get(cur_gs, f"#{cur_gs}")
                 icon = GEN_STATUS_ICONS.get(cur_gs, "🔄")
                 events.append(ScadaEvent(
                     device_id=device_id,
@@ -171,7 +236,61 @@ class EventDetector:
                     new_value=str(cur_gs),
                 ))
 
-        # === 2. MODE_CHANGE ===
+                # --- GEN_CRITICAL: consolidated stop/start events ---
+                # STOP: running (6-9) → any stop state (0, 10-15)
+                if prev_gs in GEN_RUNNING_STATES and cur_gs in GEN_STOP_STATES:
+                    cause = STOP_CAUSE.get(cur_gs, f"статус {cur_gs}")
+                    # Determine mode context for root cause
+                    cur_mode = self._detect_mode(payload)
+                    mode_ctx = ""
+                    if cur_mode == "stop":
+                        mode_ctx = " (ручной стоп оператором)"
+                    elif cur_mode == "auto":
+                        mode_ctx = " (авто)"
+                    elif cur_mode == "manual":
+                        mode_ctx = " (ручной режим)"
+                    # ETS is always critical regardless of mode
+                    if cur_gs == 12:
+                        msg = f"🚨 ОСТАНОВКА {name}: {cause}{mode_ctx}"
+                    elif cur_gs == 15:
+                        msg = f"❌ ОСТАНОВКА {name}: {cause}{mode_ctx}"
+                    else:
+                        msg = f"🛑 ОСТАНОВКА {name}: {cause}{mode_ctx}"
+                    events.append(ScadaEvent(
+                        device_id=device_id,
+                        category="GEN_CRITICAL",
+                        event_code="gen_critical_stop",
+                        message=msg,
+                        old_value=old_label,
+                        new_value=new_label,
+                    ))
+                    logger.warning("CRITICAL STOP: device=%d %s → %s cause=%s%s",
+                                   device_id, old_label, new_label, cause, mode_ctx)
+
+                # START: stopped/standby (0, 10-15) → starting (1-5) or running (6-9)
+                elif prev_gs in GEN_STOP_STATES and cur_gs in (GEN_START_STATES | GEN_RUNNING_STATES):
+                    cur_mode = self._detect_mode(payload)
+                    mode_ctx = ""
+                    if cur_mode == "auto":
+                        mode_ctx = " (авто)"
+                    elif cur_mode == "manual":
+                        mode_ctx = " (ручной)"
+                    elif cur_mode == "test":
+                        mode_ctx = " (тест)"
+                    events.append(ScadaEvent(
+                        device_id=device_id,
+                        category="GEN_CRITICAL",
+                        event_code="gen_critical_start",
+                        message=f"🟢 ЗАПУСК {name}: {new_label}{mode_ctx}",
+                        old_value=old_label,
+                        new_value=new_label,
+                    ))
+                    logger.info("CRITICAL START: device=%d %s → %s%s",
+                                device_id, old_label, new_label, mode_ctx)
+
+        # =============================================================
+        # 2. MODE_CHANGE (same flags for both device types)
+        # =============================================================
         cur_mode = self._detect_mode(payload)
         if cur_mode:
             prev_mode = prev.get("mode")
@@ -185,14 +304,29 @@ class EventDetector:
                     new_value=cur_mode,
                 ))
 
-        # === 3. ATS_STATUS ===
-        for ats_field, ats_label in [("gen_ats_status", "АВР ген."), ("mains_ats_status", "АВР сети")]:
+        # =============================================================
+        # 3. ATS_STATUS
+        #    - HGM9520N generators: gen_ats_status, mains_ats_status (0-7)
+        #    - HGM9560 ATS panel:   busbar_switch, mains_switch (0-7)
+        # =============================================================
+        if device_type == "ats":
+            ats_fields = [
+                ("busbar_switch", "Шинный ввод", SWITCH_STATUS_LABELS),
+                ("mains_switch", "Сетевой ввод", SWITCH_STATUS_LABELS),
+            ]
+        else:
+            ats_fields = [
+                ("gen_ats_status", "АВР ген.", ATS_STATUS_LABELS),
+                ("mains_ats_status", "АВР сети", ATS_STATUS_LABELS),
+            ]
+
+        for ats_field, ats_label, labels in ats_fields:
             cur_ats = payload.get(ats_field)
             if cur_ats is not None:
                 prev_ats = prev.get(ats_field)
                 if prev_ats is not None and cur_ats != prev_ats and not is_first:
-                    old_label = ATS_STATUS_LABELS.get(prev_ats, f"#{prev_ats}")
-                    new_label = ATS_STATUS_LABELS.get(cur_ats, f"#{cur_ats}")
+                    old_label = labels.get(prev_ats, f"#{prev_ats}")
+                    new_label = labels.get(cur_ats, f"#{cur_ats}")
                     icon = "🔌" if cur_ats == 3 else "⚡" if cur_ats == 7 else "🔄"
                     events.append(ScadaEvent(
                         device_id=device_id,
@@ -203,54 +337,102 @@ class EventDetector:
                         new_value=str(cur_ats),
                     ))
 
-        # === 4. MAINS ===
-        cur_mains_normal = payload.get("mains_normal")
-        if cur_mains_normal is not None:
-            prev_mn = prev.get("mains_normal")
-            if prev_mn is not None and cur_mains_normal != prev_mn and not is_first:
-                if cur_mains_normal:
-                    events.append(ScadaEvent(
-                        device_id=device_id,
-                        category="MAINS",
-                        event_code="mains_ok",
-                        message=f"✅ {name}: Сеть в норме",
-                        old_value="abnormal",
-                        new_value="normal",
-                    ))
-                else:
-                    events.append(ScadaEvent(
-                        device_id=device_id,
-                        category="MAINS",
-                        event_code="mains_fail",
-                        message=f"⚠ {name}: Пропадание сети!",
-                        old_value="normal",
-                        new_value="abnormal",
-                    ))
+        # =============================================================
+        # 4. MAINS
+        #    - HGM9520N generators: mains_normal (bool), mains_load (bool)
+        #    - HGM9560 ATS panel:   mains_status (0=normal,1=normal_delay,
+        #                           2=abnormal,3=abnormal_delay)
+        # =============================================================
+        if device_type == "ats":
+            # HGM9560: track mains_status transitions
+            cur_ms = payload.get("mains_status")
+            if cur_ms is not None:
+                prev_ms = prev.get("mains_status")
+                if prev_ms is not None and cur_ms != prev_ms and not is_first:
+                    # Determine if transition is normal↔abnormal
+                    was_normal = prev_ms in (0, 1)
+                    is_normal = cur_ms in (0, 1)
+                    old_label = MAINS_STATUS_LABELS.get(prev_ms, f"#{prev_ms}")
+                    new_label = MAINS_STATUS_LABELS.get(cur_ms, f"#{cur_ms}")
+                    if was_normal and not is_normal:
+                        events.append(ScadaEvent(
+                            device_id=device_id,
+                            category="MAINS",
+                            event_code="mains_fail",
+                            message=f"⚠ {name}: {new_label}!",
+                            old_value=old_label,
+                            new_value=new_label,
+                        ))
+                    elif not was_normal and is_normal:
+                        events.append(ScadaEvent(
+                            device_id=device_id,
+                            category="MAINS",
+                            event_code="mains_ok",
+                            message=f"✅ {name}: Сеть восстановлена",
+                            old_value=old_label,
+                            new_value=new_label,
+                        ))
+                    elif cur_ms != prev_ms:
+                        # Transition within same group (e.g. 0→1 or 2→3)
+                        events.append(ScadaEvent(
+                            device_id=device_id,
+                            category="MAINS",
+                            event_code=f"mains_status_{cur_ms}",
+                            message=f"🔌 {name}: Сеть {old_label} → {new_label}",
+                            old_value=old_label,
+                            new_value=new_label,
+                        ))
+        else:
+            # HGM9520N: track mains_normal and mains_load booleans
+            cur_mains_normal = payload.get("mains_normal")
+            if cur_mains_normal is not None:
+                prev_mn = prev.get("mains_normal")
+                if prev_mn is not None and cur_mains_normal != prev_mn and not is_first:
+                    if cur_mains_normal:
+                        events.append(ScadaEvent(
+                            device_id=device_id,
+                            category="MAINS",
+                            event_code="mains_ok",
+                            message=f"✅ {name}: Сеть в норме",
+                            old_value="abnormal",
+                            new_value="normal",
+                        ))
+                    else:
+                        events.append(ScadaEvent(
+                            device_id=device_id,
+                            category="MAINS",
+                            event_code="mains_fail",
+                            message=f"⚠ {name}: Пропадание сети!",
+                            old_value="normal",
+                            new_value="abnormal",
+                        ))
 
-        cur_mains_load = payload.get("mains_load")
-        if cur_mains_load is not None:
-            prev_ml = prev.get("mains_load")
-            if prev_ml is not None and cur_mains_load != prev_ml and not is_first:
-                if cur_mains_load:
-                    events.append(ScadaEvent(
-                        device_id=device_id,
-                        category="MAINS",
-                        event_code="mains_on_load",
-                        message=f"⚡ {name}: Сеть на нагрузке",
-                        old_value="off_load",
-                        new_value="on_load",
-                    ))
-                else:
-                    events.append(ScadaEvent(
-                        device_id=device_id,
-                        category="MAINS",
-                        event_code="mains_off_load",
-                        message=f"🔌 {name}: Сеть снята с нагрузки",
-                        old_value="on_load",
-                        new_value="off_load",
-                    ))
+            cur_mains_load = payload.get("mains_load")
+            if cur_mains_load is not None:
+                prev_ml = prev.get("mains_load")
+                if prev_ml is not None and cur_mains_load != prev_ml and not is_first:
+                    if cur_mains_load:
+                        events.append(ScadaEvent(
+                            device_id=device_id,
+                            category="MAINS",
+                            event_code="mains_on_load",
+                            message=f"⚡ {name}: Сеть на нагрузке",
+                            old_value="off_load",
+                            new_value="on_load",
+                        ))
+                    else:
+                        events.append(ScadaEvent(
+                            device_id=device_id,
+                            category="MAINS",
+                            event_code="mains_off_load",
+                            message=f"🔌 {name}: Сеть снята с нагрузки",
+                            old_value="on_load",
+                            new_value="off_load",
+                        ))
 
-        # === 5. SYSTEM: online True↔False ===
+        # =============================================================
+        # 5. SYSTEM: online True↔False (both device types)
+        # =============================================================
         online_now = payload.get("online")
         if online_now is not None:
             prev_online = prev.get("online")
@@ -308,18 +490,30 @@ class EventDetector:
 
         # --- Update prev state ---
         new_state = dict(prev)
+        # GEN_STATUS
         if cur_gs is not None:
-            new_state["gen_status"] = cur_gs
+            new_state[gs_prev_key] = cur_gs
+        # MODE_CHANGE
         if cur_mode:
             new_state["mode"] = cur_mode
-        for field in ("gen_ats_status", "mains_ats_status"):
-            v = payload.get(field)
+        # ATS_STATUS
+        for ats_field, _, _ in ats_fields:
+            v = payload.get(ats_field)
             if v is not None:
-                new_state[field] = v
-        if cur_mains_normal is not None:
-            new_state["mains_normal"] = cur_mains_normal
-        if cur_mains_load is not None:
-            new_state["mains_load"] = cur_mains_load
+                new_state[ats_field] = v
+        # MAINS
+        if device_type == "ats":
+            cur_ms_val = payload.get("mains_status")
+            if cur_ms_val is not None:
+                new_state["mains_status"] = cur_ms_val
+        else:
+            mn = payload.get("mains_normal")
+            if mn is not None:
+                new_state["mains_normal"] = mn
+            ml = payload.get("mains_load")
+            if ml is not None:
+                new_state["mains_load"] = ml
+        # SYSTEM
         if online_now is not None:
             new_state["online"] = online_now
         self._prev[device_id] = new_state
