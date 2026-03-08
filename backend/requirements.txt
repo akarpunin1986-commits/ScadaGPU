@@ -28,7 +28,7 @@ python-docx>=1.1.0
 python-multipart>=0.0.9
 
 # RAG — ChromaDB HTTP client (Module 1)
-chromadb-client>=0.5.0
+chromadb-client>=0.5.0,<0.6.0
 
 # Predictive Analytics (Module 5)
 numpy>=1.26.0
