@@ -130,12 +130,22 @@ class MetricsWriter:
         "mains_p_a": (-2000, 2000), "mains_p_b": (-2000, 2000), "mains_p_c": (-2000, 2000),
         "mains_total_q": (-2000, 2000),
         "busbar_p": (-2000, 2000), "busbar_q": (-2000, 2000),
+        "multiset_total_p": (-2000, 4000),  # sum of all gensets, can be up to 2× single gen
         # Engine
         "engine_speed": (0, 5000),
         "coolant_temp": (-50, 200), "oil_temp": (-50, 200),
         "oil_pressure": (0, 1000),
         "battery_volt": (0, 60),
         "fuel_level": (0, 100), "load_pct": (-50, 150),
+        "fuel_pressure": (0, 10000), "turbo_pressure": (0, 10000),
+        "fuel_consumption": (0, 1000),
+        # ECU / Gas
+        "gas_pressure": (0, 500), "gas_temp": (-50, 200),
+        "air_gas_ratio": (0.5, 3.0), "exhaust_oxygen": (0, 25),
+        "ignition_timing": (-60, 60), "throttle_valve_pos": (-10, 110),
+        "fuel_valve_pos": (-10, 110), "fuel_inlet_pressure": (0, 1000),
+        "exhaust_back_pressure": (0, 100), "engine_target_speed": (0, 5000),
+        "accumulated_fuel": (0, 100_000_000), "throttle_valve_cmd": (-10, 110),
     }
 
     @classmethod
@@ -195,9 +205,22 @@ class MetricsWriter:
             "battery_volt": san("battery_volt", p.get("battery_volt")),
             "fuel_level": san("fuel_level", p.get("fuel_level")),
             "load_pct": san("load_pct", p.get("load_pct")),
-            "fuel_pressure": p.get("fuel_pressure"),
-            "turbo_pressure": p.get("turbo_pressure"),
-            "fuel_consumption": p.get("fuel_consumption"),
+            "fuel_pressure": san("fuel_pressure", p.get("fuel_pressure")),
+            "turbo_pressure": san("turbo_pressure", p.get("turbo_pressure")),
+            "fuel_consumption": san("fuel_consumption", p.get("fuel_consumption")),
+            # --- ECU / Gas (Exon-Gas) ---
+            "accumulated_fuel": san("accumulated_fuel", p.get("accumulated_fuel")),
+            "throttle_valve_pos": san("throttle_valve_pos", p.get("throttle_valve_pos")),
+            "fuel_valve_pos": san("fuel_valve_pos", p.get("fuel_valve_pos")),
+            "fuel_inlet_pressure": san("fuel_inlet_pressure", p.get("fuel_inlet_pressure")),
+            "exhaust_oxygen": san("exhaust_oxygen", p.get("exhaust_oxygen")),
+            "ignition_timing": san("ignition_timing", p.get("ignition_timing")),
+            "engine_target_speed": san("engine_target_speed", p.get("engine_target_speed")),
+            "air_gas_ratio": san("air_gas_ratio", p.get("air_gas_ratio")),
+            "gas_pressure": san("gas_pressure", p.get("gas_pressure")),
+            "gas_temp": san("gas_temp", p.get("gas_temp")),
+            "exhaust_back_pressure": san("exhaust_back_pressure", p.get("exhaust_back_pressure")),
+            "throttle_valve_cmd": san("throttle_valve_cmd", p.get("throttle_valve_cmd")),
             # --- Mains power (HGM9560 SPR) ---
             "mains_total_p": san("mains_total_p", p.get("mains_total_p")),
             "mains_p_a": san("mains_p_a", p.get("mains_p_a")),
@@ -215,6 +238,7 @@ class MetricsWriter:
             "busbar_current": san("busbar_current", p.get("busbar_current")),
             "busbar_p": san("busbar_p", p.get("busbar_p")),
             "busbar_q": san("busbar_q", p.get("busbar_q")),
+            "multiset_total_p": san("multiset_total_p", p.get("multiset_total_p")),
             # --- Accumulated ---
             "run_hours": p.get("run_hours") or p.get("running_hours_a"),
             "energy_kwh": p.get("energy_kwh") or p.get("accum_kwh"),

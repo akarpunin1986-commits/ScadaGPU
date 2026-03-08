@@ -19,6 +19,7 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name": "Maintenance Time Due Alarm Shutdown",
         "name_ru": "Плановое ТО — аварийный останов",
         "severity": "shutdown",
+        "description_ru": "Счётчик моточасов достиг уставки планового ТО. Контроллер выполнил аварийный останов генератора. Необходимо провести техническое обслуживание и сбросить счётчик ТО.",
     },
 
     # Register 0002 — Shutdown (continued)
@@ -27,24 +28,28 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name": "MSC ID Error Alarm Shutdown",
         "name_ru": "Ошибка MSC ID — аварийный останов",
         "severity": "shutdown",
+        "description_ru": "Контроллер MSC (Multi-Set Controller) не распознан или имеет неверный ID. Нарушена связь между контроллерами в системе параллельной работы. Проверить настройки MSC ID и CAN/RS485 шину.",
     },
     ("alarm_reg_02", 2): {
         "code": "M_SD_2_2",
         "name": "Voltage Bus Error Alarm Shutdown",
         "name_ru": "Ошибка шины напряжения — аварийный останов",
         "severity": "shutdown",
+        "description_ru": "Ошибка измерения напряжения на внутренней шине контроллера. Возможен обрыв или КЗ цепей измерения напряжения, неисправность трансформаторов напряжения или самого контроллера.",
     },
     ("alarm_reg_02", 3): {
         "code": "M_SD_2_3",
         "name": "Gen Phase Error Alarm Shutdown",
         "name_ru": "Ошибка чередования фаз генератора — аварийный останов",
         "severity": "shutdown",
+        "description_ru": "Неправильная последовательность фаз на выходе генератора (L1-L2-L3). Может быть вызвано неправильным подключением силовых кабелей генератора или измерительных цепей контроллера.",
     },
     ("alarm_reg_02", 4): {
         "code": "M_SD_2_4",
         "name": "Bus (Mains) Phase Error Alarm Shutdown",
         "name_ru": "Ошибка чередования фаз шины (сети) — аварийный останов",
         "severity": "shutdown",
+        "description_ru": "Неправильная последовательность фаз на шине (сетевом вводе). Проверить подключение силовых кабелей сетевого ввода и измерительных трансформаторов напряжения сети.",
     },
 
     # Register 0008 — Input Shutdown (discrete inputs 1-8)
@@ -53,48 +58,56 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name": "Input 1 Shutdown",
         "name_ru": "Дискретный вход 1 — аварийный останов",
         "severity": "shutdown",
+        "description_ru": "Сработал дискретный вход 1, настроенный на аварийный останов. Конкретный датчик зависит от схемы подключения объекта (газовый детектор, аварийная кнопка, датчик пожара и т.д.). Проверить электрическую схему и состояние подключенного датчика.",
     },
     ("alarm_reg_08", 1): {
         "code": "M_ISD_8_1",
         "name": "Input 2 Shutdown",
         "name_ru": "Дискретный вход 2 — аварийный останов",
         "severity": "shutdown",
+        "description_ru": "Сработал дискретный вход 2, настроенный на аварийный останов. Конкретный датчик зависит от схемы подключения объекта. Проверить электрическую схему и состояние подключенного датчика.",
     },
     ("alarm_reg_08", 2): {
         "code": "M_ISD_8_2",
         "name": "Input 3 Shutdown",
         "name_ru": "Дискретный вход 3 — аварийный останов",
         "severity": "shutdown",
+        "description_ru": "Сработал дискретный вход 3, настроенный на аварийный останов. Конкретный датчик зависит от схемы подключения объекта. Проверить электрическую схему и состояние подключенного датчика.",
     },
     ("alarm_reg_08", 3): {
         "code": "M_ISD_8_3",
         "name": "Input 4 Shutdown",
         "name_ru": "Дискретный вход 4 — аварийный останов",
         "severity": "shutdown",
+        "description_ru": "Сработал дискретный вход 4, настроенный на аварийный останов. Конкретный датчик зависит от схемы подключения объекта. Проверить электрическую схему и состояние подключенного датчика.",
     },
     ("alarm_reg_08", 4): {
         "code": "M_ISD_8_4",
         "name": "Input 5 Shutdown",
         "name_ru": "Дискретный вход 5 — аварийный останов",
         "severity": "shutdown",
+        "description_ru": "Сработал дискретный вход 5, настроенный на аварийный останов. Конкретный датчик зависит от схемы подключения объекта. Проверить электрическую схему и состояние подключенного датчика.",
     },
     ("alarm_reg_08", 5): {
         "code": "M_ISD_8_5",
         "name": "Input 6 Shutdown",
         "name_ru": "Дискретный вход 6 — аварийный останов",
         "severity": "shutdown",
+        "description_ru": "Сработал дискретный вход 6, настроенный на аварийный останов. Конкретный датчик зависит от схемы подключения объекта. Проверить электрическую схему и состояние подключенного датчика.",
     },
     ("alarm_reg_08", 6): {
         "code": "M_ISD_8_6",
         "name": "Input 7 Shutdown",
         "name_ru": "Дискретный вход 7 — аварийный останов",
         "severity": "shutdown",
+        "description_ru": "Сработал дискретный вход 7, настроенный на аварийный останов. Конкретный датчик зависит от схемы подключения объекта. Проверить электрическую схему и состояние подключенного датчика.",
     },
     ("alarm_reg_08", 7): {
         "code": "M_ISD_8_7",
         "name": "Input 8 Shutdown",
         "name_ru": "Дискретный вход 8 — аварийный останов",
         "severity": "shutdown",
+        "description_ru": "Сработал дискретный вход 8, настроенный на аварийный останов. Конкретный датчик зависит от схемы подключения объекта. Проверить электрическую схему и состояние подключенного датчика.",
     },
 
     # Register 0012 — Trip and Stop
@@ -103,54 +116,63 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name": "Maintenance Time Due Trip and Stop",
         "name_ru": "Плановое ТО — Trip and Stop",
         "severity": "trip",
+        "description_ru": "Счётчик моточасов достиг уставки планового ТО. Генератор будет остановлен после снятия нагрузки (Trip and Stop). Провести ТО и сбросить счётчик.",
     },
     ("alarm_reg_12", 4): {
         "code": "M_TS_12_4",
         "name": "Input 1 Trip and Stop",
         "name_ru": "Дискретный вход 1 — Trip and Stop",
         "severity": "trip",
+        "description_ru": "Сработал дискретный вход 1 с реакцией Trip and Stop — генератор сначала сбросит нагрузку, затем остановится. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_12", 5): {
         "code": "M_TS_12_5",
         "name": "Input 2 Trip and Stop",
         "name_ru": "Дискретный вход 2 — Trip and Stop",
         "severity": "trip",
+        "description_ru": "Сработал дискретный вход 2 с реакцией Trip and Stop. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_12", 6): {
         "code": "M_TS_12_6",
         "name": "Input 3 Trip and Stop",
         "name_ru": "Дискретный вход 3 — Trip and Stop",
         "severity": "trip",
+        "description_ru": "Сработал дискретный вход 3 с реакцией Trip and Stop. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_12", 7): {
         "code": "M_TS_12_7",
         "name": "Input 4 Trip and Stop",
         "name_ru": "Дискретный вход 4 — Trip and Stop",
         "severity": "trip",
+        "description_ru": "Сработал дискретный вход 4 с реакцией Trip and Stop. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_12", 8): {
         "code": "M_TS_12_8",
         "name": "Input 5 Trip and Stop",
         "name_ru": "Дискретный вход 5 — Trip and Stop",
         "severity": "trip",
+        "description_ru": "Сработал дискретный вход 5 с реакцией Trip and Stop. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_12", 9): {
         "code": "M_TS_12_9",
         "name": "Input 6 Trip and Stop",
         "name_ru": "Дискретный вход 6 — Trip and Stop",
         "severity": "trip",
+        "description_ru": "Сработал дискретный вход 6 с реакцией Trip and Stop. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_12", 10): {
         "code": "M_TS_12_10",
         "name": "Input 7 Trip and Stop",
         "name_ru": "Дискретный вход 7 — Trip and Stop",
         "severity": "trip",
+        "description_ru": "Сработал дискретный вход 7 с реакцией Trip and Stop. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_12", 11): {
         "code": "M_TS_12_11",
         "name": "Input 8 Trip and Stop",
         "name_ru": "Дискретный вход 8 — Trip and Stop",
         "severity": "trip",
+        "description_ru": "Сработал дискретный вход 8 с реакцией Trip and Stop. Проверить подключенный датчик по электрической схеме.",
     },
 
     # Register 0014 — Trip and Stop (continued)
@@ -159,12 +181,14 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name": "Mains Overcurrent 1 Trip and Stop",
         "name_ru": "Перегрузка по току сети 1 — Trip and Stop",
         "severity": "trip",
+        "description_ru": "Ток сети 1 превысил допустимое значение. Генератор будет остановлен после сброса нагрузки. Проверить потребители на предмет перегрузки или КЗ.",
     },
     ("alarm_reg_14", 9): {
         "code": "M_TS_14_9",
         "name": "Mains Overcurrent 2 Trip and Stop",
         "name_ru": "Перегрузка по току сети 2 — Trip and Stop",
         "severity": "trip",
+        "description_ru": "Ток сети 2 превысил допустимое значение. Генератор будет остановлен после сброса нагрузки. Проверить потребители на предмет перегрузки или КЗ.",
     },
 
     # Register 0016 — Trip
@@ -173,48 +197,56 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name": "Input 1 Trip",
         "name_ru": "Дискретный вход 1 — Trip",
         "severity": "trip",
+        "description_ru": "Сработал дискретный вход 1 с реакцией Trip — сброс нагрузки с генератора. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_16", 5): {
         "code": "M_TR_16_5",
         "name": "Input 2 Trip",
         "name_ru": "Дискретный вход 2 — Trip",
         "severity": "trip",
+        "description_ru": "Сработал дискретный вход 2 с реакцией Trip — сброс нагрузки с генератора. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_16", 6): {
         "code": "M_TR_16_6",
         "name": "Input 3 Trip",
         "name_ru": "Дискретный вход 3 — Trip",
         "severity": "trip",
+        "description_ru": "Сработал дискретный вход 3 с реакцией Trip — сброс нагрузки с генератора. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_16", 7): {
         "code": "M_TR_16_7",
         "name": "Input 4 Trip",
         "name_ru": "Дискретный вход 4 — Trip",
         "severity": "trip",
+        "description_ru": "Сработал дискретный вход 4 с реакцией Trip — сброс нагрузки с генератора. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_16", 8): {
         "code": "M_TR_16_8",
         "name": "Input 5 Trip",
         "name_ru": "Дискретный вход 5 — Trip",
         "severity": "trip",
+        "description_ru": "Сработал дискретный вход 5 с реакцией Trip — сброс нагрузки с генератора. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_16", 9): {
         "code": "M_TR_16_9",
         "name": "Input 6 Trip",
         "name_ru": "Дискретный вход 6 — Trip",
         "severity": "trip",
+        "description_ru": "Сработал дискретный вход 6 с реакцией Trip — сброс нагрузки с генератора. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_16", 10): {
         "code": "M_TR_16_10",
         "name": "Input 7 Trip",
         "name_ru": "Дискретный вход 7 — Trip",
         "severity": "trip",
+        "description_ru": "Сработал дискретный вход 7 с реакцией Trip — сброс нагрузки с генератора. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_16", 11): {
         "code": "M_TR_16_11",
         "name": "Input 8 Trip",
         "name_ru": "Дискретный вход 8 — Trip",
         "severity": "trip",
+        "description_ru": "Сработал дискретный вход 8 с реакцией Trip — сброс нагрузки с генератора. Проверить подключенный датчик по электрической схеме.",
     },
 
     # Register 0020 — Warning
@@ -231,54 +263,63 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name": "Battery Overvoltage Warning",
         "name_ru": "Повышенное напряжение батареи",
         "severity": "warning",
+        "description_ru": "Напряжение АКБ выше допустимого (обычно >30В для 24В системы). Возможен перезаряд от неисправного зарядного устройства. Проверить зарядное устройство и регулятор напряжения.",
     },
     ("alarm_reg_20", 4): {
         "code": "M_WN_20_4",
         "name": "Input 1 Warning",
         "name_ru": "Дискретный вход 1 — предупреждение",
         "severity": "warning",
+        "description_ru": "Сработал дискретный вход 1, настроенный на предупреждение. Не вызывает остановку, но требует внимания. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_20", 5): {
         "code": "M_WN_20_5",
         "name": "Input 2 Warning",
         "name_ru": "Дискретный вход 2 — предупреждение",
         "severity": "warning",
+        "description_ru": "Сработал дискретный вход 2, настроенный на предупреждение. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_20", 6): {
         "code": "M_WN_20_6",
         "name": "Input 3 Warning",
         "name_ru": "Дискретный вход 3 — предупреждение",
         "severity": "warning",
+        "description_ru": "Сработал дискретный вход 3, настроенный на предупреждение. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_20", 7): {
         "code": "M_WN_20_7",
         "name": "Input 4 Warning",
         "name_ru": "Дискретный вход 4 — предупреждение",
         "severity": "warning",
+        "description_ru": "Сработал дискретный вход 4, настроенный на предупреждение. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_20", 8): {
         "code": "M_WN_20_8",
         "name": "Input 5 Warning",
         "name_ru": "Дискретный вход 5 — предупреждение",
         "severity": "warning",
+        "description_ru": "Сработал дискретный вход 5, настроенный на предупреждение. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_20", 9): {
         "code": "M_WN_20_9",
         "name": "Input 6 Warning",
         "name_ru": "Дискретный вход 6 — предупреждение",
         "severity": "warning",
+        "description_ru": "Сработал дискретный вход 6, настроенный на предупреждение. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_20", 10): {
         "code": "M_WN_20_10",
         "name": "Input 7 Warning",
         "name_ru": "Дискретный вход 7 — предупреждение",
         "severity": "warning",
+        "description_ru": "Сработал дискретный вход 7, настроенный на предупреждение. Проверить подключенный датчик по электрической схеме.",
     },
     ("alarm_reg_20", 11): {
         "code": "M_WN_20_11",
         "name": "Input 8 Warning",
         "name_ru": "Дискретный вход 8 — предупреждение",
         "severity": "warning",
+        "description_ru": "Сработал дискретный вход 8, настроенный на предупреждение. Проверить подключенный датчик по электрической схеме.",
     },
 
     # Register 0021 — Warning (continued)
@@ -295,18 +336,21 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name": "Mains Switch Transfer Failure Warning",
         "name_ru": "Ошибка переключения автомата сети",
         "severity": "warning",
+        "description_ru": "Автоматический выключатель сетевого ввода не переключился в отведённое время. Возможна механическая неисправность привода автомата, обрыв цепи управления или залипание контактов.",
     },
     ("alarm_reg_21", 7): {
         "code": "M_WN_21_7",
         "name": "Gen Switch Transfer Failure Warning",
         "name_ru": "Ошибка переключения автомата генератора",
         "severity": "warning",
+        "description_ru": "Автоматический выключатель генераторного ввода не переключился в отведённое время. Проверить привод автомата, цепь управления и исправность контактора.",
     },
     ("alarm_reg_21", 15): {
         "code": "M_WN_21_15",
         "name": "Mains Output Power Limit",
         "name_ru": "Ограничение мощности сети",
         "severity": "warning",
+        "description_ru": "Достигнут лимит мощности на выходе сети. Нагрузка превышает установленное ограничение мощности. Проверить уставку и фактическую нагрузку.",
     },
 
     # Register 0024 — Indication
@@ -315,6 +359,7 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name": "Maintenance Time Due Indication",
         "name_ru": "Плановое ТО — индикация",
         "severity": "indication",
+        "description_ru": "Информационное сообщение: счётчик моточасов приближается к уставке планового ТО. Остановка не производится, но ТО следует запланировать в ближайшее время.",
     },
 
     # Register 0030 — Mains Trip
@@ -323,48 +368,56 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name": "Input 1 Mains Trip",
         "name_ru": "Дискретный вход 1 — Mains Trip",
         "severity": "mains_trip",
+        "description_ru": "Сработал дискретный вход 1 с реакцией Mains Trip — отключение сетевого ввода. Используется для внешних защит сети. Проверить датчик и сетевой ввод.",
     },
     ("alarm_reg_30", 1): {
         "code": "M_MT_30_1",
         "name": "Input 2 Mains Trip",
         "name_ru": "Дискретный вход 2 — Mains Trip",
         "severity": "mains_trip",
+        "description_ru": "Сработал дискретный вход 2 с реакцией Mains Trip — отключение сетевого ввода. Проверить датчик и сетевой ввод.",
     },
     ("alarm_reg_30", 2): {
         "code": "M_MT_30_2",
         "name": "Input 3 Mains Trip",
         "name_ru": "Дискретный вход 3 — Mains Trip",
         "severity": "mains_trip",
+        "description_ru": "Сработал дискретный вход 3 с реакцией Mains Trip — отключение сетевого ввода. Проверить датчик и сетевой ввод.",
     },
     ("alarm_reg_30", 3): {
         "code": "M_MT_30_3",
         "name": "Input 4 Mains Trip",
         "name_ru": "Дискретный вход 4 — Mains Trip",
         "severity": "mains_trip",
+        "description_ru": "Сработал дискретный вход 4 с реакцией Mains Trip — отключение сетевого ввода. Проверить датчик и сетевой ввод.",
     },
     ("alarm_reg_30", 4): {
         "code": "M_MT_30_4",
         "name": "Input 5 Mains Trip",
         "name_ru": "Дискретный вход 5 — Mains Trip",
         "severity": "mains_trip",
+        "description_ru": "Сработал дискретный вход 5 с реакцией Mains Trip — отключение сетевого ввода. Проверить датчик и сетевой ввод.",
     },
     ("alarm_reg_30", 5): {
         "code": "M_MT_30_5",
         "name": "Input 6 Mains Trip",
         "name_ru": "Дискретный вход 6 — Mains Trip",
         "severity": "mains_trip",
+        "description_ru": "Сработал дискретный вход 6 с реакцией Mains Trip — отключение сетевого ввода. Проверить датчик и сетевой ввод.",
     },
     ("alarm_reg_30", 6): {
         "code": "M_MT_30_6",
         "name": "Input 7 Mains Trip",
         "name_ru": "Дискретный вход 7 — Mains Trip",
         "severity": "mains_trip",
+        "description_ru": "Сработал дискретный вход 7 с реакцией Mains Trip — отключение сетевого ввода. Проверить датчик и сетевой ввод.",
     },
     ("alarm_reg_30", 7): {
         "code": "M_MT_30_7",
         "name": "Input 8 Mains Trip",
         "name_ru": "Дискретный вход 8 — Mains Trip",
         "severity": "mains_trip",
+        "description_ru": "Сработал дискретный вход 8 с реакцией Mains Trip — отключение сетевого ввода. Проверить датчик и сетевой ввод.",
     },
     ("alarm_reg_30", 8): {
         "code": "M_MT_30_8",
@@ -387,6 +440,7 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name": "Mains Output Power Limit Mains Trip",
         "name_ru": "Ограничение мощности сети — Mains Trip",
         "severity": "mains_trip",
+        "description_ru": "Достигнут лимит мощности сети — автомат сети отключён. Нагрузка превысила допустимый лимит. Проверить уставку и фактическую нагрузку.",
     },
 
     # Register 0044 — Mains fault detail
@@ -395,6 +449,7 @@ ALARM_MAP_HGM9560: dict[tuple[str, int], dict] = {
         "name": "Mains Abnormal",
         "name_ru": "Авария сети (общий флаг)",
         "severity": "warning",
+        "description_ru": "Общий флаг аварии сети. Одно или несколько условий (напряжение, частота, фазы) вне допустимого диапазона. Проверить параметры сетевого напряжения.",
     },
     ("alarm_reg_44", 1): {
         "code": "M002",
@@ -489,6 +544,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Пониженные обороты двигателя",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Обороты двигателя ниже минимальной уставки (обычно <1350 об/мин). Причины: перегрузка двигателя, недостаток топлива, неисправность GOV.",
     },
     ("alarm_sd_0", 3): {
         "code": "G_SD_0_3",
@@ -496,6 +552,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Потеря сигнала скорости (датчик оборотов)",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Контроллер не получает сигнал от датчика оборотов (MPU). Без сигнала невозможно управлять двигателем. Проверить датчик, зазор, проводку.",
     },
     ("alarm_sd_0", 4): {
         "code": "G_SD_0_4",
@@ -504,6 +561,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "severity": "shutdown",
         "group": "shutdown",
         "analysis_key": "gen_overfrequency",
+        "description_ru": "Частота генератора выше уставки (обычно >52 Гц). Причины: избыток топлива, неисправность GOV, резкий сброс нагрузки.",
     },
     ("alarm_sd_0", 5): {
         "code": "G_SD_0_5",
@@ -512,6 +570,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "severity": "shutdown",
         "group": "shutdown",
         "analysis_key": "gen_underfrequency",
+        "description_ru": "Частота генератора ниже уставки (обычно <47 Гц). Причины: перегрузка, недостаток топлива, проблемы с GOV.",
     },
     ("alarm_sd_0", 6): {
         "code": "G_SD_0_6",
@@ -564,6 +623,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Замыкание на землю",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Обнаружен ток утечки на землю. Повреждение изоляции кабеля или пробой обмотки на корпус. ОПАСНО для персонала! Проверить изоляцию мегаомметром.",
     },
     ("alarm_sd_0", 12): {
         "code": "G_SD_0_12",
@@ -598,6 +658,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Потеря связи с блоком управления двигателем",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Контроллер потерял связь с ECU (блок управления двигателем). Проверить кабель связи, разъёмы, настройки протокола и питание ECU.",
     },
 
     # Offset 1 (alarm_sd_1)
@@ -607,6 +668,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Ошибка блока управления двигателем",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Блок управления двигателем (ECU) сообщил об ошибке. Код ошибки ECU можно прочитать с дисплея контроллера. Проверить ECU.",
     },
     ("alarm_sd_1", 1): {
         "code": "G_SD_1_1",
@@ -614,6 +676,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Высокая температура (дискретный вход)",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Сработал дискретный вход высокой температуры. Внешний датчик зафиксировал перегрев. Проверить систему охлаждения.",
     },
     ("alarm_sd_1", 2): {
         "code": "G_SD_1_2",
@@ -630,6 +693,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Ошибка ID в мультисетевой коммуникации",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Ошибка идентификатора в мультисетевой коммуникации (MSC). Дублирование ID или неверная настройка. Проверить ID устройств, кабели связи.",
     },
     ("alarm_sd_1", 4): {
         "code": "G_SD_1_4",
@@ -637,6 +701,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Ошибка шины напряжения",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Несоответствие измеренных и ожидаемых значений напряжения на шине. Проверить трансформаторы напряжения, проводку к контроллеру.",
     },
     ("alarm_sd_1", 5): {
         "code": "G_SD_1_5",
@@ -644,6 +709,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Ошибка чередования фаз генератора",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Нарушение чередования фаз генератора. Трёхфазные двигатели будут вращаться в обратном направлении. Проверить подключение силовых кабелей.",
     },
     ("alarm_sd_1", 6): {
         "code": "G_SD_1_6",
@@ -651,6 +717,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Ошибка чередования фаз шины",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Нарушение чередования фаз на шине напряжения. Проверить подключение кабелей к шине и трансформаторам напряжения.",
     },
     ("alarm_sd_1", 7): {
         "code": "G_SD_1_7",
@@ -658,6 +725,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Обрыв датчика температуры",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Обрыв цепи датчика температуры ОЖ. Контроллер не может контролировать температуру двигателя. Проверить датчик и проводку.",
     },
     ("alarm_sd_1", 8): {
         "code": "G_SD_1_8",
@@ -674,6 +742,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Низкая температура двигателя",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Температура двигателя ниже минимальной уставки. Двигатель недостаточно прогрет. Необходим предварительный подогрев перед запуском.",
     },
     ("alarm_sd_1", 10): {
         "code": "G_SD_1_10",
@@ -681,6 +750,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Ошибка датчика температуры",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Ошибка датчика температуры — показания вне допустимого диапазона. Проверить датчик, проводку, разъёмы.",
     },
     ("alarm_sd_1", 11): {
         "code": "G_SD_1_11",
@@ -688,6 +758,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Обрыв датчика давления масла",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Обрыв цепи датчика давления масла. Контроллер не контролирует давление масла. Проверить датчик и проводку.",
     },
     ("alarm_sd_1", 12): {
         "code": "G_SD_1_12",
@@ -695,6 +766,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Высокое давление масла",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Давление масла выше нормы. Причины: засор масляного фильтра, неисправность перепускного клапана, холодное масло при пуске.",
     },
     ("alarm_sd_1", 13): {
         "code": "G_SD_1_13",
@@ -711,6 +783,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Ошибка датчика давления масла",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Ошибка датчика давления масла — показания вне диапазона. Проверить датчик, проводку и калибровку.",
     },
     ("alarm_sd_1", 15): {
         "code": "G_SD_1_15",
@@ -718,6 +791,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Обрыв датчика уровня топлива",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Обрыв цепи датчика уровня топлива. Контроллер не контролирует запас топлива. Проверить датчик и проводку.",
     },
 
     # Offset 2 (alarm_sd_2)
@@ -727,6 +801,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Высокий уровень топлива",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Уровень топлива выше нормы. Возможен перелив при автозаправке. Проверить систему автоматической подачи топлива, поплавковый клапан.",
     },
     ("alarm_sd_2", 1): {
         "code": "G_SD_2_1",
@@ -735,6 +810,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "severity": "shutdown",
         "group": "shutdown",
         "analysis_key": "low_fuel_level",
+        "description_ru": "Уровень топлива ниже нормы. Необходима дозаправка. Без топлива двигатель остановится, в систему попадёт воздух.",
     },
     ("alarm_sd_2", 2): {
         "code": "G_SD_2_2",
@@ -742,6 +818,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Ошибка датчика уровня топлива",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Ошибка датчика уровня топлива — показания вне допустимого диапазона. Проверить датчик и проводку.",
     },
     ("alarm_sd_2", 3): {
         "code": "G_SD_2_3",
@@ -784,6 +861,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Неудачная остановка двигателя",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Двигатель не остановился после команды остановки. Проверить соленоид останова, топливный клапан. Может потребоваться ручная остановка.",
     },
     ("alarm_sd_2", 12): {
         "code": "G_SD_2_12",
@@ -800,6 +878,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Перенапряжение батареи",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Напряжение батареи выше нормы (>30-32В для 24В системы). Проверить зарядное устройство, реле-регулятор.",
     },
     ("alarm_sd_2", 14): {
         "code": "G_SD_2_14",
@@ -807,6 +886,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Пониженное напряжение батареи",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Напряжение батареи ниже нормы (<20-22В для 24В системы). Разряд АКБ. Проверить зарядку, состояние и возраст батареи.",
     },
     ("alarm_sd_2", 15): {
         "code": "G_SD_2_15",
@@ -814,6 +894,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Ошибка синхронизации",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Не удалось синхронизировать генератор с сетью в заданное время. Проверить GOV (частота), AVR (напряжение), фазовый угол.",
     },
 
     # Offset 3 (alarm_sd_3)
@@ -823,6 +904,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Регулятор оборотов на пределе",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Регулятор оборотов (GOV) достиг предела регулирования. Двигатель не может поддерживать заданную частоту. Проверить нагрузку, топливоподачу, актуатор.",
     },
     ("alarm_sd_3", 1): {
         "code": "G_SD_3_1",
@@ -830,6 +912,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Регулятор напряжения на пределе",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Регулятор напряжения (AVR) достиг предела. Генератор не может поддерживать напряжение. Проверить нагрузку, обмотку возбуждения, вращающийся выпрямитель.",
     },
     ("alarm_sd_3", 2): {
         "code": "G_SD_3_2",
@@ -837,6 +920,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Недостаточная мощность генератора",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Генератор не способен обеспечить требуемую мощность. Нагрузка превышает номинал. Отключить часть потребителей или подключить дополнительный генератор.",
     },
     ("alarm_sd_3", 3): {
         "code": "G_SD_3_3",
@@ -844,6 +928,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Напряжение вне окна синхронизации",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Напряжение генератора вне допустимого окна синхронизации. Невозможно замкнуть генератор в параллель. Настроить AVR.",
     },
     ("alarm_sd_3", 4): {
         "code": "G_SD_3_4",
@@ -851,6 +936,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Частота вне окна синхронизации",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Частота генератора вне допустимого окна синхронизации. Невозможно замкнуть генератор в параллель. Настроить GOV.",
     },
     ("alarm_sd_3", 5): {
         "code": "G_SD_3_5",
@@ -858,6 +944,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Фаза вне окна синхронизации",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Фазовый угол вне допустимого окна синхронизации. Невозможно замкнуть генератор в параллель. Проверить GOV и AVR.",
     },
     ("alarm_sd_3", 6): {
         "code": "G_SD_3_6",
@@ -865,6 +952,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Авария автомата сети",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Авария автомата/контактора сети. Проверить привод, механизм, управляющую цепь, состояние контактов.",
     },
     ("alarm_sd_3", 7): {
         "code": "G_SD_3_7",
@@ -872,6 +960,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Авария автомата генератора",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Авария автомата/контактора генератора. Проверить привод, механизм, управляющую цепь, состояние контактов.",
     },
     ("alarm_sd_3", 8): {
         "code": "G_SD_3_8",
@@ -879,6 +968,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Не удалось замкнуть автомат сети",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Автомат сети не замкнулся по команде. Проверить привод автомата, концевой выключатель подтверждения, управляющую цепь.",
     },
     ("alarm_sd_3", 9): {
         "code": "G_SD_3_9",
@@ -886,6 +976,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Не удалось замкнуть автомат генератора",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Автомат генератора не замкнулся по команде. Проверить привод автомата, концевой выключатель подтверждения, управляющую цепь.",
     },
     ("alarm_sd_3", 10): {
         "code": "G_SD_3_10",
@@ -893,6 +984,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Не удалось разомкнуть автомат сети",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Автомат сети не разомкнулся по команде. КРИТИЧНО: нагрузка остаётся подключённой к сети. Проверить привод и механизм.",
     },
     ("alarm_sd_3", 11): {
         "code": "G_SD_3_11",
@@ -900,6 +992,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Не удалось разомкнуть автомат генератора",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Автомат генератора не разомкнулся по команде. КРИТИЧНО: генератор остаётся подключённым к шине. Проверить привод и механизм.",
     },
     ("alarm_sd_3", 12): {
         "code": "G_SD_3_12",
@@ -907,6 +1000,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Повышенная частота сети",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Частота сети выше уставки. Нестабильность внешней энергосистемы. Генератор защищён от работы в параллель с нестабильной сетью.",
     },
     ("alarm_sd_3", 13): {
         "code": "G_SD_3_13",
@@ -914,6 +1008,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Пониженная частота сети",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Частота сети ниже уставки. Перегрузка внешней энергосистемы. Генератор защищён от работы в параллель с нестабильной сетью.",
     },
     ("alarm_sd_3", 14): {
         "code": "G_SD_3_14",
@@ -921,6 +1016,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Перенапряжение сети",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Напряжение сети выше уставки. Перенапряжение может повредить оборудование. Проверить напряжение на вводе.",
     },
     ("alarm_sd_3", 15): {
         "code": "G_SD_3_15",
@@ -928,6 +1024,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Пониженное напряжение сети",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Напряжение сети ниже уставки. При пониженном напряжении растут токи, перегреваются кабели и оборудование.",
     },
 
     # Offset 4 (alarm_sd_4)
@@ -937,6 +1034,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Резкое изменение частоты сети",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Резкое изменение частоты сети — возможно КЗ или аварийное отключение генерирующего оборудования в энергосистеме.",
     },
     ("alarm_sd_4", 1): {
         "code": "G_SD_4_1",
@@ -944,6 +1042,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Дрейф вектора напряжения сети",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Дрейф вектора напряжения сети — изменение фазового угла. Указывает на нестабильность энергосистемы или потерю синхронизма.",
     },
     ("alarm_sd_4", 2): {
         "code": "G_SD_4_2",
@@ -951,6 +1050,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Большая разница частот (генератор vs сеть)",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Большая разница частот между генератором и сетью. Синхронизация невозможна. Проверить GOV обоих источников.",
     },
     ("alarm_sd_4", 3): {
         "code": "G_SD_4_3",
@@ -958,6 +1058,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Мало устройств в мультисети",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "В мультисетевой коммуникации (MSC) обнаружено меньше устройств, чем ожидалось. Проверить кабели связи между контроллерами, питание.",
     },
     ("alarm_sd_4", 4): {
         "code": "G_SD_4_4",
@@ -965,6 +1066,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Подошло время ТО-1",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Подошло время планового ТО-1 (обычно каждые 250 моточасов). Выполнить: замена масла и фильтров, осмотр. Сбросить счётчик в контроллере.",
     },
     ("alarm_sd_4", 5): {
         "code": "G_SD_4_5",
@@ -972,6 +1074,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Подошло время ТО-2",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Подошло время планового ТО-2 (обычно каждые 500 моточасов). Расширенное обслуживание. Сбросить счётчик в контроллере.",
     },
     ("alarm_sd_4", 6): {
         "code": "G_SD_4_6",
@@ -979,6 +1082,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Подошло время ТО-3",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Подошло время планового ТО-3 (обычно каждые 1000 моточасов). Капитальное обслуживание. Сбросить счётчик в контроллере.",
     },
     ("alarm_sd_4", 7): {
         "code": "G_SD_4_7",
@@ -986,6 +1090,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Низкий уровень охлаждающей жидкости",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Низкий уровень ОЖ. Двигатель может перегреться. Проверить уровень ОЖ в расширительном бачке, убедиться в отсутствии утечек.",
     },
     ("alarm_sd_4", 8): {
         "code": "G_SD_4_8",
@@ -993,6 +1098,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Детонация",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Обнаружена детонация в цилиндрах. КРИТИЧНО: может повредить поршневую группу. Причины: некачественное топливо, неправильная настройка зажигания.",
     },
     ("alarm_sd_4", 9): {
         "code": "G_SD_4_9",
@@ -1000,6 +1106,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Утечка газа",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Обнаружена утечка газа. КРИТИЧНО: опасность взрыва и отравления! Немедленно обеспечить вентиляцию, не допускать искрообразования, эвакуировать персонал.",
     },
     ("alarm_sd_4", 10): {
         "code": "G_SD_4_10",
@@ -1007,6 +1114,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Обратное чередование фаз генератора",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Обратное чередование фаз генератора. Трёхфазные двигатели будут вращаться в обратном направлении. Проверить подключение силовых кабелей.",
     },
     ("alarm_sd_4", 11): {
         "code": "G_SD_4_11",
@@ -1014,6 +1122,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Потеря фазы генератора",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Обрыв одной из фаз генератора. КРИТИЧНО: работа на двух фазах вызывает перегрев и выход из строя оборудования. Проверить обмотки и кабели.",
     },
     ("alarm_sd_4", 12): {
         "code": "G_SD_4_12",
@@ -1021,6 +1130,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Потеря связи с MSC1",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Потеря связи с контроллером MSC1. Проверить кабель связи между контроллерами, питание устройства, настройки протокола.",
     },
     ("alarm_sd_4", 13): {
         "code": "G_SD_4_13",
@@ -1028,6 +1138,7 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
         "name_ru": "Потеря связи с MSC2",
         "severity": "shutdown",
         "group": "shutdown",
+        "description_ru": "Потеря связи с контроллером MSC2. Проверить кабель связи между контроллерами, питание устройства, настройки протокола.",
     },
 
     # Offset 5 (alarm_sd_5) — Digital Inputs
@@ -1136,7 +1247,8 @@ ALARM_MAP_HGM9520N: dict[tuple[str, int], dict] = {
 # ---------------------------------------------------------------------------
 
 ALARM_REGISTER_FIELDS_HGM9560 = [
-    "alarm_reg_00", "alarm_reg_01", "alarm_reg_02", "alarm_reg_08",
+    # alarm_reg_00 excluded: register 0 is status/mode flags, not alarms
+    "alarm_reg_01", "alarm_reg_02", "alarm_reg_08",
     "alarm_reg_12", "alarm_reg_14", "alarm_reg_16",
     "alarm_reg_20", "alarm_reg_21", "alarm_reg_24",
     "alarm_reg_30", "alarm_reg_44",
@@ -1301,11 +1413,35 @@ def get_description_ru(defn: dict) -> str:
     if "gas leak" in name:
         return f"{name_ru}. Обнаружена утечка газа. КРИТИЧНО: опасность взрыва и отравления! Немедленно обеспечить вентиляцию, не допускать искрообразования."
 
+    # Aux. Sensors
+    if "aux" in name and "sensor" in name:
+        if "open" in name:
+            return f"{name_ru}. Обрыв цепи дополнительного датчика. Контроллер не получает данные. Проверить датчик, проводку и разъёмы."
+        if "high" in name:
+            return f"{name_ru}. Показание дополнительного датчика выше допустимого предела. Проверить измеряемый параметр и калибровку датчика."
+        if "low" in name:
+            return f"{name_ru}. Показание дополнительного датчика ниже допустимого предела. Проверить измеряемый параметр и калибровку датчика."
+        if "error" in name:
+            return f"{name_ru}. Ошибка дополнительного датчика — выход за пределы диапазона измерений. Проверить датчик и проводку."
+        return f"{name_ru}. Проблема с дополнительным датчиком. Проверить датчик, проводку и настройки контроллера."
+
+    # Few MSC
+    if "few msc" in name:
+        return f"{name_ru}. В мультисетевой коммуникации (MSC) обнаружено меньше устройств, чем ожидалось. Проверить кабели связи между контроллерами, питание устройств."
+
     # Voltage bus error
     if "voltage bus error" in name:
         return f"{name_ru}. Ошибка шины напряжения — несоответствие измеренных и ожидаемых значений. Проверить трансформаторы напряжения, проводку к контроллеру."
     if "msc id error" in name or "id error" in name:
         return f"{name_ru}. Ошибка идентификатора в мультисетевой коммуникации (MSC). Проверить настройки ID устройств в сети, кабели связи."
+
+    # Mains Output Power Limit
+    if "output power limit" in name:
+        return f"{name_ru}. Достигнут лимит мощности на выходе сети. Нагрузка превышает установленное ограничение. Проверить уставку лимита мощности и фактическую нагрузку."
+
+    # Mains Abnormal (general flag)
+    if "mains abnormal" in name:
+        return f"{name_ru}. Общий флаг аварии сети — одно или несколько условий (U, f, фазы) вне допустимого диапазона. Проверить параметры сетевого напряжения."
 
     # Frequency change / Vector drift
     if "frequency change" in name:
@@ -1399,12 +1535,26 @@ def _auto_populate_9520n():
 
                 new_name_ru = f"{base_name_ru} — {sev_ru}" if base_name_ru else sev_ru
 
-                ALARM_MAP_HGM9520N[key] = {
+                # Map severity to group name
+                group_map = {
+                    "warning": "warning",
+                    "trip_stop": "trip_stop",
+                    "block": "block",
+                }
+                new_entry = {
                     "code": f"{code_pfx}_{word}_{bit}",
                     "name": base_name,
                     "name_ru": new_name_ru,
                     "severity": severity,
+                    "group": group_map.get(severity, severity),
                 }
+                # Propagate analysis_key from base definition
+                if base_defn.get("analysis_key"):
+                    new_entry["analysis_key"] = base_defn["analysis_key"]
+                # Propagate description_ru from base definition
+                if base_defn.get("description_ru"):
+                    new_entry["description_ru"] = base_defn["description_ru"]
+                ALARM_MAP_HGM9520N[key] = new_entry
                 added += 1
 
     return added

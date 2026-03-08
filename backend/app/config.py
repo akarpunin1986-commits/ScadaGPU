@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     DISK_CLEANUP_THRESHOLD_PCT: float = 80  # start FIFO at 80%
     DISK_CLEANUP_BATCH_SIZE: int = 10000
 
+    # SanekAgent — autonomous AI incident analysis
+    SANEK_AGENT_ENABLED: bool = False
+    SANEK_AGENT_DEBOUNCE: int = 60          # seconds to wait before analysis (collect related events)
+    SANEK_AGENT_COOLDOWN: int = 300         # seconds cooldown per device after analysis
+    SANEK_AGENT_LLM_TIMEOUT: int = 60      # LLM request timeout
+
     # Bitrix24 integration module (Phase 7)
     BITRIX24_ENABLED: bool = False
     BITRIX24_WEBHOOK_URL: str = ""
