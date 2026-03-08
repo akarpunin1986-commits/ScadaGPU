@@ -32,11 +32,14 @@ class RagRetriever:
     async def initialize(self) -> None:
         """Connect to ChromaDB and get or create collection."""
         import chromadb
+        from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2
 
+        self._embedding_fn = ONNXMiniLM_L6_V2()
         self._client = chromadb.HttpClient(host=self._host, port=self._port)
         self._collection = self._client.get_or_create_collection(
             name=self._collection_name,
             metadata={"hnsw:space": "cosine"},
+            embedding_function=self._embedding_fn,
         )
         count = self._collection.count()
         logger.info(
