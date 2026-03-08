@@ -148,6 +148,21 @@ async def upload_document(
         # Store
         stored = await add_chunks(session, chunks, filename, category, title)
 
+        # RAG indexing (Module 1) — index new chunks in ChromaDB
+        try:
+            from config import settings
+            if settings.SANEK_RAG_ENABLED:
+                from services.sanek_rag.rag_retriever import RagRetriever
+                from services.sanek_rag.indexer import RagIndexer
+                from models import async_session
+                rag = RagRetriever(settings.CHROMADB_HOST, settings.CHROMADB_PORT)
+                await rag.initialize()
+                indexer = RagIndexer(async_session, rag)
+                indexed = await indexer.index_document(filename)
+                logger.info("RAG indexed %d chunks for %s", indexed, filename)
+        except Exception as exc:
+            logger.warning("RAG indexing after upload skipped: %s", exc)
+
         return UploadResult(success=True, filename=filename, chunks_stored=stored)
 
     except ValueError as e:

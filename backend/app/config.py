@@ -52,6 +52,17 @@ class Settings(BaseSettings):
     SANEK_AGENT_COOLDOWN: int = 300         # seconds cooldown per device after analysis
     SANEK_AGENT_LLM_TIMEOUT: int = 60      # LLM request timeout
 
+    # RAG (Module 1 — ChromaDB vector search)
+    SANEK_RAG_ENABLED: bool = False
+    CHROMADB_HOST: str = "chromadb"
+    CHROMADB_PORT: int = 8000
+    SANEK_RAG_MIN_SCORE: float = 0.3
+    SANEK_RAG_TOP_K: int = 5
+
+    # Predictive Analytics (Module 5)
+    SANEK_PREDICTIVE_ENABLED: bool = False
+    SANEK_PREDICTIVE_INTERVAL: int = 900
+
     # Bitrix24 integration module (Phase 7)
     BITRIX24_ENABLED: bool = False
     BITRIX24_WEBHOOK_URL: str = ""

@@ -14,6 +14,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      chromadb:
+        condition: service_started
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://scada:scada_dev_2026@postgres:5432/scada
@@ -46,6 +48,18 @@ services:
       - "6380:6379"
     restart: unless-stopped
 
+  chromadb:
+    image: chromadb/chroma:0.5.23
+    container_name: scada-chromadb
+    ports:
+      - "8020:8000"
+    volumes:
+      - scada-chromadb:/chroma/chroma
+    environment:
+      ANONYMIZED_TELEMETRY: "false"
+      IS_PERSISTENT: "true"
+    restart: unless-stopped
+
   frontend:
     image: nginx:alpine
     container_name: scada-frontend
@@ -60,3 +74,4 @@ services:
 
 volumes:
   scada-pgdata:
+  scada-chromadb:

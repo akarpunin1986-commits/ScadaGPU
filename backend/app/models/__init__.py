@@ -19,6 +19,8 @@ from models.scada_event import ScadaEvent
 from models.gas_price import GasPrice
 from models.agent_incident import AgentIncident
 from models.sop_procedure import SopProcedure
+from models.alarm_reference import SanekAlarmReference
+from models.predictive_alert import SanekPredictiveAlert
 
 __all__ = [
     "Base",
@@ -47,4 +49,6 @@ __all__ = [
     "GasPrice",
     "AgentIncident",
     "SopProcedure",
+    "SanekAlarmReference",
+    "SanekPredictiveAlert",
 ]

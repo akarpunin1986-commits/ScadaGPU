@@ -128,6 +128,35 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("SanekAgent module DISABLED (SANEK_AGENT_ENABLED=false)")
 
+    # RAG retriever init (Module 1) — index new chunks on startup
+    if settings.SANEK_RAG_ENABLED:
+        try:
+            from services.sanek_rag.rag_retriever import RagRetriever
+            from services.sanek_rag.indexer import RagIndexer
+            rag = RagRetriever(settings.CHROMADB_HOST, settings.CHROMADB_PORT)
+            await rag.initialize()
+            app.state.rag_retriever = rag
+            indexer = RagIndexer(async_session, rag)
+            indexed = await indexer.index_new()
+            logger.info("RAG: indexed %d new chunks on startup", indexed)
+        except Exception as exc:
+            logger.warning("RAG init failed (will use ILIKE fallback): %s", exc)
+
+    # Predictive Analytics (Module 5)
+    predictive_module = None
+    predictive_task = None
+    if settings.SANEK_PREDICTIVE_ENABLED:
+        from services.sanek_predictive import PredictiveAnalytics
+        predictive_module = PredictiveAnalytics(
+            async_session, redis,
+            interval=settings.SANEK_PREDICTIVE_INTERVAL,
+        )
+        app.state.predictive = predictive_module
+        predictive_task = asyncio.create_task(predictive_module.start())
+        logger.info("PredictiveAnalytics module enabled (interval=%ds)", settings.SANEK_PREDICTIVE_INTERVAL)
+    else:
+        logger.info("PredictiveAnalytics module DISABLED (SANEK_PREDICTIVE_ENABLED=false)")
+
     # Bitrix24 integration — fully isolated module
     b24_module = None
     b24_task = None
@@ -153,6 +182,8 @@ async def lifespan(app: FastAPI):
     await aa_detector.stop()
     if sanek_agent_module:
         await sanek_agent_module.stop()
+    if predictive_module:
+        await predictive_module.stop()
     if b24_module:
         await b24_module.stop()
 
@@ -163,6 +194,8 @@ async def lifespan(app: FastAPI):
     ]
     if sanek_agent_task:
         all_tasks.append(sanek_agent_task)
+    if predictive_task:
+        all_tasks.append(predictive_task)
     if b24_task:
         all_tasks.append(b24_task)
     for t in all_tasks:
@@ -210,6 +243,10 @@ app.include_router(economics_router)
 # SanekAgent API router (always available — shows reports even if agent disabled)
 from api.sanek_agent import router as sanek_agent_router
 app.include_router(sanek_agent_router)
+
+# SANEK Chat API (Module 6 — RAG-enhanced chat)
+from api.sanek_chat import router as sanek_chat_router
+app.include_router(sanek_chat_router)
 
 # Bitrix24 module router (conditional)
 if settings.BITRIX24_ENABLED:

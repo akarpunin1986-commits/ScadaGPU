@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Index, String, Text, func
+from sqlalchemy import Boolean, Index, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base
@@ -28,3 +28,9 @@ class AiKnowledgeChunk(Base):
     source_filename: Mapped[str] = mapped_column(String(500)) # Original filename
     chunk_index: Mapped[int] = mapped_column()                # Order within document
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    # RAG columns (Module 1)
+    embedded: Mapped[bool | None] = mapped_column(Boolean, server_default="false", default=False)
+    embedded_at: Mapped[datetime | None] = mapped_column(default=None)
+    device_type: Mapped[str | None] = mapped_column(String(50), default=None)
+    document_type: Mapped[str | None] = mapped_column(String(50), default=None)
+    chroma_id: Mapped[str | None] = mapped_column(String(100), default=None)

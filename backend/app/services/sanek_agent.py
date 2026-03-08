@@ -84,7 +84,7 @@ AGENT_SYSTEM_PROMPT = """Ты — Санёк-Агент, автономный AI
 observe → analyze → correlate → explain → recommend
 1. НАБЛЮДЕНИЕ — что произошло? какие аварии сработали? какие метрики аномальны?
 2. АНАЛИЗ — какие параметры вышли за пороги? когда начались отклонения (по тренду)?
-3. КОРРЕЛЯЦИЯ — какие аварии связаны? есть ли каскад? что первопричина?
+3. КОРРЕЛЯЦИЯ — какие аварии связаны? есть ли каскад? что первопричина? проверь справочник аварий и корреляционный анализ.
 4. ОБЪЯСНЕНИЕ — почему это произошло? какой механизм отказа?
 5. РЕКОМЕНДАЦИЯ — что делать оператору? какие проверки выполнить?
 
@@ -92,10 +92,15 @@ observe → analyze → correlate → explain → recommend
 1. Определить ПРИЧИНУ инцидента по метрикам и аварийным флагам
 2. Оценить ПОСЛЕДСТВИЯ (простой, потери энергии)
 3. Дать КОНКРЕТНЫЕ рекомендации оператору
+4. Если есть данные корреляционного анализа — использовать их для усиления выводов
+5. Если есть данные о параллельных устройствах — сравнить и определить, проблема локальная или системная
 
 ═══ ОБОРУДОВАНИЕ ═══
-- Генераторы Smartgen HGM9520N — газопоршневые установки 160 кВт
-- ШПР Smartgen HGM9560 — шкафы параллельной работы
+- Генераторы Smartgen HGM9520N — газопоршневые установки 160 кВт (контроллер МКЗ — местная контрольная защита)
+- ШПР Smartgen HGM9560 — шкафы параллельной работы (контроллер ЯКЗ — ячейка контрольной защиты)
+- Связь: RS-485 (Modbus RTU) → конвертер USR-TCP232 → Modbus TCP → SCADA
+- Особенности HGM9520N firmware: аварии не имеют отдельного кода, определяются по alarm_bit_XX
+- MSC-шина: протокол синхронизации между HGM9560 и HGM9520N
 
 ═══ ПОРОГИ ЗАЩИТ (по умолчанию) ═══
 - Over Power: 168-176 кВт (105-110% от 160 кВт)
@@ -104,6 +109,13 @@ observe → analyze → correlate → explain → recommend
 - Overspeed: >1620 об/мин | Underspeed: <1350 об/мин
 - Gen Overvoltage: >420В | Undervoltage: <360В
 - Frequency: shutdown >52Гц/<47Гц
+
+═══ ПРАВИЛА ДИАГНОСТИКИ ═══
+1. Множественные аварии одновременно → ищи первопричину, не описывай каждую по отдельности
+2. CONN_LOST на нескольких устройствах → проблема связи (не генератор), проверь конвертер/кабель RS-485
+3. SHUTDOWN + TRIP_STOP → каскадный останов, определи что сработало первым по временным меткам
+4. OVER_FREQUENCY + OVER_VOLTAGE → сброс нагрузки, проверь АВР и автоматы потребителей
+5. LOW_OIL_PRESSURE + HIGH_COOLANT_TEMP → проблема смазки, возможен задир двигателя
 
 ═══ СТАТУСЫ ГЕНЕРАТОРА (gen_status) ═══
 0=Стоп, 9=Работа, 12=Аварийный стоп (ETS)
@@ -121,7 +133,9 @@ observe → analyze → correlate → explain → recommend
 4. Если есть тренд метрик — анализируй изменение параметров во времени (до/во время/после аварии).
 5. Если данных недостаточно — скажи об этом явно, не додумывай.
 6. Используй информацию из базы знаний (мануалов) если она предоставлена.
-7. При множественных авариях — определи первопричину и каскад последствий."""
+7. При множественных авариях — определи первопричину и каскад последствий.
+8. Если предоставлен справочник аварий — используй typical_causes и immediate_actions для конкретных рекомендаций.
+9. Если предоставлен корреляционный анализ — подтверди или опровергни паттерн на основе метрик."""
 
 
 # ---------------------------------------------------------------------------
@@ -237,12 +251,27 @@ class SanekAgentModule:
         self._cooldown = settings.SANEK_AGENT_COOLDOWN
         self._llm_timeout = settings.SANEK_AGENT_LLM_TIMEOUT
         self._sop_engine = SopEngine(session_factory)
+        self._rag_retriever = None
 
     async def start(self) -> None:
         """Start the agent: ensure table, then listen."""
         self._running = True
         await self._ensure_table()
         await self._sop_engine.start()
+
+        # RAG retriever (Module 1)
+        if settings.SANEK_RAG_ENABLED:
+            try:
+                from services.sanek_rag.rag_retriever import RagRetriever
+                self._rag_retriever = RagRetriever(
+                    host=settings.CHROMADB_HOST,
+                    port=settings.CHROMADB_PORT,
+                )
+                await self._rag_retriever.initialize()
+                logger.info("SanekAgent: RAG retriever initialized")
+            except Exception as exc:
+                logger.warning("SanekAgent: RAG retriever init failed, using ILIKE fallback: %s", exc)
+                self._rag_retriever = None
         logger.info(
             "SanekAgent started (debounce=%ds, cooldown=%ds)",
             self._debounce, self._cooldown,
@@ -597,6 +626,26 @@ class SanekAgentModule:
                     step_tool.result_summary or step_tool.error or "—",
                 )
 
+            # ── PHASE 4.5: ALARM CORRELATION ────────────────────────
+            step_corr = ReasoningStep(name="alarm_correlation", phase="act")
+            step_corr.start()
+            try:
+                from services.sanek_correlation import CorrelationEngine
+                corr_engine = CorrelationEngine()
+                correlation_results = corr_engine.analyze(all_codes)
+                if correlation_results:
+                    collected["correlation"] = correlation_results
+                    step_corr.complete(
+                        summary=f"{len(correlation_results)} patterns matched",
+                        data={"patterns": [r["name"] for r in correlation_results]},
+                    )
+                else:
+                    step_corr.complete(summary="no patterns matched")
+            except Exception as exc:
+                step_corr.fail(error=str(exc)[:200])
+                logger.warning("SanekAgent: │ ✗ correlation failed: %s", exc)
+            reasoning_chain.append(step_corr)
+
             # ── PHASE 5: VERIFY — check data completeness ────────────
             step_verify = ReasoningStep(name="verify_data_completeness", phase="verify")
             step_verify.start()
@@ -836,6 +885,10 @@ class SanekAgentModule:
             rationale_parts.append("журнал событий")
             tools.append("search_knowledge")
             rationale_parts.append("мануалы по кодам аварий")
+            tools.append("get_alarm_reference")
+            rationale_parts.append("справочник аларм-кодов")
+            tools.append("get_parallel_device_status")
+            rationale_parts.append("статус параллельных устройств")
 
         # CONN_LOST — фокус на связи
         elif any("CONN_LOST" in c for c in alarm_codes):
@@ -845,6 +898,10 @@ class SanekAgentModule:
             rationale_parts.append("события потери связи")
             tools.append("search_knowledge")
             rationale_parts.append("документация по коммуникации")
+            tools.append("get_alarm_reference")
+            rationale_parts.append("справочник аларм-кодов")
+            tools.append("get_parallel_device_status")
+            rationale_parts.append("статус параллельных устройств (массовый обрыв?)")
             # Don't fetch metrics_history — device is offline, no new data
 
         # BLOCK — блокировка запуска
@@ -859,6 +916,8 @@ class SanekAgentModule:
             rationale_parts.append("журнал событий")
             tools.append("search_knowledge")
             rationale_parts.append("мануал по блокировкам")
+            tools.append("get_alarm_reference")
+            rationale_parts.append("справочник аларм-кодов")
 
         # MAINTENANCE — плановое ТО
         elif trigger_type == "maintenance":
@@ -878,6 +937,8 @@ class SanekAgentModule:
             rationale_parts.append("журнал событий")
             tools.append("search_knowledge")
             rationale_parts.append("база знаний")
+            tools.append("get_alarm_reference")
+            rationale_parts.append("справочник аларм-кодов")
 
         plan = InvestigationPlan(
             trigger_type=trigger_type,
@@ -905,6 +966,8 @@ class SanekAgentModule:
             "get_events": lambda: self._tool_get_events(device_id),
             "search_knowledge": lambda: self._tool_search_knowledge(alarm_codes),
             "get_past_incidents": lambda: self._tool_get_past_incidents(device_id, alarm_codes),
+            "get_alarm_reference": lambda: self._tool_get_alarm_reference(alarm_codes),
+            "get_parallel_device_status": lambda: self._tool_get_parallel_device_status(device_id),
         }
 
         handler = tool_map.get(tool_name)
@@ -1081,7 +1144,7 @@ class SanekAgentModule:
     # Tool: search_knowledge — KB search for relevant documentation
     # ------------------------------------------------------------------
     async def _tool_search_knowledge(self, alarm_codes: list[str]) -> list[dict]:
-        """Search knowledge base for relevant documentation chunks."""
+        """Search knowledge base — RAG (ChromaDB) with ILIKE fallback."""
         query_map = {
             "SHUTDOWN": "alarm shutdown trip over power coolant oil pressure",
             "TRIP_STOP": "emergency stop trip safety protection",
@@ -1090,6 +1153,35 @@ class SanekAgentModule:
             "WARNING": "warning alarm maintenance service",
         }
 
+        # --- RAG path (Module 1) ---
+        if self._rag_retriever:
+            rag_results: list[dict] = []
+            for code in alarm_codes:
+                base_code = code.replace("EVENT_", "").replace("MAINTENANCE_", "")
+                query = query_map.get(base_code, f"{base_code} alarm protection troubleshooting")
+                try:
+                    hits = await self._rag_retriever.search(
+                        query=query,
+                        top_k=settings.SANEK_RAG_TOP_K,
+                        min_score=settings.SANEK_RAG_MIN_SCORE,
+                    )
+                    rag_results.extend(hits)
+                except Exception as exc:
+                    logger.warning("SanekAgent: RAG search failed for %s: %s", code, exc)
+            if rag_results:
+                # Deduplicate by (source, title)
+                seen: set[tuple[str, str]] = set()
+                unique: list[dict] = []
+                for r in sorted(rag_results, key=lambda x: x.get("score", 0), reverse=True):
+                    key = (r.get("source", ""), r.get("title", ""))
+                    if key not in seen:
+                        seen.add(key)
+                        unique.append(r)
+                logger.info("SanekAgent: RAG search returned %d results (from %d raw)", len(unique[:5]), len(rag_results))
+                return unique[:5]
+            logger.info("SanekAgent: RAG returned 0 results, falling back to ILIKE")
+
+        # --- ILIKE fallback ---
         results: list[dict] = []
         seen_ids: set[int] = set()
 
@@ -1202,6 +1294,88 @@ class SanekAgentModule:
         except Exception as exc:
             logger.warning("SanekAgent: get_past_incidents failed: %s", exc)
             return []
+
+    # ------------------------------------------------------------------
+    # Tool: get_alarm_reference — structured alarm code reference
+    # ------------------------------------------------------------------
+    async def _tool_get_alarm_reference(self, alarm_codes: list[str]) -> list[dict]:
+        """Lookup structured alarm reference data for given alarm codes."""
+        from models.alarm_reference import SanekAlarmReference
+
+        results: list[dict] = []
+        try:
+            async with self.session_factory() as session:
+                for code in alarm_codes[:5]:
+                    base_code = code.replace("EVENT_", "").replace("MAINTENANCE_", "")
+                    stmt = (
+                        select(SanekAlarmReference)
+                        .where(SanekAlarmReference.alarm_code == base_code)
+                        .limit(2)
+                    )
+                    result = await session.execute(stmt)
+                    for ref in result.scalars().all():
+                        results.append({
+                            "controller": ref.controller,
+                            "alarm_code": ref.alarm_code,
+                            "alarm_name_ru": ref.alarm_name_ru,
+                            "category": ref.category,
+                            "severity": ref.severity,
+                            "typical_causes": ref.typical_causes,
+                            "immediate_actions": ref.immediate_actions,
+                            "related_alarms": list(ref.related_alarms or []),
+                            "possible_cascade": list(ref.possible_cascade or []),
+                            "manual_reference": ref.manual_reference,
+                        })
+        except Exception as exc:
+            logger.warning("SanekAgent: get_alarm_reference failed: %s", exc)
+        return results
+
+    async def _tool_get_parallel_device_status(self, device_id: int) -> list[dict]:
+        """Get status of other devices on the same site (parallel generators)."""
+        from models.device import Device
+
+        results: list[dict] = []
+        try:
+            # Resolve site_id for this device
+            device_info = await self._tool_get_device_info(device_id)
+            if not device_info or not device_info.get("site_id"):
+                return []
+
+            site_id = device_info["site_id"]
+
+            # Get other devices on same site
+            async with self.session_factory() as session:
+                stmt = (
+                    select(Device)
+                    .where(Device.site_id == site_id)
+                    .where(Device.id != device_id)
+                    .limit(10)
+                )
+                result = await session.execute(stmt)
+                devices = result.scalars().all()
+
+            # Get Redis metrics for each device
+            for dev in devices:
+                metrics: dict[str, Any] = {"name": dev.name, "device_type": dev.device_type}
+                try:
+                    raw = await self._redis.get(f"device:{dev.id}:metrics")
+                    if raw:
+                        import json
+                        data = json.loads(raw)
+                        metrics["online"] = data.get("online", False)
+                        metrics["power_total"] = data.get("power_total")
+                        metrics["gen_freq"] = data.get("gen_freq")
+                        metrics["coolant_temp"] = data.get("coolant_temp")
+                        metrics["gen_status"] = data.get("gen_status")
+                    else:
+                        metrics["online"] = False
+                except Exception:
+                    metrics["online"] = False
+                results.append(metrics)
+
+        except Exception as exc:
+            logger.warning("SanekAgent: get_parallel_device_status failed: %s", exc)
+        return results
 
     # ==================================================================
     # VERIFY — check collected data completeness
@@ -1532,9 +1706,75 @@ class SanekAgentModule:
         if kb_context:
             parts.append("═══ ИЗ БАЗЫ ЗНАНИЙ (МАНУАЛЫ) ═══")
             for kb in kb_context[:3]:
-                parts.append(f"📖 {kb.get('title')} (источник: {kb.get('source')})")
+                source_tag = f" (score={kb.get('score', '?')})" if "score" in kb else ""
+                parts.append(f"📖 {kb.get('title')} (источник: {kb.get('source')}{source_tag})")
                 parts.append(f"   {kb.get('content', '')[:500]}")
                 parts.append("")
+
+        # Alarm reference (Module 2)
+        alarm_refs = collected.get("get_alarm_reference", [])
+        if alarm_refs:
+            parts.append("═══ СПРАВОЧНИК АВАРИЙ ═══")
+            for ref in alarm_refs[:5]:
+                parts.append(f"🔖 {ref.get('alarm_code')} ({ref.get('controller')}) — {ref.get('alarm_name_ru')}")
+                parts.append(f"   Категория: {ref.get('category')} | Severity: {ref.get('severity')}")
+                causes = ref.get("typical_causes", [])
+                if causes:
+                    parts.append("   Типичные причины:")
+                    for c in causes[:3]:
+                        if isinstance(c, dict):
+                            parts.append(f"     • {c.get('cause', c)} (вероятность: {c.get('probability', '?')})")
+                        else:
+                            parts.append(f"     • {c}")
+                actions = ref.get("immediate_actions", [])
+                if actions:
+                    parts.append("   Немедленные действия:")
+                    for a in actions[:3]:
+                        if isinstance(a, dict):
+                            parts.append(f"     → {a.get('step', a)}")
+                        else:
+                            parts.append(f"     → {a}")
+                related = ref.get("related_alarms", [])
+                if related:
+                    parts.append(f"   Связанные аварии: {', '.join(related)}")
+                parts.append("")
+
+        # Correlation analysis (Module 3)
+        correlation = collected.get("correlation", [])
+        if correlation:
+            parts.append("═══ КОРРЕЛЯЦИОННЫЙ АНАЛИЗ ═══")
+            for corr in correlation[:3]:
+                parts.append(
+                    f"🔗 Паттерн: {corr.get('name')} — {corr.get('description_ru')} "
+                    f"(уверенность: {corr.get('confidence', 0):.0%})"
+                )
+                parts.append(f"   Первопричина: {corr.get('root_cause')}")
+                parts.append(f"   Рекомендация: {corr.get('recommended_action')}")
+                parts.append(f"   Обязательные аларм-коды: {', '.join(corr.get('matched_required', []))}")
+                opt = corr.get("matched_optional", [])
+                if opt:
+                    parts.append(f"   Опциональные совпадения: {', '.join(opt)}")
+                parts.append("")
+            parts.append(
+                "⚠ Корреляционный анализ — вспомогательный. Подтверди или опровергни паттерн "
+                "на основе метрик и тренда."
+            )
+            parts.append("")
+
+        # Parallel devices (Module 4)
+        parallel = collected.get("get_parallel_device_status", [])
+        if parallel:
+            parts.append("═══ ПАРАЛЛЕЛЬНЫЕ УСТРОЙСТВА ═══")
+            for pd in parallel[:5]:
+                online_str = "✅ online" if pd.get("online") else "❌ offline"
+                parts.append(
+                    f"  {pd.get('name', '?')} ({pd.get('device_type', '?')}) — {online_str}"
+                )
+                if pd.get("power_total") is not None:
+                    parts.append(f"    Мощность: {pd.get('power_total')} кВт | "
+                                 f"Частота: {pd.get('gen_freq', '?')} Гц | "
+                                 f"ОЖ: {pd.get('coolant_temp', '?')}°C")
+            parts.append("")
 
         # Past incidents (agent memory)
         past_incidents = collected.get("get_past_incidents", [])
