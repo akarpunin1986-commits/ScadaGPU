@@ -10,6 +10,8 @@
   <script src="/libs/chartjs-adapter-date-fns.bundle.min.js"></script>
   <script src="/libs/hammer.min.js"></script>
   <script src="/libs/chartjs-plugin-zoom.min.js"></script>
+  <script type="module" crossorigin src="/assets/index-IRWKWxws.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-DP0p_FwM.css">
 </head>
 <body>
 <!-- Login Overlay -->
@@ -376,48 +378,9 @@ P% и Q% генератора управляются супервизорным 
 <button class="sn-send-btn" id="sanekSendBtn" onclick="sendToSanek()"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
 </div>
 </div>
-  <script type="module" src="/src/main.js"></script>
 
 <script>
-function startB24OAuth() {
-  var btn = document.querySelector('.oauth-btn');
-  if (btn) btn.textContent = '⏳ Авторизация...';
-
-  fetch('/api/auth/oauth/start')
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      // Open B24 OAuth in popup (may fail on external IP - that's OK)
-      var w = window.open(data.auth_url, 'b24oauth', 'width=600,height=500');
-
-      // Poll for completion
-      var state = data.state;
-      var attempts = 0;
-      var maxAttempts = 60; // 60 seconds
-      var poll = setInterval(function() {
-        attempts++;
-        fetch('/api/auth/oauth/poll?state=' + state, {credentials: 'include'})
-          .then(function(r) { return r.json(); })
-          .then(function(res) {
-            if (res.ready) {
-              clearInterval(poll);
-              if (w && !w.closed) w.close();
-              window.location.href = '/';
-            }
-          })
-          .catch(function() {});
-        if (attempts >= maxAttempts) {
-          clearInterval(poll);
-          if (btn) btn.textContent = '✓ Войти через Битрикс24';
-        }
-      }, 1000);
-    })
-    .catch(function(e) {
-      console.error('OAuth start error:', e);
-      if (btn) btn.textContent = '✓ Войти через Битрикс24';
-      // Fallback to direct redirect
-      window.location.href = '/api/auth/oauth/login';
-    });
-}
+function startB24OAuth(){var b=document.querySelector('.oauth-btn');if(b)b.textContent='⏳ Авторизация...';fetch('/api/auth/oauth/start').then(function(r){return r.json()}).then(function(d){window.open(d.auth_url,'b24oauth','width=600,height=500');var s=d.state,n=0,p=setInterval(function(){n++;fetch('/api/auth/oauth/poll?state='+s,{credentials:'include'}).then(function(r){return r.json()}).then(function(r){if(r.ready){clearInterval(p);window.location.href='/'}}).catch(function(){});if(n>=60){clearInterval(p);if(b)b.textContent='✓ Войти через Битрикс24'}},1000)}).catch(function(){window.location.href='/api/auth/oauth/login'})}
 </script>
 </body>
 </html>

@@ -343,15 +343,15 @@ async def oauth_poll(state: str, request: Request):
     """Poll for completed OAuth. Returns cookie when ready."""
     redis = request.app.state.redis
     jwt_token = await redis.get(f"oauth:done:{state}")
-    if not jwt_token:
+    if not jwt_token or jwt_token == b"consumed" or jwt_token == "consumed":
         return {"ready": False}
 
     # Decode if bytes
     if isinstance(jwt_token, bytes):
         jwt_token = jwt_token.decode()
 
-    # Clean up
-    await redis.delete(f"oauth:done:{state}")
+    # Mark as consumed (dont delete — let TTL expire, avoid race condition)
+    await redis.set(f"oauth:done:{state}", "consumed", ex=5)
 
     # Validate
     payload = auth.verify_jwt(jwt_token)
