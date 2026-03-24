@@ -682,144 +682,145 @@ class ChatHistoryResponse(BaseModel):
     messages: list[ChatHistoryMessage] = []
 
 
+
+def _sse_event(event_name: str, data: dict) -> str:
+    """Format named SSE event."""
+    return "event: " + event_name + "\ndata: " + json.dumps(data, ensure_ascii=False, default=str) + "\n\n"
+
+
+def _sse_event_raw(event_name: str, data_str: str = "{}") -> str:
+    """Format named SSE event with raw data string."""
+    return "event: " + event_name + "\ndata: " + data_str + "\n\n"
+
+
 # In-memory pending actions per session
 _pending_actions: dict[str, dict] = {}
+
+
+@router.post("/chat/stream")
+async def sanek_chat_stream(req: ChatRequest):
+    """
+    Streaming chat with Sanek AI assistant via Server-Sent Events (v4 agentic).
+    Uses sanek_v4 agent loop with 26 tools.
+    """
+    from fastapi.responses import StreamingResponse
+    from services.sanek_v4 import chat_stream_v4
+
+    session_id = req.session_id or str(uuid.uuid4())[:8]
+
+    async def _generate():
+        yield _sse_event("session", {"session_id": session_id})
+
+        thinking_started = False
+
+        async for raw_event in chat_stream_v4(
+            body={
+                "message": req.message,
+                "session_id": session_id,
+                "context": req.context,
+                "user_id": getattr(req, "user_id", None),
+            },
+            source="scada",
+        ):
+            line = raw_event.strip()
+            if not line.startswith("data: "):
+                continue
+            try:
+                ev = json.loads(line[6:])
+            except Exception:
+                continue
+
+            ev_type = ev.get("type", "")
+
+            if ev_type == "mode":
+                yield _sse_event("mode", {"provider": ev.get("provider", "v4"), "model": ev.get("mode", "agentic")})
+
+            elif ev_type == "thinking":
+                if not thinking_started:
+                    yield _sse_event_raw("thinking_start")
+                    thinking_started = True
+                detail = ev.get("detail", ev.get("step", ""))
+                if detail:
+                    yield _sse_event("thinking_delta", {"text": detail})
+
+            elif ev_type == "preamble":
+                if not thinking_started:
+                    yield _sse_event_raw("thinking_start")
+                    thinking_started = True
+                yield _sse_event("thinking_delta", {"text": ev.get("text", "")})
+
+            elif ev_type == "step":
+                if thinking_started:
+                    yield _sse_event_raw("thinking_stop")
+                    thinking_started = False
+                tool = ev.get("tool", "")
+                label = ev.get("label", tool)
+                status = ev.get("status", "running")
+                if status == "running":
+                    yield _sse_event("tool_start", {"tool": tool, "label": label})
+                elif status == "done":
+                    yield _sse_event("tool_done", {"tool": tool, "label": label})
+
+            elif ev_type == "text_delta":
+                if thinking_started:
+                    yield _sse_event_raw("thinking_stop")
+                    thinking_started = False
+                yield _sse_event("text_delta", {"text": ev.get("text", "")})
+
+            elif ev_type == "provider_info":
+                yield _sse_event("mode", {"provider": ev.get("provider", "v4"), "model": ev.get("model", "agentic")})
+
+            elif ev_type == "done":
+                if thinking_started:
+                    yield _sse_event_raw("thinking_stop")
+                    thinking_started = False
+                done_data = {
+                    "message": ev.get("message", ""),
+                    "session_id": session_id,
+                    "actions": [{"tool": t} for t in ev.get("tools_used", [])],
+                }
+                yield _sse_event("done", done_data)
+
+            elif ev_type == "error":
+                yield _sse_event("error", {"message": ev.get("message", "Unknown error")})
+
+    return StreamingResponse(
+        _generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/chat", response_model=ChatResponse)
 async def sanek_chat(req: ChatRequest):
     """
-    Chat with Sanek AI assistant.
-    Supports tool calling to interact with SCADA system.
-    Dangerous commands require operator confirmation.
+    Non-streaming chat with Sanek AI assistant (v4 agentic, 26 tools).
     """
-    from services.sanek import SanekAssistant
+    from services.sanek_v4 import sanek_v4_complete
 
-    # Resolve provider
-    provider = _get_active_provider()
-
-    if not provider or provider not in VALID_PROVIDERS:
-        return ChatResponse(
-            message="⚠ AI провайдер не выбран.\n\n"
-                    "Откройте «🤖 AI Провайдер» в боковом меню слева, "
-                    "добавьте API ключ и активируйте провайдера.",
-        )
-
-    api_key = _get_api_key(provider)
-    model = _get_model(provider)
-    label = {"openai": "OpenAI", "claude": "Claude", "gemini": "Gemini", "grok": "Grok"}.get(provider, provider)
-
-    if not api_key:
-        return ChatResponse(
-            message=f"🔑 API ключ для {label} не настроен.\n\n"
-                    f"Откройте «🤖 AI Провайдер» в боковом меню, "
-                    f"введите ключ для {label} и нажмите «Сохранить».",
-        )
-
-    # Session management
     session_id = req.session_id or str(uuid.uuid4())[:8]
 
-    # Save user message to DB
     try:
-        async with async_session() as session:
-            session.add(AiChatMessage(
-                session_id=session_id,
-                role="user",
-                content=req.message,
-            ))
-            await session.commit()
-    except Exception as e:
-        logger.warning("Could not save user message: %s", e)
-
-    # Load conversation history from DB
-    messages = []
-    try:
-        async with async_session() as session:
-            result = await session.execute(
-                select(AiChatMessage)
-                .where(AiChatMessage.session_id == session_id)
-                .order_by(AiChatMessage.created_at)
-                .limit(50)
-            )
-            rows = result.scalars().all()
-            for row in rows:
-                if row.role in ("user", "assistant"):
-                    messages.append({"role": row.role, "content": row.content})
-    except Exception as e:
-        logger.warning("Could not load chat history: %s", e)
-        messages = [{"role": "user", "content": req.message}]
-
-    # Inject page context as system hint if provided
-    if req.context:
-        ctx_parts = []
-        site_id_resolved = None
-        if req.context.get("site"):
-            # Resolve site code → numeric site_id
-            try:
-                async with async_session() as db:
-                    row = await db.execute(
-                        select(Site).where(
-                            sa.func.lower(Site.code) == req.context["site"].lower()
-                        )
-                    )
-                    site_obj = row.scalar_one_or_none()
-                    if site_obj:
-                        site_id_resolved = site_obj.id
-            except Exception as e:
-                logger.warning("Could not resolve site code %s: %s", req.context["site"], e)
-        if req.context.get("site_name"):
-            ctx_parts.append(f"объект: {req.context['site_name']}")
-        if site_id_resolved:
-            ctx_parts.append(f"site_id={site_id_resolved}")
-        if req.context.get("view"):
-            view_labels = {"monitoring": "Мониторинг", "alarms": "Аварии", "archive": "Архив", "to": "ТО"}
-            ctx_parts.append(f"раздел: {view_labels.get(req.context['view'], req.context['view'])}")
-        if ctx_parts:
-            ctx_hint = {"role": "system", "content": f"[Контекст оператора] Пользователь сейчас смотрит: {', '.join(ctx_parts)}. Используй site_id из контекста при вызове get_devices, get_alarms и других инструментов."}
-            messages.append(ctx_hint)
-
-    # Check for pending action
-    pending = _pending_actions.pop(session_id, None)
-
-    try:
-        assistant = SanekAssistant(
-            provider=provider,
-            api_key=api_key,
-            model=model,
+        response_text, _ = await sanek_v4_complete(
+            message=req.message,
+            session_id=session_id,
+            source="scada",
         )
-        result = await assistant.chat(messages=messages, pending_action=pending)
     except Exception as e:
-        logger.error("Sanek chat error: %s", e, exc_info=True)
+        logger.error("Sanek v4 chat error: %s", e, exc_info=True)
         return ChatResponse(
             session_id=session_id,
-            message=f"Ошибка: {str(e)}",
+            message=f"❌ Ошибка: {str(e)[:200]}",
         )
-
-    # Save assistant reply to DB
-    assistant_msg = result.get("message", "")
-    pending_action = result.get("pending_action")
-
-    try:
-        async with async_session() as session:
-            session.add(AiChatMessage(
-                session_id=session_id,
-                role="assistant",
-                content=assistant_msg,
-                tool_calls=json.dumps(result.get("actions", []), ensure_ascii=False, default=str) if result.get("actions") else None,
-            ))
-            await session.commit()
-    except Exception as e:
-        logger.warning("Could not save assistant message: %s", e)
-
-    # Store pending action for next turn
-    if pending_action:
-        _pending_actions[session_id] = pending_action
 
     return ChatResponse(
         session_id=session_id,
-        message=assistant_msg,
-        actions=[ChatAction(**a) for a in result.get("actions", [])],
-        pending_action=PendingAction(**pending_action) if pending_action else None,
+        message=response_text,
+        actions=[],
     )
 
 
