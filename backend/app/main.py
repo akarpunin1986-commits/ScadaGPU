@@ -156,6 +156,23 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Bitrix24 module DISABLED (BITRIX24_ENABLED=false)")
 
+
+    # Task Manager — background services
+    from services.task_manager.task_engine import TaskEngine
+    from services.task_manager.task_supervisor import TaskSupervisor
+    from services.task_manager.hours_monitor import HoursThresholdMonitor
+
+    task_engine = TaskEngine(redis)
+    task_supervisor = TaskSupervisor(redis)
+    hours_monitor = HoursThresholdMonitor(redis, task_engine)
+    app.state.task_engine = task_engine
+    app.state.task_supervisor = task_supervisor
+    app.state.hours_monitor = hours_monitor
+
+    task_supervisor_task = asyncio.create_task(task_supervisor.start())
+    hours_monitor_task = asyncio.create_task(hours_monitor.start())
+    logger.info("Task Manager services started (TaskSupervisor + HoursMonitor)")
+
     yield
 
     # Shutdown
@@ -167,6 +184,8 @@ async def lifespan(app: FastAPI):
     await ed.stop()
     await dm.stop()
     await aa_detector.stop()
+    await task_supervisor.stop()
+    await hours_monitor.stop()
     if sanek_agent_module:
         await sanek_agent_module.stop()
     if b24_module:
@@ -177,6 +196,7 @@ async def lifespan(app: FastAPI):
         mw_task, ad_task, ed_task, events_bridge_task, dm_task, aa_task,
         sanek_bridge_task, ai_analysis_bridge_task,
     ]
+    all_tasks.extend([task_supervisor_task, hours_monitor_task])
     if sanek_agent_task:
         all_tasks.append(sanek_agent_task)
     if b24_task:
