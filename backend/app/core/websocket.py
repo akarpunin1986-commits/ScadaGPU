@@ -3,6 +3,7 @@ Phase 2 — WebSocket endpoint + Redis PubSub bridge.
 
 WS /ws/metrics  — push realtime metrics to frontend
 redis_to_ws_bridge — background task: Redis PubSub → ConnectionManager.broadcast
+sanek_reports_bridge — background task: Redis PubSub 'sanek:reports' → WS broadcast
 """
 
 from __future__ import annotations
@@ -41,7 +42,7 @@ class ConnectionManager:
 
     async def broadcast(self, message: str) -> None:
         dead: list[WebSocket] = []
-        for ws in self.connections:
+        for ws in list(self.connections):
             try:
                 await ws.send_text(message)
             except Exception:
@@ -184,6 +185,68 @@ async def maintenance_alerts_bridge(redis: Redis) -> None:
         finally:
             try:
                 await pubsub.unsubscribe("maintenance:alerts")
+                await pubsub.close()
+            except Exception:
+                pass
+
+
+async def sanek_reports_bridge(redis: Redis) -> None:
+    """Subscribe to Redis PubSub 'sanek:reports' and broadcast to all WS clients.
+
+    SanekAgent publishes AI incident analysis reports here.
+    Frontend receives {type: "sanek_report", data: {...}}.
+    """
+    logger.info("SanekAgent reports bridge started, subscribing to sanek:reports")
+    while True:
+        pubsub = redis.pubsub()
+        try:
+            await pubsub.subscribe("sanek:reports")
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    payload = message["data"]
+                    if isinstance(payload, bytes):
+                        payload = payload.decode("utf-8")
+                    # Already wrapped in {type: "sanek_report", data: {...}} by agent
+                    await manager.broadcast(payload)
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.error("SanekAgent reports bridge error: %s, reconnecting in 2s", exc)
+            await asyncio.sleep(2)
+        finally:
+            try:
+                await pubsub.unsubscribe("sanek:reports")
+                await pubsub.close()
+            except Exception:
+                pass
+
+
+async def ai_analysis_bridge(redis: Redis) -> None:
+    """Subscribe to Redis PubSub 'ai:analysis' and broadcast to all WS clients.
+
+    SanekAgent publishes structured AI analysis results here.
+    Frontend receives {type: "ai_analysis", data: {...}}.
+    """
+    logger.info("AI analysis bridge started, subscribing to ai:analysis")
+    while True:
+        pubsub = redis.pubsub()
+        try:
+            await pubsub.subscribe("ai:analysis")
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    payload = message["data"]
+                    if isinstance(payload, bytes):
+                        payload = payload.decode("utf-8")
+                    # Already wrapped in {type: "ai_analysis", data: {...}} by agent
+                    await manager.broadcast(payload)
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.error("AI analysis bridge error: %s, reconnecting in 2s", exc)
+            await asyncio.sleep(2)
+        finally:
+            try:
+                await pubsub.unsubscribe("ai:analysis")
                 await pubsub.close()
             except Exception:
                 pass

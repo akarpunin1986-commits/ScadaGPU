@@ -74,7 +74,7 @@ def crc16_modbus(data: bytes) -> int:
 
 
 def build_read_registers(slave: int, start: int, count: int) -> bytes:
-    frame = struct.pack(">BBhH", slave, 0x03, start, count)
+    frame = struct.pack(">BBHH", slave, 0x03, start, count)
     crc = crc16_modbus(frame)
     return frame + struct.pack("<H", crc)
 
@@ -1072,7 +1072,7 @@ class HGM9520NReader(BaseReader):
         finally:
             self._lock.release()
 
-    async def _read_registers_unlocked(self, address: int, count: int) -> list[int]:
+    async def _read_registers_unlocked(self, address: int, count: int, *, skip_flush: bool = False) -> list[int]:
         """FC03 inner logic — no lock, called from locked context."""
         if not self._client or not self._client.connected:
             await self.connect()
@@ -1084,7 +1084,7 @@ class HGM9520NReader(BaseReader):
             raise ConnectionError(f"FC03 error: {resp}")
         return list(resp.registers)
 
-    async def _write_register_unlocked(self, address: int, value: int) -> None:
+    async def _write_register_unlocked(self, address: int, value: int, *, use_retry: bool = True) -> None:
         """FC06 inner logic — no lock, called from locked context (e.g. write_registers_batch)."""
         if not self._client or not self._client.connected:
             await self.connect()

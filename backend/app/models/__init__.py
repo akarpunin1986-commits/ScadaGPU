@@ -17,6 +17,8 @@ from models.ai_chat import AiChatMessage
 from models.ai_knowledge import AiKnowledgeChunk
 from models.scada_event import ScadaEvent
 from models.gas_price import GasPrice
+from models.agent_incident import AgentIncident
+from models.sop_procedure import SopProcedure
 
 __all__ = [
     "Base",
@@ -43,4 +45,6 @@ __all__ = [
     "AiKnowledgeChunk",
     "ScadaEvent",
     "GasPrice",
+    "AgentIncident",
+    "SopProcedure",
 ]

@@ -1639,8 +1639,8 @@ function cmdConfirm(target,cmd,label,info){$('cmdT').textContent='Подтвер
 const cs=$('cs-'+target.replace(/[\s\/]/g,''));
 // Resolve device_id and command params
 let deviceId=null,fc=5,addr=0,val=1;
-if(target.includes('Генератор 1'))deviceId=getDeviceIdForSlot('g1');
-else if(target.includes('Генератор 2'))deviceId=getDeviceIdForSlot('g2');
+const _gm=target.match(/Генератор\s+(\d+)/);
+if(_gm)deviceId=getDeviceIdForSlot('g'+_gm[1]);
 else if(target==='ШПР')deviceId=getDeviceIdForSlot('spr');
 // Parse FC and address from info string
 const fcMatch=info?.match(/FC0?(\d)/);if(fcMatch)fc=parseInt(fcMatch[1]);
@@ -1678,7 +1678,7 @@ ae(`⚡ ${cmd} → ${target}`);if(cs){cs.textContent='✅ '+label+' отправ
 else{ae(`⚡ ${cmd} → ${target}`);if(cs){cs.textContent='✅ '+label+' отправлено';cs.classList.add('sh');setTimeout(()=>cs.classList.remove('sh'),3000)}}
 };showM('cmd')}
 // TO
-function openTO(dev){if(!cur)return;const s=S[cur],c=dev==='g1'?s.g1:s.g2,rh=c?.runHours||0;const tpl=getTpl(),td=getTOData(cur,dev);
+function openTO(dev){if(!cur)return;const s=S[cur],c=s[dev],rh=c?.runHours||0;const tpl=getTpl(),td=getTOData(cur,dev);
 const to=getNextTO(rh,cur,dev);
 const lastName=td.lastTOId?tpl.intervals.find(iv=>iv.id===td.lastTOId)?.name||td.lastTOId:'не указано';
 const lastH=td.hoursAtLastTO||0;
@@ -1694,7 +1694,7 @@ let schedule=[];
 for(let h=minH;h<=maxH;h+=minH){let best=sorted[0];for(let i=sorted.length-1;i>=0;i--){if(h%sorted[i].hours===0){best=sorted[i];break}}
 schedule.push({name:best.name,hours:h})}
 let histH=td.history?.length?td.history.slice(0,8).map(h=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--bd);font-size:11px"><span>${h.type} · ${h.hours}ч ${h.done?'<span style="color:var(--g)">✓'+h.done+'/'+h.total+'</span>':''}</span><span style="color:var(--t4)">${h.date}</span></div>`).join(''):'<div style="color:var(--t4);font-size:11px;padding:10px;text-align:center">Нет записей</div>';
-$('toT').textContent=(dev==='g1'?'Генератор 1':'Генератор 2')+' — ТО';
+$('toT').textContent='Генератор '+dev.slice(1)+' — ТО';
 $('toBody').innerHTML=`<div style="text-align:center;padding:18px;background:var(--bg4);border-radius:10px;margin-bottom:14px"><div style="font-size:11px;color:var(--t3)">Моточасы</div><div style="font-size:30px;font-weight:700;font-family:var(--m)">${rh} <span style="font-size:14px;color:var(--t3)">ч</span></div><div style="font-size:10px;color:var(--t4)">Последнее ТО: ${lastName}${lastH?' при '+lastH+'ч':''}</div></div>
 ${to.unknown?`<div style="padding:14px;background:var(--yd);border:1px solid rgba(255,186,0,.2);border-radius:8px;margin-bottom:10px;text-align:center"><div style="font-size:13px;color:var(--y);font-weight:600;margin-bottom:6px">⚠ Укажите последнее ТО</div><div style="font-size:11px;color:var(--t3);margin-bottom:10px">Чтобы рассчитать следующее ТО, нужно указать какое ТО было выполнено последним и при каких моточасах.</div><button class="bp" style="padding:8px 24px" onclick="hideM('to');openSet()">⚙ Открыть настройки</button></div>`:`${isOverdue?`<div style="padding:10px 12px;background:var(--rd);border:1px solid rgba(255,64,96,.2);border-radius:8px;margin-bottom:10px"><div style="font-size:12px;color:var(--r);font-weight:600">⚠ ${to.name} просрочено на ${Math.abs(to.remain)}ч</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Было запланировано при ${to.dueAt||'?'}ч · Текущие: ${rh}ч</div></div>`:''}
 <div style="padding:10px 12px;background:${bgd};border:1px solid ${brd};border-radius:8px;margin-bottom:10px">
@@ -1712,7 +1712,7 @@ $('toBody').innerHTML=`<div style="display:flex;justify-content:space-between;pa
 <div style="max-height:300px;overflow-y:auto">${iv.tasks.map((t,i)=>`<label class="chk-item ${t.c?'crit':''}"><input type="checkbox" class="chk-cb" id="chk${i}"><span>${t.text}${t.c?'<span style="color:var(--r);font-size:9px;margin-left:4px">обязат.</span>':''}</span></label>`).join('')}</div>
 <div style="padding:8px;background:var(--yd);border-radius:6px;font-size:10px;color:var(--y);margin-top:8px">⚠ Счётчик будет сброшен</div>
 <div style="display:flex;gap:8px;margin-top:12px"><button class="bp" style="flex:1" onclick="completeTO('${dev}',${idx})">✓ Подтвердить</button><button class="bs2" style="flex:1;padding:10px" onclick="openTO('${dev}')">Назад</button></div>`}
-function completeTO(dev,idx){const tpl=getTpl(),iv=tpl.intervals[idx],rh=S[cur]?.[dev]?.runHours||0;const cbs=document.querySelectorAll('.chk-cb');let done=0;cbs.forEach(c=>{if(c.checked)done++});const td=getTOData(cur,dev);td.hoursAtLastTO=rh;td.lastTOId=iv.id;td.history=td.history||[];td.history.unshift({type:iv.name,hours:rh,done,total:cbs.length,date:new Date().toLocaleDateString('ru-RU')});saveTOData(cur,dev,td);ae(`✅ ${iv.name} ${dev==='g1'?'G1':'G2'}: ${done}/${cbs.length}`);hideM('to');renderDash()}
+function completeTO(dev,idx){const tpl=getTpl(),iv=tpl.intervals[idx],rh=S[cur]?.[dev]?.runHours||0;const cbs=document.querySelectorAll('.chk-cb');let done=0;cbs.forEach(c=>{if(c.checked)done++});const td=getTOData(cur,dev);td.hoursAtLastTO=rh;td.lastTOId=iv.id;td.history=td.history||[];td.history.unshift({type:iv.name,hours:rh,done,total:cbs.length,date:new Date().toLocaleDateString('ru-RU')});saveTOData(cur,dev,td);ae(`✅ ${iv.name} G${dev.slice(1)}: ${done}/${cbs.length}`);hideM('to');renderDash()}
 async function openTOTemplates(){curView='to';stopB24Poll();const tpl=getTpl();const bxCfg=getBxConfig();const bxOk=!!bxCfg.url;
 let aiOk=false;let aiProv='';let aiModel='';if(apiAvailable){try{const ah=await api.get('/api/ai/health');aiOk=ah&&ah.available;aiProv=ah?.provider||'';aiModel=ah?.model||''}catch(e){}}
 var localAi=getAIConfig();var localProv=localAi.provider||'';var localHasKey=!!(localAi.keys&&localAi.keys[localProv]);
@@ -3673,7 +3673,7 @@ btn.textContent='⏳ Санёк анализирует... 0с';
 const ac=new AbortController();
 const tId=setTimeout(()=>ac.abort(),90000);
 try{
-const resp=await fetch('/api/alarm-analytics/explain',{method:'POST',headers:{'Content-Type':'application/json'},
+const resp=await fetch(API_BASE+'/api/alarm-analytics/explain',{method:'POST',headers:{'Content-Type':'application/json'},
 body:JSON.stringify({alarm_code:alarmCode,device_id:deviceId||0,device_type:deviceType||'generator'}),signal:ac.signal});
 clearTimeout(tId);clearInterval(ticker);
 const elapsed=((Date.now()-t0)/1000).toFixed(1);
@@ -4558,7 +4558,7 @@ async function kbHandleFile(file){
   form.append('title',file.name);
 
   try{
-    const resp=await fetch('/api/ai/knowledge/upload',{method:'POST',body:form});
+    const resp=await fetch(API_BASE+'/api/ai/knowledge/upload',{method:'POST',body:form});
     const data=await resp.json();
     if(data.success){
       status.style.background='rgba(0,255,136,.1)';
@@ -4583,7 +4583,7 @@ async function kbLoadDocs(){
   const list=document.getElementById('kbDocList');
   if(!list)return;
   try{
-    const resp=await fetch('/api/ai/knowledge/');
+    const resp=await fetch(API_BASE+'/api/ai/knowledge/');
     if(!resp.ok){
       list.innerHTML='<div style="text-align:center;padding:16px;color:var(--r)">Ошибка сервера (HTTP '+resp.status+')</div>';
       return;
@@ -4618,7 +4618,7 @@ async function kbLoadDocs(){
 async function kbDeleteDoc(filename){
   if(!confirm('Удалить «'+filename+'» из базы знаний?'))return;
   try{
-    await fetch('/api/ai/knowledge/'+encodeURIComponent(filename),{method:'DELETE'});
+    await fetch(API_BASE+'/api/ai/knowledge/'+encodeURIComponent(filename),{method:'DELETE'});
     kbLoadDocs();
   }catch(e){
     alert('Ошибка удаления: '+e.message);

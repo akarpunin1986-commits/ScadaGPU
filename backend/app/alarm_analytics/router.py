@@ -369,14 +369,14 @@ async def explain_alarm(
             mx = json.loads(raw)
             # Pick relevant fields for context (not all 200+ fields)
             relevant_keys = [
-                "online", "engine_state", "gen_state",
-                "rpm", "oil_pressure", "coolant_temp", "battery_voltage",
-                "gen_voltage_ab", "gen_voltage_bc", "gen_voltage_ca",
-                "gen_current_a", "gen_current_b", "gen_current_c",
+                "online", "gen_status", "gen_status_text",
+                "engine_speed", "oil_pressure", "coolant_temp", "battery_volt",
+                "gen_uab", "gen_ubc", "gen_uca",
+                "current_a", "current_b", "current_c",
                 "gen_freq", "power_total", "power_factor",
-                "mains_voltage_ab", "mains_voltage_bc", "mains_voltage_ca",
-                "mains_freq", "busbar_voltage_ab", "busbar_freq",
-                "fuel_level", "run_hours",
+                "mains_uab", "mains_ubc", "mains_uca",
+                "mains_freq", "busbar_uab", "busbar_freq",
+                "fuel_level", "running_hours",
             ]
             metrics_snippet = json.dumps(
                 {k: mx[k] for k in relevant_keys if k in mx},

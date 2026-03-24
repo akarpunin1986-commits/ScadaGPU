@@ -241,5 +241,7 @@ class AlarmAnalyticsDetector:
             except Exception as exc:
                 logger.error("AlarmAnalyticsDetector DB error: %s", exc)
 
-        # Update previous state
-        self._prev_bits[device_id] = current
+        # Update previous state (merge, not replace — partial payloads must not erase known state)
+        if device_id not in self._prev_bits:
+            self._prev_bits[device_id] = {}
+        self._prev_bits[device_id].update(current)

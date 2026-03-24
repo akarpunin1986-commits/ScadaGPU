@@ -137,6 +137,8 @@ class MetricsWriter:
         "oil_pressure": (0, 1000),
         "battery_volt": (0, 60),
         "fuel_level": (0, 100), "load_pct": (-50, 150),
+        "fuel_pressure": (0, 10000), "turbo_pressure": (0, 10000),
+        "fuel_consumption": (0, 1000),
         # ECU / Gas
         "gas_pressure": (0, 500), "gas_temp": (-50, 200),
         "air_gas_ratio": (0.5, 3.0), "exhaust_oxygen": (0, 25),
@@ -203,9 +205,9 @@ class MetricsWriter:
             "battery_volt": san("battery_volt", p.get("battery_volt")),
             "fuel_level": san("fuel_level", p.get("fuel_level")),
             "load_pct": san("load_pct", p.get("load_pct")),
-            "fuel_pressure": p.get("fuel_pressure"),
-            "turbo_pressure": p.get("turbo_pressure"),
-            "fuel_consumption": p.get("fuel_consumption"),
+            "fuel_pressure": san("fuel_pressure", p.get("fuel_pressure")),
+            "turbo_pressure": san("turbo_pressure", p.get("turbo_pressure")),
+            "fuel_consumption": san("fuel_consumption", p.get("fuel_consumption")),
             # --- ECU / Gas (Exon-Gas) ---
             "accumulated_fuel": san("accumulated_fuel", p.get("accumulated_fuel")),
             "throttle_valve_pos": san("throttle_valve_pos", p.get("throttle_valve_pos")),

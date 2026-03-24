@@ -16,7 +16,7 @@ from api.commands import router as commands_router
 from api.bitrix import router as bitrix_router
 from api.ai_parser import router as ai_parser_router
 from api.history import router as history_router
-from core.websocket import router as ws_router, redis_to_ws_bridge, maintenance_alerts_bridge, events_to_ws_bridge
+from core.websocket import router as ws_router, redis_to_ws_bridge, maintenance_alerts_bridge, events_to_ws_bridge, sanek_reports_bridge, ai_analysis_bridge
 from services.modbus_poller import ModbusPoller
 from services.maintenance_scheduler import MaintenanceScheduler
 from services.metrics_writer import MetricsWriter
@@ -110,6 +110,24 @@ async def lifespan(app: FastAPI):
     app.state.alarm_analytics_detector = aa_detector
     aa_task = asyncio.create_task(aa_detector.start())
 
+    # SanekAgent reports → WebSocket bridge
+    sanek_bridge_task = asyncio.create_task(sanek_reports_bridge(redis))
+
+    # AI analysis → WebSocket bridge
+    ai_analysis_bridge_task = asyncio.create_task(ai_analysis_bridge(redis))
+
+    # SanekAgent — autonomous AI incident analysis (fully isolated)
+    sanek_agent_module = None
+    sanek_agent_task = None
+    if settings.SANEK_AGENT_ENABLED:
+        from services.sanek_agent import SanekAgentModule
+        sanek_agent_module = SanekAgentModule(redis, async_session)
+        app.state.sanek_agent = sanek_agent_module
+        sanek_agent_task = asyncio.create_task(sanek_agent_module.start())
+        logger.info("SanekAgent module enabled")
+    else:
+        logger.info("SanekAgent module DISABLED (SANEK_AGENT_ENABLED=false)")
+
     # Bitrix24 integration — fully isolated module
     b24_module = None
     b24_task = None
@@ -133,13 +151,18 @@ async def lifespan(app: FastAPI):
     await ed.stop()
     await dm.stop()
     await aa_detector.stop()
+    if sanek_agent_module:
+        await sanek_agent_module.stop()
     if b24_module:
         await b24_module.stop()
 
     all_tasks = [
         poller_task, ws_bridge_task, scheduler_task, alerts_bridge_task,
         mw_task, ad_task, ed_task, events_bridge_task, dm_task, aa_task,
+        sanek_bridge_task, ai_analysis_bridge_task,
     ]
+    if sanek_agent_task:
+        all_tasks.append(sanek_agent_task)
     if b24_task:
         all_tasks.append(b24_task)
     for t in all_tasks:
@@ -183,6 +206,10 @@ app.include_router(alarm_analytics_router)
 app.include_router(knowledge_router)
 app.include_router(events_router)
 app.include_router(economics_router)
+
+# SanekAgent API router (always available — shows reports even if agent disabled)
+from api.sanek_agent import router as sanek_agent_router
+app.include_router(sanek_agent_router)
 
 # Bitrix24 module router (conditional)
 if settings.BITRIX24_ENABLED:
