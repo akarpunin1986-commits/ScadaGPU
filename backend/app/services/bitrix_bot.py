@@ -781,13 +781,13 @@ async def _find_pending_tasks_for_user(bitrix_user_id: int) -> list:
 
 
 async def _handle_task_free_text(task, from_user_id: int, dialog_id: str, text: str, redis) -> None:
-    """Record free-text response from executor and confirm receipt."""
+    """Record free-text response, analyze quality, decide next action."""
     from models.base import async_session as _async_session
-    from models.task_manager import TaskCommunication
+    from models.task_manager import TaskCommunication, ScadaTask
 
     bot_id = settings.BITRIX24_BOT_ID
 
-    # Save to task_communications
+    # 1. Save response to task_communications
     async with _async_session() as db:
         comm = TaskCommunication(
             task_id=task.id,
@@ -803,18 +803,103 @@ async def _handle_task_free_text(task, from_user_id: int, dialog_id: str, text: 
         db.add(comm)
         await db.commit()
 
-    # Confirm receipt
+    # 2. Analyze response quality
+    analysis = await _analyze_response_quality(task.title, text)
+
+    # 3. Decision based on analysis
+    if analysis.get("is_substantial"):
+        # Good response -> move task to in_progress
+        async with _async_session() as db:
+            task_obj = await db.get(ScadaTask, task.id)
+            if task_obj and task_obj.status in ("created", "overdue"):
+                task_obj.status = "in_progress"
+                await db.commit()
+        try:
+            await imbot_api_call("imbot.message.add", {
+                "BOT_ID": bot_id,
+                "DIALOG_ID": dialog_id,
+                "MESSAGE": f"Ответ принят по задаче #{task.id} «{task.title}». Спасибо.",
+            }, redis=redis)
+        except Exception as e:
+            logger.warning("Failed to send confirmation: %s", e)
+    else:
+        # Not substantial -> ask for details, log system analysis
+        missing = analysis.get('missing', 'Ukazhite kogda vypolnite i kakie raboty nuzhny')
+        async with _async_session() as db:
+            sys_comm = TaskCommunication(
+                task_id=task.id,
+                channel="internal",
+                direction="outbound",
+                sender="system",
+                recipient_user_id=from_user_id,
+                recipient_name=task.responsible_name or "",
+                recipient_role="executor",
+                message_type="system_analysis",
+                message_text=f"Analiz: {analysis.get('summary', '?')}. Trebujetsja: {missing}",
+            )
+            db.add(sys_comm)
+            await db.commit()
+        try:
+            await imbot_api_call("imbot.message.add", {
+                "BOT_ID": bot_id,
+                "DIALOG_ID": dialog_id,
+                "MESSAGE": f"Ответ получен по задаче #{task.id}, но не хватает конкретики. {missing}. Уточните, пожалуйста.",
+            }, redis=redis)
+        except Exception as e:
+            logger.warning("Failed to send clarification request: %s", e)
+
+    logger.info("Task free-text: user=%d task=%d substantial=%s text=%s",
+                from_user_id, task.id, analysis.get("is_substantial"), text[:100])
+
+
+
+
+async def _analyze_response_quality(task_title: str, response_text: str) -> dict:
+    """Evaluate executor response quality. LLM only for medium-length replies."""
+    text_len = len(response_text.strip())
+
+    # Short -> not substantial
+    if text_len < 30:
+        return {"score": 0.2, "is_substantial": False,
+                "summary": "Slishkom korotkij otvet",
+                "missing": "Ukazhite kogda vypolnite, kakie raboty i materialy nuzhny"}
+
+    # Long -> treat as substantial
+    if text_len > 200:
+        return {"score": 0.9, "is_substantial": True,
+                "summary": "Razvyornutyj otvet", "missing": ""}
+
+    # Medium -> LLM analysis
     try:
-        await imbot_api_call("imbot.message.add", {
-            "BOT_ID": bot_id,
-            "DIALOG_ID": dialog_id,
-            "MESSAGE": f"Ответ принят по задаче #{task.id} «{task.title}». Спасибо.",
-        }, redis=redis)
+        import openai as _oai
+        from config import settings as _s
+        client = _oai.AsyncOpenAI(api_key=_s.OPENAI_API_KEY, timeout=30)
+        resp = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{
+                "role": "user",
+                "content": (
+                    "Otseni otvet ispolnitelya na zadachu TO. "
+                    f"Zadacha: {task_title}\n"
+                    f"Otvet: \"{response_text}\"\n\n"
+                    "Otvet TOLKO JSON (bez markdown):\n"
+                    '{"score": 0.0-1.0, "is_substantial": true/false, '
+                    '"summary": "vyvod", "missing": "chego ne hvataet"}'
+                )
+            }],
+            max_tokens=200,
+            temperature=0,
+        )
+        import json as _json
+        raw = resp.choices[0].message.content.strip()
+        # Strip markdown code block if present
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        return _json.loads(raw)
     except Exception as e:
-        logger.warning("Failed to send task response confirmation: %s", e)
-
-    logger.info("Task free-text response: user=%d task=%d text=%s", from_user_id, task.id, text[:100])
-
+        logger.warning("LLM response analysis failed: %s, treating as substantial", e)
+        return {"score": 0.5, "is_substantial": True,
+                "summary": "Analiz nedostupen", "missing": ""}
 
 async def handle_bot_message(event_data: dict, redis) -> None:
     """Main handler — wraps with semaphore for concurrent user queue."""
