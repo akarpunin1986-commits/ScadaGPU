@@ -60,6 +60,8 @@ async def create_site(data: SiteCreate, session: AsyncSession = Depends(get_sess
     session.add(site)
     await session.commit()
     await session.refresh(site)
+    from services.sanek_v4.device_map import invalidate_cache
+    await invalidate_cache()
     return site
 
 
@@ -87,3 +89,5 @@ async def delete_site(site_id: int, request: Request, session: AsyncSession = De
     await session.delete(site)
     await session.commit()
     await request.app.state.redis.publish("poller:reload", "site_deleted")
+    from services.sanek_v4.device_map import invalidate_cache
+    await invalidate_cache()

@@ -58,6 +58,10 @@ async def lifespan(app: FastAPI):
     app.state.redis = redis
     logger.info("Redis connected: %s", settings.REDIS_URL)
 
+    # Load dynamic device map from DB
+    from services.sanek_v4.device_map import refresh_device_map
+    await refresh_device_map()
+
     # Load AI provider configs from DB into memory cache
     from api.ai_parser import load_ai_configs_from_db
     await load_ai_configs_from_db()

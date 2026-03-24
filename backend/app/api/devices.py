@@ -96,6 +96,8 @@ async def create_device(
     await session.commit()
     await session.refresh(device)
     await request.app.state.redis.publish("poller:reload", "device_created")
+    from services.sanek_v4.device_map import invalidate_cache
+    await invalidate_cache()
     return device
 
 
@@ -114,6 +116,8 @@ async def update_device(
     await session.commit()
     await session.refresh(device)
     await request.app.state.redis.publish("poller:reload", "device_updated")
+    from services.sanek_v4.device_map import invalidate_cache
+    await invalidate_cache()
     return device
 
 
@@ -125,6 +129,8 @@ async def delete_device(device_id: int, request: Request, session: AsyncSession 
     await session.delete(device)
     await session.commit()
     await request.app.state.redis.publish("poller:reload", "device_deleted")
+    from services.sanek_v4.device_map import invalidate_cache
+    await invalidate_cache()
 
 
 # --- Connection Test ---
