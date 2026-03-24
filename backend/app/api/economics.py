@@ -60,7 +60,10 @@ class DayReport(BaseModel):
     price_per_m3: float | None
     cost_rub: float | None
     cost_per_kwh: float | None
-    last_ts: str | None = None  # last timestamp for incomplete days (HH:MM MSK)
+    planned_daily: float | None = None
+    full_cost_per_kwh: float | None = None
+    grid_price_per_kwh: float | None = None
+    last_ts: str | None = None
     devices: list[DeviceDayDetail]
 
 
@@ -69,14 +72,21 @@ class ReportTotals(BaseModel):
     energy_kwh: float
     total_cost: float | None
     avg_cost_per_kwh: float | None
+    planned_costs: float | None = None
+    avg_full_cost_per_kwh: float | None = None
+    grid_price: float | None = None
+    plan_kwh: float | None = None
+    utilization_pct: float | None = None
+    breakeven_pct: float | None = None
+    nominal_kw: int = 320
 
 
 class ReportOut(BaseModel):
     days: list[DayReport]
     totals: ReportTotals
-    requested_days: int | None = None  # how many days were requested
-    actual_days_with_data: int | None = None  # how many days have actual data
-    data_warning: str | None = None  # warning if data is incomplete
+    requested_days: int | None = None
+    actual_days_with_data: int | None = None
+    data_warning: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -156,7 +166,7 @@ async def get_economics_report(
 
     # 1. Get generator devices for this site (id + name)
     dev_stmt = select(Device.id, Device.name).where(
-        and_(Device.site_id == site_id, Device.device_type == "generator")
+        and_(Device.site_id == site_id, Device.device_type == "GENERATOR")
     )
     dev_result = await session.execute(dev_stmt)
     dev_rows = dev_result.all()
@@ -340,6 +350,62 @@ async def get_economics_report(
             f"Итоги показывают суммы ТОЛЬКО за дни с данными."
         )
 
+    # ---- Planned costs & grid prices enrichment ----
+    planned_daily = 0.0
+    total_planned = 0.0
+    try:
+        pc_result = await session.execute(
+            text("SELECT SUM(amount) FROM planned_costs WHERE site_id = :sid AND year = :y"),
+            {"sid": site_id, "y": start_date.year},
+        )
+        yearly_planned = float(pc_result.scalar() or 0)
+        if yearly_planned > 0:
+            planned_daily = yearly_planned / 365.0
+            total_planned = planned_daily * actual_days_count
+    except Exception:
+        pass
+
+    # Grid price lookup
+    grid_price = None
+    try:
+        gp_result = await session.execute(
+            text("SELECT price_per_kwh FROM grid_prices WHERE site_id = :sid AND effective_from <= :d ORDER BY effective_from DESC LIMIT 1"),
+            {"sid": site_id, "d": end_date},
+        )
+        gp_row = gp_result.first()
+        if gp_row:
+            grid_price = float(gp_row[0])
+    except Exception:
+        pass
+
+    # Enrich day reports with planned + grid
+    for d in days:
+        if planned_daily > 0:
+            d.planned_daily = round(planned_daily, 2)
+            if d.energy_kwh > 0 and d.cost_rub is not None:
+                d.full_cost_per_kwh = round((d.cost_rub + planned_daily) / d.energy_kwh, 4)
+        if grid_price is not None:
+            d.grid_price_per_kwh = grid_price
+
+    # Full cost totals
+    avg_full_cost = None
+    if total_energy > 0 and has_any_price:
+        avg_full_cost = round((total_cost + total_planned) / total_energy, 4)
+
+    # Utilization & breakeven
+    nominal_kw = 320  # 2 generators × 160 kW
+    plan_kwh = nominal_kw * 24 * actual_days_count if actual_days_count > 0 else None
+    util_pct = round(total_energy / plan_kwh * 100, 1) if plan_kwh and plan_kwh > 0 else None
+    breakeven_pct = None
+    if grid_price and grid_price > 0 and planned_daily > 0 and has_any_price and actual_days_count > 0:
+        # breakeven: at what utilization % does full_cost = grid_price
+        # full_cost = (gas_cost + planned) / energy; energy = nominal * 24 * days * util%
+        # grid_price = (total_cost + total_planned) / (nominal * 24 * days * x)
+        # x = (total_cost + total_planned) / (grid_price * nominal * 24 * days)
+        denom = grid_price * nominal_kw * 24 * actual_days_count
+        if denom > 0:
+            breakeven_pct = round((total_cost + total_planned) / denom * 100, 1)
+
     return ReportOut(
         days=days,
         totals=ReportTotals(
@@ -347,8 +413,335 @@ async def get_economics_report(
             energy_kwh=round(total_energy, 2),
             total_cost=round(total_cost, 2) if has_any_price else None,
             avg_cost_per_kwh=avg_cost_per_kwh,
+            planned_costs=round(total_planned, 2) if total_planned > 0 else None,
+            avg_full_cost_per_kwh=avg_full_cost,
+            grid_price=grid_price,
+            plan_kwh=round(plan_kwh, 0) if plan_kwh else None,
+            utilization_pct=util_pct,
+            breakeven_pct=breakeven_pct,
+            nominal_kw=nominal_kw,
         ),
         requested_days=requested_days_count,
         actual_days_with_data=actual_days_count,
         data_warning=data_warning,
     )
+
+
+# ---------------------------------------------------------------------------
+# Grid Prices CRUD
+# ---------------------------------------------------------------------------
+class GridPriceCreate(BaseModel):
+    site_id: int
+    effective_from: str
+    price_per_kwh: float
+    note: Optional[str] = None
+
+class GridPriceOut(BaseModel):
+    id: int
+    site_id: int
+    effective_from: str
+    price_per_kwh: float
+    note: Optional[str] = None
+
+
+@router.get("/grid-prices/{site_id}")
+async def get_grid_prices(site_id: int, db: AsyncSession = Depends(get_session)):
+    r = await db.execute(
+        text("SELECT id, site_id, effective_from, price_per_kwh, note FROM grid_prices WHERE site_id = :sid ORDER BY effective_from DESC"),
+        {"sid": site_id},
+    )
+    return [
+        GridPriceOut(id=row[0], site_id=row[1], effective_from=str(row[2]), price_per_kwh=row[3], note=row[4])
+        for row in r.fetchall()
+    ]
+
+
+@router.post("/grid-prices", status_code=201)
+async def create_grid_price(body: GridPriceCreate, db: AsyncSession = Depends(get_session)):
+    await db.execute(
+        text("INSERT INTO grid_prices (site_id, effective_from, price_per_kwh, note) VALUES (:sid, :ef, :p, :n)"),
+        {"sid": body.site_id, "ef": body.effective_from, "p": body.price_per_kwh, "n": body.note},
+    )
+    await db.commit()
+    return {"status": "ok"}
+
+
+@router.delete("/grid-prices/{price_id}", status_code=204)
+async def delete_grid_price(price_id: int, db: AsyncSession = Depends(get_session)):
+    await db.execute(text("DELETE FROM grid_prices WHERE id = :pid"), {"pid": price_id})
+    await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Planned Costs CRUD
+# ---------------------------------------------------------------------------
+class PlannedCostCategory(BaseModel):
+    category: str
+    category_name: str
+    months: list[float]  # 12 values, Jan-Dec
+
+
+@router.get("/planned-costs/{site_id}")
+async def get_planned_costs(site_id: int, year: int = Query(default=2026), db: AsyncSession = Depends(get_session)):
+    r = await db.execute(
+        text("SELECT category, category_name, month, amount FROM planned_costs WHERE site_id = :sid AND year = :y ORDER BY category, month"),
+        {"sid": site_id, "y": year},
+    )
+    BASE_CATS = {"maintenance", "staff", "capital", "lease", "insurance", "other"}
+    cats: dict[str, dict] = {}
+    for row in r.fetchall():
+        cat, cat_name, month, amount = row
+        if cat not in cats:
+            cats[cat] = {"category": cat, "category_name": cat_name, "months": {}, "is_base": cat in BASE_CATS}
+        val = float(amount) if amount else 0.0
+        if 1 <= month <= 12:
+            cats[cat]["months"][str(month)] = val
+    # Compute totals
+    monthly_totals: dict[str, float] = {}
+    grand_total = 0.0
+    for cat in cats.values():
+        cat_total = 0.0
+        for m in range(1, 13):
+            v = cat["months"].get(str(m), 0.0)
+            cat_total += v
+            monthly_totals[str(m)] = monthly_totals.get(str(m), 0.0) + v
+        cat["total"] = cat_total
+        grand_total += cat_total
+    return {"categories": list(cats.values()), "year": year, "monthly_totals": monthly_totals, "grand_total": grand_total}
+
+
+@router.put("/planned-costs/{site_id}")
+async def upsert_planned_cost(site_id: int, body: PlannedCostCategory, year: int = Query(default=2026), db: AsyncSession = Depends(get_session)):
+    # Delete existing for this category+year
+    await db.execute(
+        text("DELETE FROM planned_costs WHERE site_id = :sid AND year = :y AND category = :cat"),
+        {"sid": site_id, "y": year, "cat": body.category},
+    )
+    # Insert 12 months
+    for i, amount in enumerate(body.months):
+        if amount:
+            await db.execute(
+                text("INSERT INTO planned_costs (site_id, year, month, category, category_name, amount) VALUES (:sid, :y, :m, :cat, :cn, :a)"),
+                {"sid": site_id, "y": year, "m": i + 1, "cat": body.category, "cn": body.category_name, "a": amount},
+            )
+    await db.commit()
+    return {"status": "ok"}
+
+
+@router.post("/planned-costs/{site_id}/category")
+async def add_planned_category(site_id: int, body: PlannedCostCategory, year: int = Query(default=2026), db: AsyncSession = Depends(get_session)):
+    for i, amount in enumerate(body.months):
+        if amount:
+            await db.execute(
+                text("INSERT INTO planned_costs (site_id, year, month, category, category_name, amount) VALUES (:sid, :y, :m, :cat, :cn, :a)"),
+                {"sid": site_id, "y": year, "m": i + 1, "cat": body.category, "cn": body.category_name, "a": amount},
+            )
+    await db.commit()
+    return {"status": "ok"}
+
+
+@router.delete("/planned-costs/{site_id}/category")
+async def delete_planned_category(site_id: int, category: str = Query(...), year: int = Query(default=2026), db: AsyncSession = Depends(get_session)):
+    await db.execute(
+        text("DELETE FROM planned_costs WHERE site_id = :sid AND year = :y AND category = :cat"),
+        {"sid": site_id, "y": year, "cat": category},
+    )
+    await db.commit()
+    return {"status": "ok"}
+
+
+@router.post("/planned-costs/{site_id}/copy-year")
+async def copy_planned_year(site_id: int, body: dict, db: AsyncSession = Depends(get_session)):
+    src = body.get("source_year")
+    tgt = body.get("target_year")
+    if not src or not tgt:
+        raise HTTPException(400, "source_year and target_year required")
+    r = await db.execute(
+        text("SELECT category, category_name, month, amount FROM planned_costs WHERE site_id = :sid AND year = :y"),
+        {"sid": site_id, "y": src},
+    )
+    rows = r.fetchall()
+    if not rows:
+        raise HTTPException(404, f"No data for year {src}")
+    # Delete target year
+    await db.execute(text("DELETE FROM planned_costs WHERE site_id = :sid AND year = :y"), {"sid": site_id, "y": tgt})
+    for row in rows:
+        await db.execute(
+            text("INSERT INTO planned_costs (site_id, year, month, category, category_name, amount) VALUES (:sid, :y, :m, :cat, :cn, :a)"),
+            {"sid": site_id, "y": tgt, "m": row[2], "cat": row[0], "cn": row[1], "a": row[3]},
+        )
+    await db.commit()
+    return {"status": "ok", "copied": len(rows)}
+
+
+# ---------------------------------------------------------------------------
+# Comparison endpoint (all sites summary)
+# ---------------------------------------------------------------------------
+@router.get("/comparison")
+async def comparison(last_days: int = Query(default=7), session: AsyncSession = Depends(get_session)):
+    """Compare cost structure across all sites.
+
+    Uses Redis cache (5 min TTL) to avoid scanning metrics_data on every request.
+    Single SQL query aggregates ALL sites at once instead of N+1 per-site queries.
+    """
+    import json as _json
+    from fastapi import Request
+    from redis.asyncio import Redis as _Redis
+
+    # Try Redis cache first
+    cache_key = f"economics:comparison:{last_days}"
+    try:
+        from models.base import async_session as _as
+        # Get redis from app state via a small helper
+        import redis.asyncio as aioredis
+        redis_url = "redis://redis:6379/0"
+        redis_client = aioredis.from_url(redis_url, decode_responses=True)
+        cached = await redis_client.get(cache_key)
+        if cached:
+            await redis_client.aclose()
+            return _json.loads(cached)
+    except Exception:
+        redis_client = None
+
+    from models.site import Site
+    sites_result = await session.execute(select(Site))
+    sites_list = list(sites_result.scalars().all())
+    if not sites_list:
+        return {"sites": []}
+
+    end_date = date.today()
+    start_date = end_date - timedelta(days=last_days)
+    start_ts = datetime(start_date.year, start_date.month, start_date.day)
+    end_ts = datetime(end_date.year, end_date.month, end_date.day) + timedelta(days=1)
+    site_map = {s.id: s for s in sites_list}
+
+    # Single query: aggregate metrics for ALL sites at once (avoid N+1)
+    r = await session.execute(
+        text("""
+            SELECT d.site_id, md.device_id,
+                AVG(md.fuel_consumption) AS avg_fc,
+                AVG(md.power_total) AS avg_pt,
+                EXTRACT(EPOCH FROM (MAX(md.timestamp) - MIN(md.timestamp))) / 3600.0 AS hours_span,
+                COUNT(*) AS cnt
+            FROM metrics_data md
+            JOIN devices d ON d.id = md.device_id
+            WHERE d.device_type = 'GENERATOR'
+              AND md.timestamp >= :start AND md.timestamp < :end
+              AND (md.fuel_consumption IS NOT NULL OR md.power_total IS NOT NULL)
+            GROUP BY d.site_id, md.device_id, DATE(md.timestamp)
+        """),
+        {"start": start_ts, "end": end_ts},
+    )
+    # Aggregate per site
+    site_totals: dict[int, dict] = defaultdict(lambda: {"gas": 0.0, "energy": 0.0})
+    for row in r.fetchall():
+        sid = int(row[0])
+        avg_fc = float(row[2] or 0)
+        avg_pt = float(row[3] or 0)
+        hours_span = float(row[4] or 0)
+        cnt = int(row[5] or 0)
+        if hours_span < 0.01 and cnt > 0:
+            hours_span = cnt * 10.0 / 3600.0
+        site_totals[sid]["gas"] += avg_fc * hours_span
+        site_totals[sid]["energy"] += avg_pt * hours_span
+
+    # Batch: gas prices for all sites
+    gp_r = await session.execute(
+        text("""
+            SELECT DISTINCT ON (site_id) site_id, price_per_m3
+            FROM gas_prices
+            WHERE effective_from <= :d
+            ORDER BY site_id, effective_from DESC
+        """),
+        {"d": end_date},
+    )
+    gas_prices = {int(row[0]): float(row[1]) for row in gp_r.fetchall()}
+
+    # Batch: grid prices for all sites
+    grid_r = await session.execute(
+        text("""
+            SELECT DISTINCT ON (site_id) site_id, price_per_kwh
+            FROM grid_prices
+            WHERE effective_from <= :d
+            ORDER BY site_id, effective_from DESC
+        """),
+        {"d": end_date},
+    )
+    grid_prices = {int(row[0]): float(row[1]) for row in grid_r.fetchall()}
+
+    # Batch: planned costs for all sites
+    pc_r = await session.execute(
+        text("SELECT site_id, category, SUM(amount) FROM planned_costs WHERE year = :y GROUP BY site_id, category"),
+        {"y": start_date.year},
+    )
+    planned_by_site: dict[int, dict] = defaultdict(dict)
+    for row in pc_r.fetchall():
+        planned_by_site[int(row[0])][row[1]] = float(row[2])
+
+    result_sites = []
+    for sid, totals in site_totals.items():
+        total_gas = totals["gas"]
+        total_energy = totals["energy"]
+        if total_energy < 1:
+            continue
+        site = site_map.get(sid)
+        if not site:
+            continue
+
+        gas_price = gas_prices.get(sid, 0)
+        gas_cost = total_gas * gas_price
+        gas_per_kwh = gas_cost / total_energy
+
+        yearly_by_cat = planned_by_site.get(sid, {})
+        daily_factor = last_days / 365.0
+        maint_cost = sum(v for k, v in yearly_by_cat.items() if k in {"oil", "parts", "spare_parts", "service", "maintenance"}) * daily_factor
+        staff_cost = sum(v for k, v in yearly_by_cat.items() if k in {"staff", "salary", "fot", "payroll_tax"}) * daily_factor
+        capital_cost = sum(v for k, v in yearly_by_cat.items() if k in {"leasing", "capital", "insurance", "capex", "overhaul"}) * daily_factor
+        total_planned = sum(yearly_by_cat.values()) * daily_factor
+
+        full_cost = gas_cost + total_planned
+        full_per_kwh = full_cost / total_energy
+
+        grid_price_val = grid_prices.get(sid, 0)
+        diff = grid_price_val - full_per_kwh if grid_price_val > 0 else 0
+        savings = diff * total_energy
+
+        nominal_kw = 320
+        plan_kwh = nominal_kw * 24 * last_days
+        util_pct = round(total_energy / plan_kwh * 100, 1) if plan_kwh > 0 else 0
+        be_pct = round(full_cost / (grid_price_val * nominal_kw * 24 * last_days) * 100, 1) if grid_price_val > 0 else 0
+
+        verdict = "profitable" if diff > 0.5 else "marginal" if diff > -0.5 else "loss"
+        explanation = f"Полная себестоимость {full_per_kwh:.2f} ₽/кВт·ч {'ниже' if diff >= 0 else 'выше'} тарифа сети {grid_price_val:.2f} ₽/кВт·ч на {abs(diff):.2f} ₽. {'Экономия' if diff >= 0 else 'Убыток'}: {abs(savings):.0f} ₽ за {last_days} дн."
+
+        result_sites.append({
+            "site_id": sid, "site_name": site.name,
+            "cost_breakdown": {
+                "gas": round(gas_per_kwh, 4),
+                "maintenance": round(maint_cost / total_energy, 4),
+                "staff": round(staff_cost / total_energy, 4),
+                "capital": round(capital_cost / total_energy, 4),
+            },
+            "full_cost_per_kwh": round(full_per_kwh, 4),
+            "grid_price_per_kwh": grid_price_val,
+            "diff_per_kwh": round(diff, 4),
+            "savings_rub": round(savings, 0),
+            "energy_kwh": round(total_energy, 0),
+            "utilization_pct": util_pct,
+            "breakeven_utilization_pct": be_pct,
+            "verdict": verdict,
+            "explanation": explanation,
+            "days_with_data": last_days,
+        })
+
+    response_data = {"sites": result_sites}
+
+    # Cache result in Redis for 5 minutes
+    if redis_client:
+        try:
+            await redis_client.setex(cache_key, 300, _json.dumps(response_data, ensure_ascii=False, default=str))
+            await redis_client.aclose()
+        except Exception:
+            pass
+
+    return response_data
