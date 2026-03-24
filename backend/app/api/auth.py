@@ -319,54 +319,6 @@ async def oauth_login(request: Request):
     return RedirectResponse(url)
 
 
-
-
-@router.get("/oauth/start")
-async def oauth_start(request: Request):
-    """Return B24 OAuth URL + state for popup-based flow."""
-    state = secrets.token_hex(16)
-    redis = request.app.state.redis
-    await redis.set(f"oauth:state:{state}", "pending", ex=OAUTH_STATE_TTL)
-
-    params = {
-        "client_id": settings.BITRIX24_OAUTH_CLIENT_ID,
-        "response_type": "code",
-        "redirect_uri": settings.BITRIX24_OAUTH_REDIRECT_URI,
-        "state": state,
-    }
-    url = f"https://{settings.BITRIX24_PORTAL}/oauth/authorize/?" + urlencode(params)
-    return {"auth_url": url, "state": state}
-
-
-@router.get("/oauth/poll")
-async def oauth_poll(state: str, request: Request):
-    """Poll for completed OAuth. Returns cookie when ready."""
-    redis = request.app.state.redis
-    jwt_token = await redis.get(f"oauth:done:{state}")
-    if not jwt_token or jwt_token == b"consumed" or jwt_token == "consumed":
-        return {"ready": False}
-
-    # Decode if bytes
-    if isinstance(jwt_token, bytes):
-        jwt_token = jwt_token.decode()
-
-    # Mark as consumed (dont delete — let TTL expire, avoid race condition)
-    await redis.set(f"oauth:done:{state}", "consumed", ex=5)
-
-    # Validate
-    payload = auth.verify_jwt(jwt_token)
-    if not payload:
-        return {"ready": False, "error": "invalid token"}
-
-    # Set cookie
-    from fastapi.responses import JSONResponse
-    max_age = 365 * 86400 if settings.JWT_EXPIRE_HOURS == 0 else settings.JWT_EXPIRE_HOURS * 3600
-    resp = JSONResponse({"ready": True})
-    resp.set_cookie(key="scada_token", value=jwt_token, httponly=True,
-                    samesite="lax", max_age=max_age, path="/")
-    return resp
-
-
 @router.get("/oauth/callback")
 async def oauth_callback(code: str, state: str, request: Request, domain: str = ""):
     """Б24 redirect с code → JWT → cookie → redirect /."""
@@ -388,14 +340,9 @@ async def oauth_callback(code: str, state: str, request: Request, domain: str = 
     except Exception:
         pass
 
-    # Cookie on LAN domain — use HTML meta-refresh instead of 307
-    # (307 + Set-Cookie can be blocked by browsers in cross-site redirect chains)
-    from fastapi.responses import HTMLResponse
+    # Cookie on LAN domain, redirect to SCADA main page
+    resp = RedirectResponse("/")
     max_age = 365 * 86400 if settings.JWT_EXPIRE_HOURS == 0 else settings.JWT_EXPIRE_HOURS * 3600
-    resp = HTMLResponse(
-        content='<html><head><meta http-equiv="refresh" content="0;url=http://192.168.30.130/"></head><body>OK</body></html>',
-        status_code=200,
-    )
     resp.set_cookie(key="scada_token", value=jwt_token, httponly=True,
                     samesite="lax", max_age=max_age, path="/",
 )
@@ -409,12 +356,8 @@ async def oauth_set_token(t: str):
     payload = auth.verify_jwt(t)
     if not payload:
         raise HTTPException(400, "Invalid or expired token")
-    from fastapi.responses import HTMLResponse
+    resp = RedirectResponse("/")
     max_age = 365 * 86400 if settings.JWT_EXPIRE_HOURS == 0 else settings.JWT_EXPIRE_HOURS * 3600
-    resp = HTMLResponse(
-        content='<html><head><meta http-equiv="refresh" content="0;url=http://192.168.30.130/"></head><body>OK</body></html>',
-        status_code=200,
-    )
     resp.set_cookie(key="scada_token", value=t, httponly=True,
                     samesite="lax", max_age=max_age, path="/",
 )

@@ -54,7 +54,7 @@
     <div class="lo-step active" id="lo-step-b24">
       <div class="lo-card-title">Вход через Битрикс24</div>
       <div class="lo-card-sub">Авторизуйтесь средствами корпоративного портала</div>
-      <a href="#" onclick="event.preventDefault();startB24OAuth()" class="oauth-btn" style="margin-top:20px">
+      <a href="/api/auth/oauth/login" class="oauth-btn" style="margin-top:20px">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
           Войти через Битрикс24
       </a>
@@ -380,7 +380,47 @@ P% и Q% генератора управляются супервизорным 
 </div>
 
 <script>
-function startB24OAuth(){var b=document.querySelector('.oauth-btn');if(b)b.textContent='⏳ Авторизация...';fetch('/api/auth/oauth/start').then(function(r){return r.json()}).then(function(d){window.open(d.auth_url,'b24oauth','width=600,height=500');var s=d.state,n=0,p=setInterval(function(){n++;fetch('/api/auth/oauth/poll?state='+s,{credentials:'include'}).then(function(r){return r.json()}).then(function(r){if(r.ready){clearInterval(p);window.location.href='/'}}).catch(function(){});if(n>=60){clearInterval(p);if(b)b.textContent='✓ Войти через Битрикс24'}},1000)}).catch(function(){window.location.href='/api/auth/oauth/login'})}
+// Boot: check auth cookie → show app or login
+(async function(){
+  for(var i=0;i<2;i++){
+    try{
+      var r=await fetch('/api/auth/me',{credentials:'include'});
+      if(r.ok){
+        var u=await r.json();
+        window._scadaUser=u;
+        var ov=document.getElementById('login-overlay');
+        if(ov){ov.classList.add('hidden');setTimeout(function(){ov.style.display='none'},300)}
+        if(typeof window.initApp==='function')window.initApp();
+        return;
+      }
+    }catch(e){}
+    if(i===0)await new Promise(function(r){setTimeout(r,500)});
+  }
+})();
+</script>
+
+<script>
+// Polyfill: getNextTO + helpers missing from stale build
+(function(){
+var DEF_TPL={name:'Default',intervals:[{id:'to1',name:'TO-1',hours:250,tasks:[]},{id:'to2',name:'TO-2',hours:500,tasks:[]},{id:'to3',name:'TO-3',hours:1000,tasks:[]},{id:'to4',name:'TO-4',hours:2000,tasks:[]}]};
+function getTpl(){try{var r=localStorage.getItem('s5tpl');return r?JSON.parse(r):JSON.parse(JSON.stringify(DEF_TPL))}catch(e){return JSON.parse(JSON.stringify(DEF_TPL))}}
+function getTOData(site,dev){try{return JSON.parse(localStorage.getItem('s5to_'+site+'_'+dev))||{hoursAtLastTO:0,lastTOId:null,history:[]}}catch(e){return{hoursAtLastTO:0,lastTOId:null,history:[]}}}
+function getNextTO(rh,site,dev){
+var tpl=getTpl(),td=getTOData(site||'',dev||''),lastH=td.hoursAtLastTO||0;
+if(rh<=0&&lastH<=0)return{name:tpl.intervals[0]?.name||'TO-1',hours:tpl.intervals[0]?.hours||250,remain:tpl.intervals[0]?.hours||250,pct:0,tasks:[],since:0,dueAt:tpl.intervals[0]?.hours||250,unknown:false};
+if(!td.lastTOId&&rh>0)return{name:'TO-?',hours:0,remain:0,pct:0,tasks:[],since:rh,dueAt:0,unknown:true};
+var sorted=[].concat(tpl.intervals).sort(function(a,b){return a.hours-b.hours});
+var minH=sorted[0]?.hours||250;
+var nextPoint=minH>0?Math.ceil(Math.max(lastH+1,1)/minH)*minH:250;
+if(nextPoint<rh){var ov=sorted[0];for(var i=sorted.length-1;i>=0;i--){if(nextPoint>0&&nextPoint%sorted[i].hours===0){ov=sorted[i];break}}return Object.assign({},ov,{remain:-(rh-nextPoint),pct:100,since:rh-lastH,dueAt:nextPoint,unknown:false})}
+var nv=sorted[0];for(var j=sorted.length-1;j>=0;j--){if(nextPoint>0&&nextPoint%sorted[j].hours===0){nv=sorted[j];break}}
+var remain=nextPoint-rh,totalSpan=nextPoint-lastH,progress=totalSpan>0?Math.min(100,Math.max(0,Math.round((rh-lastH)/totalSpan*100))):0;
+return Object.assign({},nv,{remain:remain,pct:progress,since:rh-lastH,dueAt:nextPoint,unknown:false})
+}
+window.getNextTO=getNextTO;
+window.getTpl=getTpl;
+window.getTOData=getTOData;
+})();
 </script>
 </body>
 </html>
