@@ -38,7 +38,10 @@ class Device(TimestampMixin, Base):
     # Bitrix24 equipment mapping code (e.g., "mkz_dgu1")
     system_code: Mapped[str | None] = mapped_column(String(50), default=None)
 
+    unit_id: Mapped[int | None] = mapped_column(ForeignKey("equipment_units.id", ondelete="SET NULL"), nullable=True)
+
     site = relationship("Site", back_populates="devices")
+    equipment_unit = relationship("EquipmentUnit", back_populates="devices")
     maintenance_logs = relationship(
         "MaintenanceLog",
         back_populates="device",
