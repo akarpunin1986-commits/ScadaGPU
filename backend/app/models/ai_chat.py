@@ -5,7 +5,7 @@ No foreign keys — fully isolated from core SCADA models.
 """
 from datetime import datetime
 
-from sqlalchemy import Index, String, Text, func
+from sqlalchemy import Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base
@@ -25,4 +25,6 @@ class AiChatMessage(Base):
     content: Mapped[str] = mapped_column(Text, default="")      # message text
     tool_calls: Mapped[str | None] = mapped_column(Text, default=None)   # JSON of tool calls
     tool_name: Mapped[str | None] = mapped_column(String(50), default=None)  # tool name if role=tool
+    user_id: Mapped[int | None] = mapped_column(default=None)
+    source: Mapped[str | None] = mapped_column(String(20), default="scada")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())

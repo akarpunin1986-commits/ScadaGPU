@@ -10,8 +10,8 @@
   <script src="/libs/chartjs-adapter-date-fns.bundle.min.js"></script>
   <script src="/libs/hammer.min.js"></script>
   <script src="/libs/chartjs-plugin-zoom.min.js"></script>
-  <script type="module" crossorigin src="/assets/index-CHbCacnF.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-CN-1x_oZ.css">
+  <script type="module" crossorigin src="/assets/index-C2bOpZLH.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-DP0p_FwM.css">
 </head>
 <body>
 <!-- Login Overlay -->
@@ -54,7 +54,7 @@
     <div class="lo-step active" id="lo-step-b24">
       <div class="lo-card-title">Вход через Битрикс24</div>
       <div class="lo-card-sub">Авторизуйтесь средствами корпоративного портала</div>
-      <a href="#" onclick="event.preventDefault();startB24OAuth()" class="oauth-btn" style="margin-top:20px">
+      <a href="/api/auth/oauth/login" class="oauth-btn" style="margin-top:20px">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
           Войти через Битрикс24
       </a>
@@ -378,47 +378,5 @@ P% и Q% генератора управляются супервизорным 
 <button class="sn-send-btn" id="sanekSendBtn" onclick="sendToSanek()"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
 </div>
 </div>
-
-<script>
-function startB24OAuth() {
-  var btn = document.querySelector('.oauth-btn');
-  if (btn) btn.textContent = '⏳ Авторизация...';
-
-  fetch('/api/auth/oauth/start')
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      // Open B24 OAuth in popup (may fail on external IP - that's OK)
-      var w = window.open(data.auth_url, 'b24oauth', 'width=600,height=500');
-
-      // Poll for completion
-      var state = data.state;
-      var attempts = 0;
-      var maxAttempts = 60; // 60 seconds
-      var poll = setInterval(function() {
-        attempts++;
-        fetch('/api/auth/oauth/poll?state=' + state, {credentials: 'include'})
-          .then(function(r) { return r.json(); })
-          .then(function(res) {
-            if (res.ready) {
-              clearInterval(poll);
-              if (w && !w.closed) w.close();
-              window.location.href = '/';
-            }
-          })
-          .catch(function() {});
-        if (attempts >= maxAttempts) {
-          clearInterval(poll);
-          if (btn) btn.textContent = '✓ Войти через Битрикс24';
-        }
-      }, 1000);
-    })
-    .catch(function(e) {
-      console.error('OAuth start error:', e);
-      if (btn) btn.textContent = '✓ Войти через Битрикс24';
-      // Fallback to direct redirect
-      window.location.href = '/api/auth/oauth/login';
-    });
-}
-</script>
 </body>
 </html>
