@@ -76,9 +76,19 @@ class GPT54AgentLoop:
             _sc = None  # Don't pass user_context dict as site_context
         system_prompt = build_system_prompt(_sc, memories=memories, user_context=_uc, source=_src)
 
-        # GPT-5.4 handles all tools efficiently — no filtering needed
+        # Smart tool selection: core + relevant extras (max ~18)
         all_tools = get_tool_definitions()
-        tools_openai = convert_tools_to_openai(all_tools)
+        from services.sanek_v4.tool_selector import select_tools
+        selected_tools = select_tools(all_tools, user_message)
+        # GPT-5.4: ensure at least 15 tools for flexibility
+        if len(selected_tools) < 15:
+            extra_names = {t["name"] for t in selected_tools}
+            for t in all_tools:
+                if t["name"] not in extra_names:
+                    selected_tools.append(t)
+                if len(selected_tools) >= 18:
+                    break
+        tools_openai = convert_tools_to_openai(selected_tools)
         logger.info("GPT-5.4 tools %d/%d: %s", len(tools_openai), len(all_tools), user_message[:60])
 
         registry.reset_call_hashes()
