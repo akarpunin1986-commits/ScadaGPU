@@ -80,7 +80,7 @@ async def bot_event_get(request: Request, code: str = "", state: str = "", domai
             from config import settings as _s
             max_age = 365 * 86400 if _s.JWT_EXPIRE_HOURS == 0 else _s.JWT_EXPIRE_HOURS * 3600
             response = HTMLResponse(
-                content='<html><head><meta http-equiv="refresh" content="0;url=/"></head>'
+                content='<html><head><meta http-equiv="refresh" content="0;url=http://192.168.30.130/"></head>'
                         '<body>OK</body></html>',
                 status_code=200,
             )

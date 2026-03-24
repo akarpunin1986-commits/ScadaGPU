@@ -345,7 +345,7 @@ async def oauth_callback(code: str, state: str, request: Request, domain: str = 
     from fastapi.responses import HTMLResponse
     max_age = 365 * 86400 if settings.JWT_EXPIRE_HOURS == 0 else settings.JWT_EXPIRE_HOURS * 3600
     resp = HTMLResponse(
-        content='<html><head><meta http-equiv="refresh" content="0;url=/"></head><body>OK</body></html>',
+        content='<html><head><meta http-equiv="refresh" content="0;url=http://192.168.30.130/"></head><body>OK</body></html>',
         status_code=200,
     )
     resp.set_cookie(key="scada_token", value=jwt_token, httponly=True,
@@ -364,7 +364,7 @@ async def oauth_set_token(t: str):
     from fastapi.responses import HTMLResponse
     max_age = 365 * 86400 if settings.JWT_EXPIRE_HOURS == 0 else settings.JWT_EXPIRE_HOURS * 3600
     resp = HTMLResponse(
-        content='<html><head><meta http-equiv="refresh" content="0;url=/"></head><body>OK</body></html>',
+        content='<html><head><meta http-equiv="refresh" content="0;url=http://192.168.30.130/"></head><body>OK</body></html>',
         status_code=200,
     )
     resp.set_cookie(key="scada_token", value=t, httponly=True,
