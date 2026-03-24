@@ -1,0 +1,54 @@
+/* ═══ RESPONSIVE ═══ */
+/* Tablet landscape / small desktop */
+@media(max-width:1200px){
+.ss{grid-template-columns:repeat(3,1fr)}
+}
+/* Tablet portrait */
+@media(max-width:1024px){
+.sb{width:180px}
+.mn{padding:10px 14px}
+.gg{grid-template-columns:1fr}
+.ss{grid-template-columns:repeat(3,1fr)}
+.sv{font-size:16px}
+.dt h1{font-size:16px}
+#sanekBtn{width:72px;height:72px}
+.sn{width:380px}
+}
+/* Phone landscape / small tablet */
+@media(max-width:768px){
+.sb{position:fixed;left:-240px;width:240px;z-index:5000;top:0;bottom:0;transition:left .3s;box-shadow:4px 0 20px rgba(0,0,0,.4)}
+.sb.open{left:0}
+.mn{padding:8px 10px}
+.ss{grid-template-columns:repeat(2,1fr)}
+.gg{grid-template-columns:1fr}
+.da{flex-wrap:wrap}
+.da button{padding:5px 10px;font-size:11px}
+.sn{width:100vw;right:0;border-radius:0}
+.sn-msgs{padding:12px}
+.sn-msg{max-width:95%;padding:12px 16px;font-size:13px}
+.mod{max-width:95vw}
+.dh{flex-direction:column;align-items:flex-start}
+.dp-btn{min-width:100px;font-size:10px}
+.lo-wrap{max-width:100%}
+.lo-card{padding:24px 18px}
+.lo-hero-title{font-size:28px}
+.lo-footer{padding:0 12px}
+.sb-toggle{display:block}
+}
+/* Phone portrait */
+@media(max-width:480px){
+.ss{grid-template-columns:1fr 1fr}
+.sv{font-size:14px}
+.dt h1{font-size:14px}
+.da button{font-size:10px;padding:4px 8px}
+.ei .ei-r{flex-direction:column}
+.ei .ei-v{font-size:14px}
+.lo-wrap{max-width:100%;padding:0 8px}
+.lo-card{padding:20px 16px;border-radius:10px}
+.lo-hero-title{font-size:24px}
+.lo-code-digit{width:36px;height:44px;font-size:16px}
+.lo-hero-sub{font-size:11px}
+.lo-footer{height:28px;font-size:9px}
+#user-profile .up-name{display:none}
+.up-popup{right:-10px;width:220px}
+}

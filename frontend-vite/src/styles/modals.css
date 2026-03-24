@@ -1,0 +1,9 @@
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px)}.mbg.sh{display:flex}
+.mod{background:var(--bg2);border:1px solid var(--bd);border-radius:14px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;box-shadow:0 2px 20px rgba(0,0,0,.4)}
+.mhd{padding:16px 18px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between}.mhd h3{font-size:15px;font-weight:600}
+.mx{background:none;border:none;color:var(--t3);cursor:pointer;font-size:20px;padding:4px 8px;border-radius:6px;transition:all .15s}.mx:hover{background:var(--bg4);color:var(--t)}
+.mbd{padding:18px}
+/* Light theme overrides */
+[data-theme="light"] .mbg{background:rgba(0,0,0,.35)}
+[data-theme="light"] .mod{box-shadow:0 8px 30px rgba(0,0,0,.18)}
+[data-theme="light"] .dp-drop{background:#ffffff;border-color:#a0aabb;box-shadow:0 8px 24px rgba(0,0,0,.15)}

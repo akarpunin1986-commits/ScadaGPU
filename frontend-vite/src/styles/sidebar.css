@@ -1,0 +1,44 @@
+.sb{width:220px;background:var(--bg2);border-right:1px solid var(--bd);display:flex;flex-direction:column;flex-shrink:0}
+.sb-hd{padding:16px 14px 12px;border-bottom:1px solid var(--bd)}
+.logo{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.logo svg{color:var(--g);filter:drop-shadow(0 0 6px rgba(0,224,154,.4))}.logo b{font-size:14px;letter-spacing:1px;font-weight:700}.logo span{font-size:10px;color:var(--t3);font-family:var(--m);margin-left:auto}
+.sb-btn{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--rs);border:1px solid var(--bd);background:var(--bg3);color:var(--t2);cursor:pointer;font-size:12px;font-family:var(--u);width:100%;text-align:left;transition:all .15s;margin-bottom:4px}
+.sb-btn:hover{background:var(--bg4);color:var(--t);border-color:var(--bd2)}
+.sb-btn.primary{background:var(--g);color:var(--btn-text);border-color:var(--g);font-weight:600}.sb-btn.primary:hover{background:#00c888}
+.sb-sites{flex:1;overflow-y:auto;padding:8px}
+.si{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:var(--rs);cursor:pointer;margin-bottom:2px;border:1px solid transparent;transition:all .15s}
+.si:hover{background:var(--bg4)}.si.on{background:var(--gd);border-color:rgba(0,224,154,.25)}
+.si-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}.si-name{font-size:13px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.si-acts{display:none;gap:2px}.si:hover .si-acts{display:flex}
+.si-btn{background:none;border:none;cursor:pointer;font-size:11px;padding:2px 5px;border-radius:4px;color:var(--t3);transition:all .15s}.si-btn:hover{color:var(--t)}.si-btn.del:hover{color:var(--r)}
+.sb-ft{padding:8px;border-top:1px solid var(--bd)}
+.sb-admin{padding:8px;border-top:1px solid var(--bd)}.sb-admin-hd{cursor:pointer;display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:var(--rs);font-size:12px;color:var(--t3);transition:background .15s;user-select:none}
+.sb-admin-hd:hover{background:var(--bg4);color:var(--t)}.sb-admin-arrow{font-size:9px;transition:transform .2s;display:inline-block}
+.sb-admin.open .sb-admin-arrow{transform:rotate(90deg)}.sb-admin-body{max-height:0;overflow:hidden;transition:max-height .25s ease}.sb-admin.open .sb-admin-body{max-height:250px}
+.sb-admin-body .sb-btn{margin-bottom:2px}
+.sb-tree{margin-bottom:2px}
+.sb-tree .si{display:flex;align-items:center;gap:6px}
+.si-arrow{font-size:9px;width:14px;text-align:center;color:var(--t3);flex-shrink:0}
+.sb-sub{padding-left:28px;padding-bottom:4px}
+.sb-sub-btn{display:block;width:100%;text-align:left;padding:5px 10px;font-size:11px;color:var(--t3);background:none;border:none;cursor:pointer;border-radius:4px;transition:background .15s}
+.sb-sub-btn:hover{background:var(--ov);color:var(--t)}
+.sb-sub-btn.on{color:var(--g);font-weight:600}
+.sb-eq-list{padding-left:14px;padding-bottom:2px}
+.sb-eq-row{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600;color:var(--t2);transition:background .15s}
+.sb-eq-row:hover{background:var(--ov);color:var(--t)}
+.sb-eq-row.open{color:var(--g);font-weight:700;background:var(--gd);border-radius:var(--rs)}
+.sb-eq-arrow{font-size:9px;width:12px;text-align:center;color:var(--t3);flex-shrink:0}
+.sb-eq-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.sb-eq-sub{padding-left:17px;padding-bottom:2px}
+.sb-tasks{padding:4px 8px}
+.sb-tasks .sb-btn.active{background:var(--gd);border-color:var(--g);color:var(--g);font-weight:600}
+/* Hamburger button for mobile sidebar toggle */
+.sb-toggle{display:none;position:fixed;top:8px;left:8px;z-index:5001;width:36px;height:36px;border-radius:var(--rs);border:1px solid var(--bd);background:var(--bg2);color:var(--t);cursor:pointer;font-size:18px;line-height:36px;text-align:center}
+/* Overlay when mobile sidebar is open */
+.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:4999}
+.sb-overlay.open{display:block}
+/* Light theme overrides */
+[data-theme="light"] .sb{background:#f8f9fc;border-right-color:#d0d5dd}
+[data-theme="light"] .sb-btn{background:#ffffff;border-color:#c4cbd8;color:#374151}
+[data-theme="light"] .sb-btn:hover{background:#e2e6ed;color:#111827;border-color:#a0aabb}
+[data-theme="light"] .si.on{background:rgba(5,150,105,.1);border-color:rgba(5,150,105,.3)}
