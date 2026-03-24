@@ -1333,7 +1333,7 @@ class SanekAgentModule:
                 {"role": "user", "content": message},
             ],
             temperature=0.3,
-            max_tokens=2048,
+            max_completion_tokens=2048,
         )
 
         text = response.choices[0].message.content or ""
@@ -1352,7 +1352,7 @@ class SanekAgentModule:
                 },
                 json={
                     "model": model,
-                    "max_tokens": 2048,
+                    "max_completion_tokens": 2048,
                     "system": AGENT_SYSTEM_PROMPT,
                     "messages": [{"role": "user", "content": message}],
                     "temperature": 0.3,
