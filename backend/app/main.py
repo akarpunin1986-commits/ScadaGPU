@@ -29,6 +29,18 @@ from alarm_analytics.detector import AlarmAnalyticsDetector
 from api.knowledge import router as knowledge_router
 from api.events import router as events_router
 from api.economics import router as economics_router
+from api.auth import router as auth_router
+from api.bitrix_bot import router as bitrix_bot_router
+from api.task_manager import router as task_manager_router
+from api.maintenance_lifecycle import router as maintenance_lifecycle_router
+from api.reports import router as reports_router
+from api.sanek_chat import router as sanek_chat_router
+from api.sanek_feedback import router as sanek_feedback_router
+from api.sanek_goals import router as sanek_goals_router
+from api.sanek_clarify import router as sanek_clarify_router
+from api.data_api import router as data_api_router
+from api.device_registry import router as device_registry_router
+from api.dev_console import router as dev_console_router
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
@@ -206,6 +218,18 @@ app.include_router(alarm_analytics_router)
 app.include_router(knowledge_router)
 app.include_router(events_router)
 app.include_router(economics_router)
+app.include_router(auth_router)
+app.include_router(bitrix_bot_router)
+app.include_router(task_manager_router)
+app.include_router(maintenance_lifecycle_router)
+app.include_router(reports_router)
+app.include_router(sanek_chat_router)
+app.include_router(sanek_feedback_router)
+app.include_router(sanek_goals_router)
+app.include_router(sanek_clarify_router)
+app.include_router(data_api_router)
+app.include_router(device_registry_router)
+app.include_router(dev_console_router)
 
 # SanekAgent API router (always available — shows reports even if agent disabled)
 from api.sanek_agent import router as sanek_agent_router
