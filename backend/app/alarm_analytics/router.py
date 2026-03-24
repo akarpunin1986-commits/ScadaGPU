@@ -446,6 +446,6 @@ async def explain_alarm(
         elapsed_total = time.time() - t_total
         logger.error("EXPLAIN FAILED: code=%s total=%.1fs provider=%s error=%s",
                       req.alarm_code, elapsed_total, provider, e)
-        from services.sanek import _format_llm_error
+        from services.llm_utils import format_llm_error as _format_llm_error
         friendly_err = _format_llm_error(provider, e)
         return AlarmExplainResponse(success=False, error=friendly_err)
