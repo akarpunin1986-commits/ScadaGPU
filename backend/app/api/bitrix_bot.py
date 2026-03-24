@@ -75,6 +75,16 @@ async def bot_event_get(request: Request, code: str = "", state: str = "", domai
             except Exception:
                 pass
 
+            # Save JWT to Redis for polling-based auth (state from B24 callback)
+            if state:
+                try:
+                    from services.redis_utils import get_redis
+                    _redis = await get_redis()
+                    await _redis.set(f"oauth:done:{state}", jwt_token, ex=300)
+                    logger.info("OAuth JWT saved for polling: state=%s", state[:10])
+                except Exception as _e:
+                    logger.warning("Failed to save OAuth JWT for polling: %s", _e)
+
             # Set cookie directly (no redirect) to avoid cross-site cookie blocking
             from fastapi.responses import HTMLResponse
             from config import settings as _s

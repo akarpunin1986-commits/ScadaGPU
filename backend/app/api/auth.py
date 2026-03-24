@@ -319,6 +319,54 @@ async def oauth_login(request: Request):
     return RedirectResponse(url)
 
 
+
+
+@router.get("/oauth/start")
+async def oauth_start(request: Request):
+    """Return B24 OAuth URL + state for popup-based flow."""
+    state = secrets.token_hex(16)
+    redis = request.app.state.redis
+    await redis.set(f"oauth:state:{state}", "pending", ex=OAUTH_STATE_TTL)
+
+    params = {
+        "client_id": settings.BITRIX24_OAUTH_CLIENT_ID,
+        "response_type": "code",
+        "redirect_uri": settings.BITRIX24_OAUTH_REDIRECT_URI,
+        "state": state,
+    }
+    url = f"https://{settings.BITRIX24_PORTAL}/oauth/authorize/?" + urlencode(params)
+    return {"auth_url": url, "state": state}
+
+
+@router.get("/oauth/poll")
+async def oauth_poll(state: str, request: Request):
+    """Poll for completed OAuth. Returns cookie when ready."""
+    redis = request.app.state.redis
+    jwt_token = await redis.get(f"oauth:done:{state}")
+    if not jwt_token:
+        return {"ready": False}
+
+    # Decode if bytes
+    if isinstance(jwt_token, bytes):
+        jwt_token = jwt_token.decode()
+
+    # Clean up
+    await redis.delete(f"oauth:done:{state}")
+
+    # Validate
+    payload = auth.verify_jwt(jwt_token)
+    if not payload:
+        return {"ready": False, "error": "invalid token"}
+
+    # Set cookie
+    from fastapi.responses import JSONResponse
+    max_age = 365 * 86400 if settings.JWT_EXPIRE_HOURS == 0 else settings.JWT_EXPIRE_HOURS * 3600
+    resp = JSONResponse({"ready": True})
+    resp.set_cookie(key="scada_token", value=jwt_token, httponly=True,
+                    samesite="lax", max_age=max_age, path="/")
+    return resp
+
+
 @router.get("/oauth/callback")
 async def oauth_callback(code: str, state: str, request: Request, domain: str = ""):
     """Б24 redirect с code → JWT → cookie → redirect /."""
