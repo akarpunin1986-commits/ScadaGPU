@@ -173,6 +173,28 @@ async def lifespan(app: FastAPI):
     hours_monitor_task = asyncio.create_task(hours_monitor.start())
     logger.info("Task Manager services started (TaskSupervisor + HoursMonitor)")
 
+    # Company structure sync (B24 → Redis, every 24h)
+    from services.company_sync import sync_company_structure
+
+    async def _company_sync_loop():
+        # Wait for B24 module to initialize and refresh OAuth token
+        await asyncio.sleep(30)
+        while True:
+            try:
+                stats = await sync_company_structure(redis)
+                logger.info("Company sync completed: %s", stats)
+                if "error" in stats:
+                    # Retry in 5 min on failure
+                    await asyncio.sleep(300)
+                    continue
+            except Exception as e:
+                logger.error("Company sync failed: %s", e)
+                await asyncio.sleep(300)
+                continue
+            await asyncio.sleep(86400)  # 24 hours
+
+    company_sync_task = asyncio.create_task(_company_sync_loop())
+
     yield
 
     # Shutdown
@@ -196,7 +218,7 @@ async def lifespan(app: FastAPI):
         mw_task, ad_task, ed_task, events_bridge_task, dm_task, aa_task,
         sanek_bridge_task, ai_analysis_bridge_task,
     ]
-    all_tasks.extend([task_supervisor_task, hours_monitor_task])
+    all_tasks.extend([task_supervisor_task, hours_monitor_task, company_sync_task])
     if sanek_agent_task:
         all_tasks.append(sanek_agent_task)
     if b24_task:
