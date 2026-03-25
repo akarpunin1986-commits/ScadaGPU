@@ -4,6 +4,8 @@ services:
   backend:
     build: ./backend
     container_name: scada-backend
+    extra_hosts:
+      - "api.openai.com:172.18.0.1"
     ports:
       - "8010:8000"
     volumes:

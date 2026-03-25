@@ -30,10 +30,10 @@ _MAX_RETRIES = 5
 # ── OpenAI client factory (fresh connections for VPN reliability) ──
 
 def _get_openai_client() -> openai.AsyncOpenAI:
-    """Create OpenAI client. No connection pooling — each iteration gets fresh TCP."""
+    """Create OpenAI client. Uses HTTPS_PROXY env if set."""
     return openai.AsyncOpenAI(
         api_key=settings.OPENAI_API_KEY,
-        timeout=300.0,      # 5min total timeout (GPT-5.4 can think 60-90s)
+        timeout=300.0,
         max_retries=0,
     )
 
