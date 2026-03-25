@@ -1,0 +1,77 @@
+name: scada
+
+services:
+  backend:
+    build: ./backend
+    container_name: scada-backend
+    ports:
+      - "8010:8000"
+    volumes:
+      - ./backend/app:/app
+      - ./backend/entrypoint.sh:/usr/local/bin/entrypoint.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      chromadb:
+        condition: service_started
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://scada:scada_dev_2026@postgres:5432/scada
+      REDIS_URL: redis://redis:6379/0
+      PYTHONUNBUFFERED: "1"
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: scada-postgres
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-scada}
+      POSTGRES_USER: ${POSTGRES_USER:-scada}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-scada_dev_2026}
+    volumes:
+      - scada-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-scada}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: scada-redis
+    ports:
+      - "6380:6379"
+    restart: unless-stopped
+
+  chromadb:
+    image: chromadb/chroma:0.5.23
+    container_name: scada-chromadb
+    ports:
+      - "8020:8000"
+    volumes:
+      - scada-chromadb:/chroma/chroma
+    environment:
+      ANONYMIZED_TELEMETRY: "false"
+      IS_PERSISTENT: "true"
+    restart: unless-stopped
+
+  frontend:
+    image: nginx:alpine
+    container_name: scada-frontend
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  scada-pgdata:
+  scada-chromadb:

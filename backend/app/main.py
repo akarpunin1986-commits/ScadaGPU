@@ -173,6 +173,13 @@ async def lifespan(app: FastAPI):
     hours_monitor_task = asyncio.create_task(hours_monitor.start())
     logger.info("Task Manager services started (TaskSupervisor + HoursMonitor)")
 
+    # Maintenance Alert Service — v2 lifecycle alerts (approaching/due/overdue)
+    from services.maintenance.alerts import MaintenanceAlertService
+    alert_service = MaintenanceAlertService(redis)
+    app.state.alert_service = alert_service
+    alert_service_task = asyncio.create_task(alert_service.run_loop())
+    logger.info("MaintenanceAlertService started")
+
     # Company structure sync (B24 → Redis, every 24h)
     from services.company_sync import sync_company_structure
 
@@ -208,6 +215,7 @@ async def lifespan(app: FastAPI):
     await aa_detector.stop()
     await task_supervisor.stop()
     await hours_monitor.stop()
+    alert_service.stop()
     if sanek_agent_module:
         await sanek_agent_module.stop()
     if b24_module:
@@ -218,7 +226,7 @@ async def lifespan(app: FastAPI):
         mw_task, ad_task, ed_task, events_bridge_task, dm_task, aa_task,
         sanek_bridge_task, ai_analysis_bridge_task,
     ]
-    all_tasks.extend([task_supervisor_task, hours_monitor_task, company_sync_task])
+    all_tasks.extend([task_supervisor_task, hours_monitor_task, alert_service_task, company_sync_task])
     if sanek_agent_task:
         all_tasks.append(sanek_agent_task)
     if b24_task:

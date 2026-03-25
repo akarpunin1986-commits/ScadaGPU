@@ -669,6 +669,128 @@ var _snToolLabels={
 };
 function _snToolLabel(n,desc){return desc||_snToolLabels[n]||n}
 
+// --- Streaming progress UI helpers ---
+function _snShowStreamProgress(){
+  var msgs=$('sanekMessages');
+  var wrap=document.createElement('div');
+  wrap.className='sn-stream-progress';wrap.id='snStreamProgress';
+  wrap.innerHTML='<div class="sn-sp-mode" id="snSpMode"></div><div class="sn-sp-steps" id="snSpSteps"></div>';
+  msgs.appendChild(wrap);msgs.scrollTop=msgs.scrollHeight;
+  return wrap;
+}
+function _snSetStreamMode(provider,model){
+  var el=$('snSpMode');if(!el)return;
+  var icons={openai:'🧠',claude:'🟣',gemini:'💎',grok:'⚡'};
+  el.innerHTML=(icons[provider]||'🤖')+' <b>'+provider+'</b> <span style="opacity:.6">'+model+'</span>';
+  el.style.display='flex';
+}
+function _snAddStreamStep(label,status){
+  var el=$('snSpSteps');if(!el)return;
+  var step=document.createElement('div');
+  step.className='sn-sp-step '+(status||'running');
+  step.setAttribute('data-tool-label',label);
+  var icon=status==='done'?'✅':'⏳';
+  step.innerHTML=icon+' '+label;
+  el.appendChild(step);
+  var msgs=$('sanekMessages');if(msgs)msgs.scrollTop=msgs.scrollHeight;
+  return step;
+}
+function _snUpdateStreamStep(label,status){
+  var el=$('snSpSteps');if(!el)return;
+  var steps=el.querySelectorAll('.sn-sp-step');
+  for(var i=steps.length-1;i>=0;i--){
+    if(steps[i].getAttribute('data-tool-label')===label){
+      steps[i].className='sn-sp-step '+(status||'done');
+      steps[i].innerHTML=(status==='done'?'✅':'❌')+' '+label;
+      break;
+    }
+  }
+}
+function _snRemoveStreamProgress(){
+  var el=$('snStreamProgress');if(el)el.remove();
+}
+
+// --- Streaming message div for real-time text ---
+function _snCreateStreamMsgDiv(){
+  var msgs=$('sanekMessages');
+  var welcome=msgs.querySelector('.sn-welcome');
+  if(welcome)welcome.remove();
+  var div=document.createElement('div');
+  div.className='sn-msg assistant sn-streaming';
+  div.id='snStreamMsg';
+  div.innerHTML='<div class="sn-bname">Санёк</div><div class="sn-stream-text" id="snStreamText"></div>';
+  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
+  return div;
+}
+function _snAppendStreamText(chunk){
+  var el=$('snStreamText');if(!el)return;
+  // Append raw text (will be formatted on completion)
+  el._rawText=(el._rawText||'')+chunk;
+  el.innerHTML=_snFormatText(el._rawText);
+  var msgs=$('sanekMessages');if(msgs)msgs.scrollTop=msgs.scrollHeight;
+}
+function _snFinalizeStreamMsg(fullText){
+  var div=$('snStreamMsg');if(!div)return;
+  div.classList.remove('sn-streaming');
+  div.removeAttribute('id');
+  var textEl=$('snStreamText');
+  if(textEl){
+    textEl.removeAttribute('id');
+    textEl.innerHTML=_snFormatText(fullText);
+  }
+  // Add copy button
+  var copyBtn=document.createElement('button');
+  copyBtn.className='sn-copy-btn';copyBtn.title='Копировать';copyBtn.innerHTML='📋';
+  copyBtn.onclick=function(){
+    var ok=function(){copyBtn.innerHTML='✓';copyBtn.classList.add('copied');setTimeout(function(){copyBtn.innerHTML='📋';copyBtn.classList.remove('copied')},1500)};
+    if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(fullText).then(ok).catch(function(){})}
+    else{var ta=document.createElement('textarea');ta.value=fullText;ta.style.cssText='position:fixed;left:-9999px';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');ok()}catch(e){}document.body.removeChild(ta)}
+  };
+  div.appendChild(copyBtn);
+  // Feedback buttons
+  var fbDiv=document.createElement('div');fbDiv.className='sn-feedback';
+  fbDiv.innerHTML='<button onclick="_snFeedback(this,\'up\')" title="Полезный ответ">👍</button><button onclick="_snFeedback(this,\'down\')" title="Неполезный ответ">👎</button>';
+  div.appendChild(fbDiv);
+}
+
+// --- Thinking block UI ---
+function _snShowThinkingBlock(){
+  var msgs=$('sanekMessages');
+  var div=document.createElement('div');
+  div.className='sn-thinking-block';div.id='snThinkingBlock';
+  div.innerHTML='<div class="sn-thinking-header" onclick="_snToggleThinking()"><span class="sn-thinking-icon">💭</span> <span class="sn-thinking-label">Размышляю...</span> <span class="sn-thinking-toggle">▼</span></div><div class="sn-thinking-content" id="snThinkingContent"></div>';
+  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
+}
+function _snAppendThinking(text){
+  var el=$('snThinkingContent');if(!el)return;
+  el.textContent+=text;
+  var msgs=$('sanekMessages');if(msgs)msgs.scrollTop=msgs.scrollHeight;
+}
+function _snFinalizeThinking(){
+  var block=$('snThinkingBlock');if(!block)return;
+  block.removeAttribute('id');
+  var label=block.querySelector('.sn-thinking-label');
+  if(label)label.textContent='Размышления';
+  var content=block.querySelector('.sn-thinking-content');
+  if(content){content.removeAttribute('id');content.style.display='none'}
+  var toggle=block.querySelector('.sn-thinking-toggle');
+  if(toggle)toggle.textContent='▶';
+}
+function _snToggleThinking(){
+  // Works on any thinking block (clicked one)
+  var blocks=document.querySelectorAll('.sn-thinking-block');
+  if(!blocks.length)return;
+  // Find the one that was clicked — use event target
+  // Fallback: toggle last block
+  var block=blocks[blocks.length-1];
+  var content=block.querySelector('.sn-thinking-content');
+  var toggle=block.querySelector('.sn-thinking-toggle');
+  if(!content)return;
+  var isHidden=content.style.display==='none';
+  content.style.display=isHidden?'block':'none';
+  if(toggle)toggle.textContent=isHidden?'▼':'▶';
+}
+
 async function _snSendMessage(text){
   if(!_snHealthOk){
     _snAddMsg('error','⚠ '+_snHealthError+'\n\nОткройте «🤖 AI Провайдер» в боковом меню и настройте провайдера.');
@@ -677,161 +799,170 @@ async function _snSendMessage(text){
   }
   G._snSending=true;$('sanekSendBtn').disabled=true;
   snSetState('thinking');
-  // Disable all interactive buttons (welcome hints, clarification, pending, inline hints)
   document.querySelectorAll('.sn-hint:not(:disabled)').forEach(function(b){b.disabled=true;b.style.opacity='.4';b.style.pointerEvents='none'});
   document.querySelectorAll('.sanek-option-btn:not(:disabled)').forEach(function(b){b.disabled=true;b.style.opacity='.4'});
   document.querySelectorAll('.sn-pending-btns button:not(:disabled)').forEach(function(b){b.disabled=true;b.style.opacity='.4'});
   _snShowTyping();
   _snAbort=new AbortController();
   _snShowStopBtn();
-  var progressEl=null,mode='';
+
+  var body={message:text};
+  if(G._snSid)body.session_id=G._snSid;
+  var ctx=_snGetContext();
+  if(ctx.site)body.context={site:ctx.site,site_name:ctx.siteName,view:ctx.view};
+  G._snMsgCount++;_snUpdateCounter();
+
+  var fullMessage='',actions=[],pendingAction=null,gotText=false,streamMsgCreated=false;
+  var hasThinking=false;
 
   try{
-    var body={message:text};
-    if(G._snSid)body.session_id=G._snSid;
-    var ctx=_snGetContext();
-    if(ctx.site)body.context={site:ctx.site,site_name:ctx.siteName,view:ctx.view};
-    G._snMsgCount++;_snUpdateCounter();
-
     var resp=await fetch(API_BASE+'/api/ai/chat/stream',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(body),signal:_snAbort.signal
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      credentials:'include',
+      body:JSON.stringify(body),
+      signal:_snAbort.signal
     });
-    if(!resp.ok)throw new Error('POST /api/ai/chat/stream: '+resp.status);
 
-    var reader=resp.body.getReader(),decoder=new TextDecoder(),buf='';
+    if(!resp.ok){
+      throw new Error('POST /api/ai/chat/stream: '+resp.status);
+    }
+
+    _snHideTyping();
+    _snShowStreamProgress();
+
+    var reader=resp.body.getReader();
+    var decoder=new TextDecoder();
+    var buffer='';
+
     while(true){
-      var chunk=await reader.read();
-      if(chunk.done)break;
-      buf+=decoder.decode(chunk.value,{stream:true});
-      var parts=buf.split('\n\n');buf=parts.pop();
-      for(var i=0;i<parts.length;i++){
-        var ln=parts[i].trim();
-        if(!ln.startsWith('data: '))continue;
-        var ev;try{ev=JSON.parse(ln.slice(6))}catch(x){continue}
+      var result=await reader.read();
+      if(result.done)break;
+      buffer+=decoder.decode(result.value,{stream:true});
 
-        if(ev.type==='mode'){
-          mode=ev.mode;_snHideTyping();
-          var msgs=$('sanekMessages'),badge=document.createElement('div');
-          badge.className='sn-mode '+(mode==='deep'?'deep':'fast');
-          badge.textContent=mode==='deep'?'🔬 Глубокий анализ':'⚡ Быстрый ответ';
-          msgs.appendChild(badge);msgs.scrollTop=msgs.scrollHeight;
-          if(mode==='deep')_snShowTyping();
-        }
-        else if(ev.type==='thinking'){
-          _snHideTyping();
-          // Remove previous thinking indicator + timer
-          var oldTh=document.querySelector('.sn-thinking');if(oldTh)oldTh.remove();
-          if(window._snThinkTimer)clearInterval(window._snThinkTimer);
-          var thDiv=document.createElement('div');thDiv.className='sn-thinking';thDiv.id='snThinking';
-          var thText=ev.step==='analyzing_query'?'🧠 Анализирую запрос':'🧠 Формирую ответ';
-          var thDetail=ev.detail?' · <span style="opacity:.7">'+ev.detail+'</span>':'';
-          thDiv.innerHTML='<span class="sn-spin"></span> <span class="sn-think-text">'+thText+'</span>'+thDetail+'<span class="sn-think-timer" id="snThinkTime">0с</span>';
-          $('sanekMessages').appendChild(thDiv);$('sanekMessages').scrollTop=$('sanekMessages').scrollHeight;
-          var _thStart=Date.now();
-          window._snThinkTimer=setInterval(function(){
-            var el=$('snThinkTime');if(el)el.textContent=Math.round((Date.now()-_thStart)/1000)+'с';
-          },1000);
-        }
-        else if(ev.type==='step'){
-          _snHideTyping();
-          // Remove thinking indicator + timer when tools start
-          if(window._snThinkTimer){clearInterval(window._snThinkTimer);window._snThinkTimer=null}
-          var thEl=document.querySelector('.sn-thinking');if(thEl)thEl.remove();
-          if(!progressEl){progressEl=document.createElement('div');progressEl.className='sn-progress';$('sanekMessages').appendChild(progressEl)}
-          var tl=_snToolLabel(ev.tool,ev.description);
-          if(ev.status==='running'){
-            var step=document.createElement('div');step.className='sn-step';step.setAttribute('data-tool',ev.tool);
-            step.innerHTML='<span class="sn-spin"></span> '+tl;progressEl.appendChild(step);
-            // Prominent ETA banner with countdown + progress bar
-            if(ev.tool==='execute_code'){
-              var eta=document.createElement('div');eta.className='sn-eta-banner';eta.id='snEtaBanner';
-              eta.innerHTML='<div class="sn-eta-top"><span class="sn-eta-icon">📄</span> Генерация документа... <span class="sn-eta-countdown" id="snEtaCount">~20 сек</span></div><div class="sn-eta-bar"><div class="sn-eta-fill" id="snEtaFill"></div></div>';
-              $('sanekMessages').appendChild(eta);
-              // Start countdown
-              var _etaTotal=20,_etaLeft=20;
-              window._snEtaTimer=setInterval(function(){
-                _etaLeft--;
-                var pct=Math.min(100,Math.round(((_etaTotal-_etaLeft)/_etaTotal)*100));
-                var el=$('snEtaCount'),bar=$('snEtaFill');
-                if(el)el.textContent=_etaLeft>0?'~'+_etaLeft+' сек':'почти готово...';
-                if(bar)bar.style.width=pct+'%';
-                if(_etaLeft<=0)clearInterval(window._snEtaTimer);
-              },1000);
-            }
-            $('sanekMessages').scrollTop=$('sanekMessages').scrollHeight;
-          }else if(ev.status==='done'){
-            var pending=progressEl.querySelectorAll('.sn-step:not(.done)[data-tool="'+ev.tool+'"]');
-            if(pending.length){var last=pending[pending.length-1];last.className='sn-step done';last.innerHTML='✅ '+_snToolLabel(ev.tool)}
-            // Remove ETA banner when execute_code completes
-            if(ev.tool==='execute_code'){
-              if(window._snEtaTimer)clearInterval(window._snEtaTimer);
-              var eb=$('snEtaBanner');if(eb){eb.classList.add('done');setTimeout(function(){eb.remove()},1500)}
-            }
+      // Parse SSE events from buffer
+      var lines=buffer.split('\n');
+      buffer=lines.pop()||''; // Keep incomplete line in buffer
+
+      var currentEvent='';
+      for(var i=0;i<lines.length;i++){
+        var line=lines[i];
+        if(line.startsWith('event: ')){
+          currentEvent=line.substring(7).trim();
+        } else if(line.startsWith('data: ')){
+          var dataStr=line.substring(6);
+          var data;
+          try{data=JSON.parse(dataStr)}catch(e){continue}
+
+          // Handle SSE events
+          if(currentEvent==='session'){
+            if(data.session_id)G._snSid=data.session_id;
           }
-          $('sanekMessages').scrollTop=$('sanekMessages').scrollHeight;
-          _snShowTyping();
-        }
-        else if(ev.type==='text_delta'){
-          // Real-time text streaming — append to streaming bubble
-          _snHideTyping();
-          if(window._snThinkTimer){clearInterval(window._snThinkTimer);window._snThinkTimer=null}
-          var thRm=document.querySelector('.sn-thinking');if(thRm)thRm.remove();
-          if(!window._snStreamBubble){
-            window._snStreamText='';
-            var m=document.createElement('div');m.className='sn-msg assistant';
-            m.innerHTML='<div class="sn-bubble sn-stream-bubble"></div>';
-            $('sanekMessages').appendChild(m);
-            window._snStreamBubble=m.querySelector('.sn-stream-bubble');
+          else if(currentEvent==='mode'){
+            _snSetStreamMode(data.provider,data.model);
           }
-          window._snStreamText+=ev.text;
-          window._snStreamBubble.innerHTML=_snFormatText(window._snStreamText);
-          $('sanekMessages').scrollTop=$('sanekMessages').scrollHeight;
-        }
-        else if(ev.type==='done'){
-          _snHideTyping();
-          if(window._snThinkTimer){clearInterval(window._snThinkTimer);window._snThinkTimer=null}
-          var thEl2=document.querySelector('.sn-thinking');if(thEl2)thEl2.remove();
-          if(ev.session_id)G._snSid=ev.session_id;
-          G._snMsgCount++;_snUpdateCounter();
-          // If we were streaming text, replace bubble with final formatted version
-          if(window._snStreamBubble){
-            var streamParent=window._snStreamBubble.closest('.sn-msg');
-            if(streamParent)streamParent.remove();
-            window._snStreamBubble=null;window._snStreamText='';
+          else if(currentEvent==='thinking_start'){
+            hasThinking=true;
+            _snShowThinkingBlock();
           }
-          if(mode==='fast'&&ev.actions&&ev.actions.length)_snShowActions(ev.actions);
-          if(ev.message){
-            if(_snIsErrorMsg(ev.message)){
-              _snAddMsg('error',ev.message);
-              snSetState('alert');setTimeout(function(){if(_sn.state==='alert')snSetState('idle')},5000);
-            }else{
-              if(ev.message)_snAddMsg('assistant',ev.message);
-              if(ev.clarification){var _lm=document.querySelector(".sn-msg.assistant:last-child");if(_lm){var _sq=_lm.querySelectorAll(".sn-question");_sq.forEach(function(e){e.remove()})}_snShowClarification(ev.clarification);}
-              else if(ev.pending_action)_snShowPending(ev.pending_action);
-              else{snSetState('success');setTimeout(function(){if(_sn.state==='success')snSetState('idle')},2500)}
+          else if(currentEvent==='thinking_delta'){
+            _snAppendThinking(data.text||'');
+          }
+          else if(currentEvent==='thinking_stop'){
+            _snFinalizeThinking();
+          }
+          else if(currentEvent==='tool_start'){
+            _snAddStreamStep(data.label||data.tool,'running');
+          }
+          else if(currentEvent==='tool_done'){
+            _snUpdateStreamStep(data.label||data.tool,'done');
+            actions.push({tool:data.tool,label:data.label});
+          }
+          else if(currentEvent==='text_delta'){
+            if(!streamMsgCreated){
+              _snRemoveStreamProgress();
+              // Re-show progress steps above the message if there were tools
+              if(actions.length){
+                _snShowActions(actions);
+              }
+              _snCreateStreamMsgDiv();
+              streamMsgCreated=true;
+              gotText=true;
             }
-          }else if(ev.pending_action){_snShowPending(ev.pending_action)}
-          else if(ev.clarification){_snShowClarification(ev.clarification)}else{_snAddMsg('error','❌ Пустой ответ от сервера.');snSetState('alert');setTimeout(function(){if(_sn.state==='alert')snSetState('idle')},5000)}
-        }
-        else if(ev.type==='error'){
-          _snHideTyping();
-          if(window._snThinkTimer){clearInterval(window._snThinkTimer);window._snThinkTimer=null}
-          var thEl3=document.querySelector('.sn-thinking');if(thEl3)thEl3.remove();
-          if(ev.session_id)G._snSid=ev.session_id;
-          _snAddMsg('error','❌ '+ev.message);
-          snSetState('alert');setTimeout(function(){if(_sn.state==='alert')snSetState('idle')},5000);
+            _snAppendStreamText(data.text||'');
+          }
+          else if(currentEvent==='pending'){
+            pendingAction=data;
+          }
+          else if(currentEvent==='done'){
+            fullMessage=data.message||fullMessage;
+            if(data.pending_action)pendingAction=data.pending_action;
+            if(data.actions)actions=data.actions;
+          }
+          else if(currentEvent==='error'){
+            _snRemoveStreamProgress();
+            _snAddMsg('error',data.message||'Ошибка стриминга');
+            snSetState('alert');setTimeout(function(){if(_sn.state==='alert')snSetState('idle')},5000);
+            G._snSending=false;_snAbort=null;_snHideStopBtn();$('sanekSendBtn').disabled=false;
+            return;
+          }
+
+          currentEvent='';
+        } else if(line.trim()===''){
+          currentEvent='';
         }
       }
     }
+
+    // Finalize
+    _snRemoveStreamProgress();
+    G._snMsgCount++;_snUpdateCounter();
+
+    if(streamMsgCreated){
+      // Finalize the streaming message div
+      var rawEl=$('snStreamText');
+      var rawText=rawEl?rawEl._rawText||'':'';
+      fullMessage=fullMessage||rawText;
+      _snFinalizeStreamMsg(fullMessage);
+    }
+
+    if(!gotText&&fullMessage){
+      // Text came only in done event, not streamed
+      if(actions.length)_snShowActions(actions);
+      if(_snIsErrorMsg(fullMessage)){
+        _snAddMsg('error',fullMessage);
+        snSetState('alert');setTimeout(function(){if(_sn.state==='alert')snSetState('idle')},5000);
+      } else {
+        _snAddMsg('assistant',fullMessage);
+      }
+    } else if(!gotText&&!fullMessage&&!pendingAction){
+      _snAddMsg('error','❌ Пустой ответ от сервера.');
+      snSetState('alert');setTimeout(function(){if(_sn.state==='alert')snSetState('idle')},5000);
+    }
+
+    if(pendingAction){
+      _snShowPending(pendingAction);
+    } else if(gotText||fullMessage){
+      if(!_snIsErrorMsg(fullMessage)){
+        snSetState('success');setTimeout(function(){if(_sn.state==='success')snSetState('idle')},2500);
+      }
+    }
+
   }catch(e){
-    _snHideTyping();
+    _snHideTyping();_snRemoveStreamProgress();
     if(e.name==='AbortError'){
+      // Finalize partial text if any
+      if(streamMsgCreated){
+        var rawEl=$('snStreamText');
+        var partial=rawEl?rawEl._rawText||'':'';
+        if(partial)_snFinalizeStreamMsg(partial+'\n\n⏹ *Остановлено*');
+        else{var d=$('snStreamMsg');if(d)d.remove()}
+      }
       _snAddMsg('assistant','⏹ Запрос остановлен.');
       snSetState('idle');_snAbort=null;_snHideStopBtn();G._snSending=false;return;
     }
     var em=e.message||'',msg;
-    if(em.includes('404'))msg='❌ Эндпоинт чата не найден (404).\n\nБэкенд СКАДА требует обновления.';
+    if(em.includes('404'))msg='❌ Эндпоинт стриминга не найден (404).\n\nБэкенд СКАДА требует обновления — используйте docker-compose up -d --build backend.';
     else if(em.includes('Failed to fetch')||em.includes(': 0'))msg='❌ Сервер СКАДА недоступен.';
     else if(em.includes('500'))msg='❌ Внутренняя ошибка сервера.\n\nПроверьте логи: docker logs scada-backend';
     else if(em.includes('502')||em.includes('503'))msg='❌ Сервер временно недоступен.\n\nПодождите 10 секунд.';
@@ -841,7 +972,6 @@ async function _snSendMessage(text){
   }finally{
     _snAbort=null;_snHideStopBtn();
     G._snSending=false;$('sanekSendBtn').disabled=false;
-    // Re-enable welcome hints if still visible (e.g. after error before welcome removed)
     document.querySelectorAll('.sn-hint:disabled').forEach(function(b){b.disabled=false;b.style.opacity='';b.style.pointerEvents=''});
   }
 }
@@ -1035,5 +1165,6 @@ export {
   _snDeleteSession,
   _snUpdateCtxBadge,
   snSetState,
-  _snFormatText
+  _snFormatText,
+  _snToggleThinking
 };

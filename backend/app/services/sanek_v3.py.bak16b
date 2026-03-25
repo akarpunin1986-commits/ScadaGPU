@@ -1,0 +1,1019 @@
+"""САНЁК v3 — Autonomous Agent Engine с Self-Learning контекстом."""
+from __future__ import annotations
+
+import asyncio, hashlib, json, logging, re, uuid
+from datetime import datetime
+from typing import Optional
+from config import settings
+from sqlalchemy import select, and_, or_
+
+# ── Из v2 (services/sanek.py) ──
+from services.sanek import (
+    _tool_cache_clear, _extract_clarification,
+    _strip_fluff, _humanize, _load_memories, _current_conv_id,
+    _trim_context, _detect_correction, _format_llm_error, SanekAssistant,
+)
+from services.sanek_v3_tools import registry as tool_registry
+from services.reference_cache import topology_cache, learned_context_cache
+
+logger = logging.getLogger("sanek.v3")
+
+# ═══════════ OpenAI Client Pool (singleton) ═══════════
+_openai_clients: dict[str, "AsyncOpenAI"] = {}
+
+def _get_openai_client(api_key: str, base_url: str | None, timeout: int) -> "AsyncOpenAI":
+    """Reuse AsyncOpenAI client to keep TCP connections alive (connection pooling)."""
+    from openai import AsyncOpenAI
+    cache_key = f"{api_key[:8]}:{base_url or 'default'}"
+    client = _openai_clients.get(cache_key)
+    if client is None:
+        client = AsyncOpenAI(api_key=api_key, timeout=timeout, base_url=base_url)
+        _openai_clients[cache_key] = client
+        logger.info("Created new OpenAI client pool for %s", cache_key)
+    return client
+
+# ═══════════ PROMPT ═══════════
+
+SANEK_V3_PROMPT = """Ты — Санёк, AI-инженер СКАДА газопоршневых электростанций. Русский язык. MSK (UTC+3).
+Ты общительный, уверенный профессионал. Говоришь СТРОГО по делу, дружелюбно но без воды.
+Обращайся на "ты". Язык — как опытный инженер коллеге: кратко, точно, с цифрами.
+СТИЛЬ ОТВЕТА — как у лучших AI-ассистентов:
+- Сначала СУТЬ (ответ на вопрос), потом детали если нужны
+- Каждая цифра — из реальных данных инструментов, НЕ расчётная/примерная
+- Если данных нет — скажи прямо: "В БД нет поля X, но могу посчитать из Y"
+- Не лей воду. "Важно отметить", "стоит подчеркнуть", "следует обратить внимание" — ЗАПРЕЩЕНЫ
+- Не повторяй то, что пользователь и так видит на экране СКАДА
+
+СИСТЕМА:
+{topology_compact}
+
+═══ ПРИНЦИПЫ (СТРОГО!) ═══
+
+1. СНАЧАЛА ДАННЫЕ, ПОТОМ ОТВЕТ.
+   Без вызова инструмента — нет цифр. ЗАПРЕЩЕНО выдумывать.
+   Пустой результат → "нет данных за этот период, данные в БД с 04.03.2026".
+   ЗАПРЕЩЕНЫ слова-паразиты: "важно отметить", "стоит заметить", "хочу подчеркнуть",
+   "интересно что", "обратите внимание", "как мы видим". Просто давай факты.
+
+2. ВСЕГДА ПОЛНАЯ КАРТИНА.
+   Объект не указан → ОБА завода (МКЗ и ЯКЗ). Период не указан → последние 24 часа. "Весь период"/"за всё время" → last_days=14 (данные в БД ~ 2 недели).
+   ВАЖНО про даты:
+   - Формат дат: ДД.ММ.ГГГГ (например 15.03.2026), НИКОГДА не YYYY-MM-DD
+   - НЕ выдумывай даты! Если данных за период нет — скажи какой период реально есть и почему
+   - Данные в БД с 04.03.2026. Если результат тула вернул пустые данные — объясни пользователю почему
+   - NEVER показывай даты в будущем или даты до 04.03.2026
+   "план/факт" → get_full_report. "сводка" → get_system_summary. "анализ" → get_full_report.
+   ЗАПРЕЩЕНО переспрашивать и предлагать! Ты МОЖЕШЬ ВСЁ — у тебя есть все инструменты и данные.
+   НИКОГДА не говори "могу показать/разложить/посчитать" — ПРОСТО БЕРИ ДАННЫЕ И ДЕЛАЙ!
+   Пользователь спросил → ты вызвал инструменты → посчитал → дал полный ответ. Без вопросов "хочешь?".
+   Ты НЕ МОЖЕШЬ "не мочь". Любой вопрос = сразу get_full_report/query_data/execute_code и ответ с цифрами.
+   ПОЛНАЯ КАРТИНА vs ТОЧНЫЙ ОТВЕТ:
+   - "Сводка/отчёт/анализ/баланс" → ПОЛНАЯ КАРТИНА: все устройства, экономика, выводы.
+   - Конкретный вопрос ("расход газа", "температура", "статус Ген1") → ТОЧНЫЙ ОТВЕТ только по теме.
+   При полной картине: ВСЕГДА показывай ВСЕ устройства (оба генератора + ШПР).
+   Для КАЖДОГО генератора: статус, мощность, выработка, время работы/простоя.
+   Если генератор стоит — указать: с какого времени, аварии, потери В РУБЛЯХ.
+   ТОЧНОСТЬ ПЕРИОДОВ: если данные за 24ч, пиши "за 24 часа". Если генератор стоит дольше — укажи: "стоит уже X дней (с DD.MM.ГГГГ), потери за анализируемый период (24ч): Y руб".
+   НЕ вводи в заблуждение! Если реальный простой больше запрошенного периода — скажи об этом явно.
+3. ЭКОНОМИКА — ВСЕГДА В РУБЛЯХ.
+   Потери от простоя = невыработка_кВт_ч × (тариф_сети - себестоимость_генерации).
+   Тариф сети = 8.0 руб/кВт*ч. Себестоимость ~3.5 руб/кВт*ч (берём из get_economics_report).
+   Пример: простой 24ч × 160кВт = 3840 кВт*ч × (8.0 - 3.5) = 17280 руб потерь.
+   ВАЖНО: потери — это РАЗНИЦА, а не полная стоимость! Ведь при генерации тоже тратится газ.
+   ЭКОНОМИЯ +12345 руб / УБЫТОК -6789 руб — всегда цифрами.
+   losses_rub из get_full_report уже считает правильно (разницу). Используй готовое число.
+
+4. ТЫ — ВСЕМОГУЩИЙ АНАЛИТИК. ТЫ МОЖЕШЬ ВСЁ!
+   У тебя 16 инструментов + SQL через execute_code. Ты МОЖЕШЬ ответить на ЛЮБОЙ вопрос.
+   ЗАПРЕЩЕНО говорить "не могу", "нет данных", "могу показать". ПРОСТО БЕРИ И ДЕЛАЙ!
+
+   АЛГОРИТМ: вопрос → вызови инструмент → получи данные → посчитай → дай ПОЛНЫЙ ответ.
+   Если стандартный инструмент не даёт нужного — используй execute_code с SQL-запросом!
+   execute_code может: SQL к PostgreSQL (DB_DSN), pandas, matplotlib, openpyxl, любые вычисления.
+
+   АВТОНОМНОСТЬ: не спрашивай "хочешь подробнее?" — сразу дай полную картину.
+   Пользователь спросил "баланс ЯКЗ" → ты вызвал get_full_report → дал ВСЕ цифры по ВСЕМ устройствам.
+   Пользователь спросил "почему стоит?" → get_alarms + get_events + analyze_incident → дал причину.
+   Пользователь спросил что-то нестандартное → execute_code с SQL → посчитал → ответил.
+
+   КОНТЕКСТ обязателен: генератор стоит → причина (авария/плановый/ручной).
+   Аварий нет → "Аварийных кодов нет, вероятно плановый/ручной останов."
+   Тренды: растёт/падает/стабильно, на сколько %, причины.
+   ВЫВОДЫ и РЕКОМЕНДАЦИИ — конкретные, с цифрами.
+
+5. ФОРМАТ ОТВЕТА — СТРОГИЙ ШАБЛОН.
+   КАЖДЫЙ ответ структурируй ЧЁТКО по блокам:
+
+   ЗАГОЛОВОК: "## Объект — Период" (например: "## МКЗ — сводка за 24ч (15.03-16.03.2026)")
+
+   ГЕНЕРАТОРЫ — ВСЕГДА ТАБЛИЦЕЙ (компактно, бок о бок):
+   | | Ген 1 | Ген 2 |
+   НЕ расписывай каждую метрику отдельной строкой! Таблица — компактнее.
+
+   ЭКОНОМИКА — максимум 3-4 строки:
+   - Генерация: X кВт*ч | Из сети: Y кВт*ч | Себестоимость: Z руб/кВт*ч
+   - Экономия: +N руб | Потери от простоя: -M руб
+   НЕ перечисляй каждое поле отдельно! Группируй на одной строке через " | ".
+
+   ИТОГО — 1-2 строки. ВЫВОДЫ — 1-2 конкретных действия.
+
+   КОНЕЦ:
+   📌 Источники: [какие инструменты/данные использованы]
+   💬 Умный вопрос — предложи КОНКРЕТНОЕ следующее действие, например:
+      - "Выгрузить в Excel за неделю?" (если показал сводку)
+      - "Посмотреть тренд мощности за 7 дней?" (если обсуждали генераторы)
+      - "Проверить историю аварий Ген2?" (если генератор стоит)
+      - "Сравнить МКЗ и ЯКЗ по эффективности?" (если показал один завод)
+   ЗАПРЕЩЕНЫ бессмысленные вопросы типа "подробнее экономику?" или "хотите узнать больше?".
+   Вопрос должен быть ПОЛЕЗНЫМ и КОНКРЕТНЫМ — то, что реально поможет оператору.
+
+   ВИЗУАЛЬНЫЕ РАЗДЕЛИТЕЛИ И ГРУППИРОВКА:
+   - Каждый завод — отдельный блок с заголовком "## МКЗ" / "## ЯКЗ"
+   - Между заводами: "---" (горизонтальная линия)
+   - Внутри завода группируй по логике:
+     "### Генераторы" — таблица со ВСЕМИ генераторами рядом для сравнения
+     "### Сеть (ШПР)" — потребление из внешней сети
+     "### Экономика" — генерация, сеть, экономия, потери
+   - В конце: "## Общие выводы" — итог по ВСЕМ объектам
+   - Статус РАБОТА/СТОП — БОЛЬШИМИ буквами
+   - Таблицы (|---|) — для сравнения генераторов бок о бок
+   - Жирный для ключевых цифр: **+15250 руб**, **-17280 руб**
+
+6. ФАЙЛЫ (Excel/PDF/CSV/отчёт/KPI/экспорт) → СРАЗУ execute_code! Не вызывай другие tools перед ним.
+   НЕ используй get_energy_report для создания файлов. execute_code СРАЗУ.
+   Ссылка: [имя_файла.xlsx](/reports/имя_файла.xlsx). Файлы хранятся 24 часа.
+
+   EXCEL — ОБЯЗАТЕЛЬНЫЙ СТИЛЬ (openpyxl):
+   - Заголовок: merge, Font(size=16,bold=True,color='FFFFFF'), PatternFill('2B5797')
+   - Шапка: Font(bold=True,color='FFFFFF'), PatternFill('3A7DD8'), Border thin
+   - Данные: чередование белый/F2F7FB, числа '#,##0.00' right
+   - Итоги: Font(bold=True), PatternFill('E8F0FE')
+   - Ширина колонок auto
+
+   PDF — ОБЯЗАТЕЛЬНЫЙ СТИЛЬ (fpdf2):
+   - from fpdf import FPDF; pdf.add_font('DejaVu','','DejaVuSansCondensed.ttf',uni=True)
+   - Заголовок: set_font('DejaVu','B',18); set_text_color(43,87,151)
+   - Шапка: fill(43,87,151) white text. Чередование fill(242,247,251)
+
+   КОД СИНХРОННЫЙ! НЕ async/await. DB: psycopg2.connect(DB_DSN)
+
+7. ВЫБОР ИНСТРУМЕНТОВ — ДЕРЕВО РЕШЕНИЙ:
+   Что спросили? → Какой инструмент:
+   - "статус/сводка/что сейчас" → get_system_summary
+   - "отчёт/баланс/выработка/потери/экономика" → get_full_report (заменяет energy+economics+incidents)
+   - "тренды/история/график/динамика" → get_history → показывай ТАБЛИЦУ по часам!
+   - "температура/давление/параметры за период" → query_data
+   - "аварии сейчас" → get_alarms
+   - "аварии за период/история аварий" → get_alarm_history
+   - "ТО/моточасы/обслуживание" → get_maintenance_status
+   - "почему стоит/причина останова/инцидент" → analyze_incident + get_events + get_alarms
+   - "что такое код/ошибка/параметр" → search_knowledge (мануалы SmartGen)
+   - "файл/Excel/PDF/выгрузи/экспорт" → execute_code
+   - "посчитай/сравни/корреляция/нестандартный запрос" → execute_code с SQL
+
+   ВАЖНО: execute_code — твой козырь! Через него ты можешь:
+   - Любой SQL к PostgreSQL (psycopg2.connect(DB_DSN), таблица metrics_data)
+   - Pandas для анализа, matplotlib для графиков
+   - openpyxl для Excel, fpdf2 для PDF
+   - Любые вычисления на Python
+   Если стандартные инструменты не дают ответа — ВСЕГДА используй execute_code!
+
+8. СКОРОСТЬ И ПОЛНОТА.
+   Отвечай СТРУКТУРИРОВАННО и по делу. Не повторяй вопрос.
+   Простой вопрос (статус, одна цифра) — 3-5 строк.
+   Сводка/отчёт — полный формат по шаблону из правила 5 (до 25 строк).
+   ОДИН tool-call = ОДИН ответ. Не вызывай лишние инструменты.
+   get_full_report заменяет energy+economics+incidents — используй его.
+   НИКОГДА не предлагай "хочешь подробнее?" — сразу давай полный ответ.
+
+9. ТОЧНОСТЬ ОТВЕТА — В ЯБЛОЧКО!
+   Отвечай РОВНО на то, что спросили. Не добавляй лишнего!
+   - Спросили "расход газа по часам" → дай ТОЛЬКО расход газа, ТОЛЬКО по часам. Без выработки, без ШПР, без мощности.
+   - Спросили "статус генераторов" → дай статус. Без экономики и трендов.
+   - Спросили "потери за неделю" → дай потери. Без почасовой разбивки.
+   ПРИНЦИП: если пользователь не спрашивал — не показывай.
+   Полная картина нужна только когда спросили "сводка/отчёт/полный анализ".
+   Конкретный вопрос = конкретный ответ. Не превращай каждый вопрос в полный отчёт!
+
+   ТАБЛИЦЫ: если данных больше 5 строк — используй execute_code для Excel.
+   Markdown-таблицы ломаются на длинных данных. Для больших таблиц: Excel + ссылка.
+   Маленькие таблицы (до 5 строк) — markdown OK.
+
+УСТРОЙСТВА: МКЗ(site=3): Ген1=dev1, Ген2=dev2, ШПР=dev3. ЯКЗ(site=5): Ген1=dev4, Ген2=dev5, ШПР=dev6.
+ПРАВИЛО: при ответе про объект ОБЯЗАТЕЛЬНО покажи ВСЕ устройства. ШПР = потребление из внешней сети.
+Если ШПР потребляет много — значит генераторы не покрывают нагрузку, часть идёт из сети (это дороже).
+ТРЕНДЫ: мощность → get_history генераторов (1,2,4,5) поле power_total. Потребление из сети → get_history АТС (3,6) поле mains_total_p.
+gen_status: 0=Стоп | 9=Работа | 12=Аварийный стоп.
+ПРИОРИТЕТЫ: безопасность > аптайм > эффективность > экономика.
+
+═══ ГЛАВНОЕ ПРАВИЛО ═══
+ТЫ МОЖЕШЬ ВСЁ! У тебя есть ВСЕ данные и ВСЕ инструменты.
+НЕ СУЩЕСТВУЕТ вопроса, на который ты не можешь ответить (в рамках СКАДА-системы).
+Если данных нет в стандартных инструментах — напиши SQL через execute_code.
+НИКОГДА не говори "не могу", "нет возможности", "данные недоступны".
+Вместо этого: бери инструменты, получай данные, считай, отвечай!
+
+═══ ВЕРИФИКАЦИЯ ДАННЫХ ═══
+КАЖДАЯ цифра в ответе должна быть ПОДТВЕРЖДЕНА данными из инструментов.
+ЗАПРЕЩЕНО:
+- Писать "расчётно", "примерно", "ориентировочно" — если не можешь дать точную цифру, скажи почему
+- Выдумывать данные которых нет в ответе инструмента
+- Путать единицы: кВт (мощность) vs кВт*ч (энергия), м3 vs м3/ч
+- Показывать данные за ДЕНЬ когда спросили за ЧАС и наоборот
+ЕСЛИ в ответе инструмента нет нужного поля:
+- Скажи прямо: "Прямого поля нет, считаю из ..."
+- Покажи формулу расчёта
+- Или получи через execute_code с SQL
+
+{learned_context}
+{active_memories}
+
+ПРИМЕР ХОРОШЕГО ОТВЕТА:
+```
+## Сводка за 24ч (15.03-16.03.2026)
+
+---
+
+## МКЗ
+
+| | Ген 1 | Ген 2 |
+|---|---|---|
+| Статус | РАБОТА | СТОП (с 13.03) |
+| Мощность | 160 кВт | 0 кВт |
+| Выработка | 3389 кВт*ч | 0 кВт*ч |
+| Утилизация | 100% | 0% |
+
+- Сеть (ШПР): 4368 кВт*ч (182 кВт средн.)
+- Экономия: **+15250 руб** | Потери от простоя Ген2: **-17280 руб**
+
+---
+
+## ЯКЗ
+
+| | Ген 1 | Ген 2 |
+|---|---|---|
+| Статус | СТОП (с 04.03) | РАБОТА |
+| Мощность | 0 кВт | 159 кВт |
+| Выработка | 0 кВт*ч | 3816 кВт*ч |
+| Утилизация | 0% | 99% |
+
+- Сеть (ШПР): 5200 кВт*ч (217 кВт средн.)
+- Экономия: **+17172 руб** | Потери от простоя Ген1: **-17280 руб**
+
+---
+
+## Итого
+- Потери от простоев: **-34560 руб/сутки** (МКЗ Ген2 + ЯКЗ Ген1)
+- Аварийных кодов нет — уточнить причину у операторов
+
+📌 get_full_report(last_hours=24)
+💬 Проверить историю аварий?
+
+```
+"""
+
+
+# ═══════════ ANTI-LOOP ═══════════
+
+class ToolCallTracker:
+    def __init__(self):
+        self._seen: set[str] = set()
+    def check(self, name: str, args: dict) -> Optional[str]:
+        key = hashlib.md5(json.dumps({"t": name, "a": args}, sort_keys=True, default=str).encode()).hexdigest()
+        if key in self._seen:
+            return f"'{name}' уже вызван с этими параметрами."
+        self._seen.add(key)
+        return None
+
+
+# ═══════════ TOPOLOGY (прямой SQL, без httpx) ═══════════
+
+async def _build_topology_compact() -> str:
+    cached = topology_cache.get("compact_v3")
+    if cached is not None:
+        return cached
+    from models.base import async_session
+    from models.site import Site
+    from models.device import Device
+    from sqlalchemy import select
+    try:
+        from models.equipment_unit import EquipmentUnit
+        has_eu = True
+    except ImportError:
+        has_eu = False
+    try:
+        async with async_session() as db:
+            sites = (await db.execute(select(Site).where(Site.is_active == True))).scalars().all()
+            all_devs = (await db.execute(select(Device).where(Device.is_active == True))).scalars().all()
+            units_map = {}
+            if has_eu:
+                try:
+                    all_units = (await db.execute(select(EquipmentUnit).where(EquipmentUnit.is_active == True))).scalars().all()
+                    units_map = {u.id: u for u in all_units}
+                except Exception:
+                    pass
+            devs_by_site = {}
+            for d in all_devs:
+                devs_by_site.setdefault(d.site_id, []).append(d)
+            lines = []
+            for site in sites:
+                devs = devs_by_site.get(site.id, [])
+                ugroups, orphans = {}, []
+                for d in devs:
+                    uid = getattr(d, 'unit_id', None)
+                    if uid and uid in units_map:
+                        ugroups.setdefault(uid, []).append(d)
+                    else:
+                        orphans.append(d)
+                sl = [f"{site.name}(id={site.id},{site.code or ''}):"]
+                for uid, udevs in ugroups.items():
+                    u = units_map[uid]
+                    pw = f",{int(u.total_power_kw)}кВт" if u.total_power_kw else ""
+                    rp = f",{u.responsible_person}" if u.responsible_person else ""
+                    parts = []
+                    for d in udevs:
+                        role = getattr(d, 'role_in_unit', None) or d.device_type.value
+                        warn = f",⚠{d.instance_notes[:20]}" if getattr(d, 'instance_notes', None) else ""
+                        parts.append(f"{d.name}(id={d.id},{role}{warn})")
+                    sl.append(f"  {u.name}({pw}{rp}): {' '.join(parts)}")
+                for d in orphans:
+                    sl.append(f"  {d.name}(id={d.id},{d.device_type.value})")
+                lines.extend(sl)
+            result = "\n".join(lines) or "(нет данных)"
+    except Exception as e:
+        logger.error("Topology: %s", e)
+        result = "(ошибка топологии)"
+    topology_cache.set("compact_v3", result)
+    return result
+
+
+# ═══════════ LEARNED CONTEXT — 4 КОНТУРА САМООБУЧЕНИЯ ═══════════
+
+async def _build_learned_context(user_message: str = "") -> str:
+    ck = f"learned:{hashlib.md5(user_message.encode()).hexdigest()[:8]}"
+    cached = learned_context_cache.get(ck)
+    if cached is not None:
+        return cached
+
+    lines = []
+    try:
+        from models.base import async_session
+        from models.sop_procedure import SopProcedure
+        from models.feedback import SanekPatternStats
+
+        try:
+            from models.learning_insight import LearningInsight
+            has_insights = True
+        except ImportError:
+            has_insights = False
+
+        async with async_session() as db:
+            kw = [w for w in user_message.lower().split() if len(w) >= 3]
+
+            # ── КОНТУР 1+4: РЕЛЕВАНТНЫЕ SOP ──
+            if kw:
+                conds = []
+                for w in kw[:5]:
+                    conds.extend([
+                        SopProcedure.alarm_code.ilike(f"%{w}%"),
+                        SopProcedure.root_cause.ilike(f"%{w}%"),
+                        SopProcedure.description.ilike(f"%{w}%"),
+                    ])
+                sops = (await db.execute(
+                    select(SopProcedure).where(or_(*conds))
+                    .order_by(SopProcedure.updated_at.desc()).limit(5)
+                )).scalars().all()
+            else:
+                sops = (await db.execute(
+                    select(SopProcedure).order_by(SopProcedure.updated_at.desc()).limit(3)
+                )).scalars().all()
+
+            if sops:
+                lines.append("ИЗУЧЕННЫЕ SOP:")
+                for s in sops:
+                    src_label = "ОПЫТ" if getattr(s, 'source', '') == "feedback" else "МАНУАЛ"
+                    act = json.dumps(s.actions_json, ensure_ascii=False)[:120] if s.actions_json else ""
+                    lines.append(f"  {s.alarm_code}({s.device_type}) [{src_label}]: {s.root_cause or s.description or ''}. {act}")
+
+            # ── КОНТУР 1: CONFIDENCE ПАТТЕРНОВ ──
+            try:
+                patterns = (await db.execute(
+                    select(SanekPatternStats)
+                    .where(SanekPatternStats.total_count >= 3)
+                    .order_by(SanekPatternStats.total_count.desc()).limit(5)
+                )).scalars().all()
+
+                if patterns:
+                    lines.append("ПАТТЕРНЫ (confidence):")
+                    for p in patterns:
+                        pct = round(p.correct_count / p.total_count * 100) if p.total_count else 0
+                        if pct >= 80:
+                            label = "confident"
+                        elif pct >= 50:
+                            label = "moderate"
+                        else:
+                            label = "uncertain — часто ошибаюсь"
+                        lines.append(f"  {p.pattern_id}: {pct}% ({p.correct_count}/{p.total_count}) [{label}]")
+            except Exception:
+                pass
+
+            # ── КОНТУР 2: PRECURSORS ──
+            if has_insights:
+                try:
+                    precursors = (await db.execute(
+                        select(LearningInsight)
+                        .where(and_(
+                            LearningInsight.insight_type == "precursor",
+                            LearningInsight.is_active == True,
+                            LearningInsight.confidence >= 0.7
+                        ))
+                        .order_by(LearningInsight.confidence.desc()).limit(5)
+                    )).scalars().all()
+
+                    if precursors:
+                        lines.append("ПРЕДВЕСТНИКИ АВАРИЙ:")
+                        for p in precursors:
+                            c = p.content or {}
+                            lines.append(
+                                f"  Перед {p.alarm_code}: {c.get('precursor_metric')} "
+                                f"{c.get('trend')} (Δ{c.get('avg_delta')}) за "
+                                f"{c.get('lookback_minutes', 30)} мин. "
+                                f"Confidence: {p.confidence:.0%}, выборка: {p.sample_size}"
+                            )
+                except Exception:
+                    pass
+
+            # ── КОНТУР 3: НЕГАТИВНЫЕ OUTCOMES ──
+            if has_insights:
+                try:
+                    neg = (await db.execute(
+                        select(LearningInsight)
+                        .where(and_(
+                            LearningInsight.insight_type == "action_outcome",
+                            LearningInsight.is_active == True
+                        ))
+                        .order_by(LearningInsight.created_at.desc()).limit(3)
+                    )).scalars().all()
+
+                    if neg:
+                        lines.append("РЕЗУЛЬТАТЫ ДЕЙСТВИЙ (учти при рекомендациях):")
+                        for o in neg:
+                            c = o.content or {}
+                            lines.append(
+                                f"  {c.get('action_type')} на device {c.get('device_id')}: "
+                                f"{c.get('verdict')} — {c.get('details')}"
+                            )
+                except Exception:
+                    pass
+
+            # ── КОНТУР 2: THRESHOLD SUGGESTIONS ──
+            if has_insights:
+                try:
+                    suggestions = (await db.execute(
+                        select(LearningInsight)
+                        .where(and_(
+                            LearningInsight.insight_type == "threshold_suggestion",
+                            LearningInsight.is_active == True
+                        ))
+                        .order_by(LearningInsight.created_at.desc()).limit(3)
+                    )).scalars().all()
+
+                    if suggestions:
+                        lines.append("ПРЕДЛОЖЕНИЯ ПО ПОРОГАМ (обсуди с оператором):")
+                        for s in suggestions:
+                            c = s.content or {}
+                            lines.append(
+                                f"  {c.get('metric', c.get('alarm_code', '?'))}: {c.get('reason', c.get('suggestion', ''))}"
+                            )
+                except Exception:
+                    pass
+
+    except Exception as e:
+        logger.debug("Learned context: %s", e)
+
+    result = "\n".join(lines) if lines else ""
+    learned_context_cache.set(ck, result)
+    return result
+
+
+# ═══════════ RESPONSE VALIDATOR ═══════════
+
+_NUM_RE = re.compile(r'\d+[.,]?\d*\s*(кВт|кВт·ч|°C|°С|bar|бар|Гц|руб|тыс|моточас|м³|кПа|%|об/мин)', re.I)
+_DATA_TOOLS = {"get_metrics", "get_system_summary", "analyze_incident", "get_economics_report", "get_history", "get_maintenance_status", "get_alarms", "get_alarm_history", "get_energy_report", "query_data", "get_equipment_context", "get_action_effectiveness", "get_full_report"}
+
+def _validate_response(text: str, tools_called: set[str]) -> str:
+    if text and _NUM_RE.search(text) and not (tools_called & _DATA_TOOLS):
+        text += "\n\n⚠️ Данные могут быть неточными — проверьте."
+    return text
+
+
+# ═══════════ STREAMING ENGINE ═══════════
+
+MAX_ITERATIONS = 8
+TOOL_TIMEOUT = 30  # increased for get_full_report
+
+
+def _format_response(text):
+    """Format for readable rendering: split glued sections."""
+    if not text:
+        return text
+    NL = chr(10)
+    BOLD = chr(42) * 2
+    DASH = chr(45) + chr(32)
+    raw_lines = text.split(NL)
+    expanded = []
+    for raw in raw_lines:
+        s = raw.strip()
+        if not s:
+            expanded.append(raw)
+            continue
+        pos = 0
+        chunks = []
+        while pos < len(s):
+            bi = s.find(BOLD, pos)
+            if bi < 0:
+                chunks.append(s[pos:])
+                break
+            if bi > pos:
+                before = s[pos:bi].rstrip()
+                if before:
+                    chunks.append(before)
+                ci = s.find(BOLD, bi + 2)
+                if ci > bi + 2:
+                    pos = ci + 2
+                    next_bold = s.find(BOLD, pos)
+                    if next_bold > 0:
+                        chunks.append(s[bi:next_bold].rstrip())
+                        pos = next_bold
+                    else:
+                        chunks.append(s[bi:])
+                        break
+                else:
+                    chunks.append(s[bi:])
+                    break
+            else:
+                ci = s.find(BOLD, bi + 2)
+                if ci > bi + 2:
+                    pos = ci + 2
+                    next_bold = s.find(BOLD, pos)
+                    if next_bold > 0:
+                        chunks.append(s[bi:next_bold].rstrip())
+                        pos = next_bold
+                    else:
+                        chunks.append(s[bi:])
+                        break
+                else:
+                    chunks.append(s[bi:])
+                    break
+        for ch in chunks:
+            if DASH in ch and not ch.startswith(DASH) and not ch.startswith(BOLD):
+                di = ch.find(DASH)
+                while di > 0:
+                    b = ch[:di].rstrip()
+                    if b:
+                        expanded.append(b)
+                    ch = ch[di:]
+                    di = ch.find(DASH, 2)
+            expanded.append(ch)
+    result = []
+    prev = ""
+    for line in expanded:
+        stripped = line.strip()
+        pstrip = prev.strip()
+        if stripped.startswith(BOLD) and pstrip and not pstrip.startswith(BOLD):
+            result.append("")
+        if stripped.startswith(DASH) and pstrip and not pstrip.startswith(DASH) and not pstrip.startswith(BOLD) and not pstrip.endswith(chr(58)):
+            result.append("")
+        result.append(line)
+        prev = line
+    final = []
+    blank_count = 0
+    for line in result:
+        if not line.strip():
+            blank_count += 1
+            if blank_count <= 2:
+                final.append(line)
+        else:
+            blank_count = 0
+            final.append(line)
+    return NL.join(final).strip()
+
+
+def _auto_append_downloads(text: str, messages: list) -> str:
+    """Scan tool results for generated files and append download buttons."""
+    import json as _j
+    files_found = []
+    for msg in messages:
+        if not isinstance(msg, dict) or msg.get("role") != "tool":
+            continue
+        try:
+            content = _j.loads(msg.get("content", "{}"))
+            if not isinstance(content, dict):
+                continue
+            for f in content.get("files", []):
+                if isinstance(f, str) and "/" in f:
+                    fname = f.split("/")[-1]
+                    url = f"/reports/{fname}" if not f.startswith("/reports") else f
+                    files_found.append((fname, url))
+            du = content.get("download_url", "")
+            if du and isinstance(du, str) and "/" in du:
+                fname = du.split("/")[-1]
+                files_found.append((fname, du))
+            for dl in content.get("download_links", []):
+                if isinstance(dl, dict):
+                    dname = dl.get("name", "")
+                    dpath = dl.get("path", dl.get("url", ""))
+                    if dname and dpath:
+                        files_found.append((dname, dpath))
+                elif isinstance(dl, str) and "/" in dl:
+                    files_found.append((dl.split("/")[-1], dl))
+        except Exception:
+            pass
+    if not files_found:
+        return text
+    seen = set()
+    unique = []
+    for fname, url in files_found:
+        if fname not in seen and isinstance(fname, str) and "." in fname:
+            seen.add(fname)
+            unique.append((fname, url))
+    files_found = unique
+    for fname, url in files_found:
+        if f"]({url})" in text:
+            continue
+        if not url.startswith("/") or "{" in url:
+            continue
+        if fname in text and f"[" not in text.split(fname)[0][-5:]:
+            text = text.replace(fname, f"[{fname}]({url})")
+        elif f"]({url})" not in text and f"({url})" not in text:
+            text = text.rstrip() + f"\n\n[{fname}]({url})"
+    return text
+
+
+def _step_description(tool_name: str, args_str: str) -> str:
+    """Human-readable description for tool step."""
+    try:
+        a = json.loads(args_str) if args_str else {}
+    except Exception:
+        a = {}
+    dev = a.get("device_id", "")
+    devs = {1: "Ген1 МКЗ", 2: "Ген2 МКЗ", 3: "АТС МКЗ", 4: "Ген1 ЯКЗ", 5: "Ген2 ЯКЗ", 6: "АТС ЯКЗ"}
+    dn = devs.get(dev, f"dev={dev}") if dev else ""
+    m = {
+        "get_system_summary": "Сводка по всем объектам",
+        "get_full_report": "Полный отчёт (энергия + экономика + инциденты)",
+        "get_metrics": f"Метрики {dn}".strip(),
+        "get_alarms": f"Аварии {dn}".strip(),
+        "get_alarm_history": f"История аварий {dn}".strip(),
+        "get_events": f"События {dn}".strip(),
+        "get_history": f"Тренд {dn}".strip(),
+        "get_maintenance_status": "Статус ТО",
+        "get_economics_report": "Экономика",
+        "get_energy_report": "Энергетика",
+        "search_knowledge": f"База знаний: {a.get('query','')}",
+        "get_equipment_context": "Контекст оборудования",
+        "analyze_incident": f"Анализ инцидента {dn}".strip(),
+        "propose_action": "Предложение действия",
+        "execute_action": "Выполняю действие",
+        "remember": "Сохраняю в память",
+        "recall": f"Вспоминаю: {a.get('query','')}",
+        "query_data": "Запрос данных",
+        "execute_code": "⏳ Генерирую файл (~15-20 сек)...",
+    }
+    return m.get(tool_name, tool_name)
+
+
+# ═══════════ AUTO-APPEND: sources + follow-up ═══════════
+
+_SRC_MAP = {
+    "get_system_summary": "показания контроллеров SmartGen (обновление каждые 5 сек)",
+    "get_metrics": "показания контроллеров SmartGen",
+    "get_energy_report": "архив метрик, БД PostgreSQL",
+    "get_economics_report": "экономический модуль, цены из настроек",
+    "get_full_report": "архив метрик, экономика, анализ инцидентов",
+    "get_history": "архив метрик, БД PostgreSQL",
+    "get_alarms": "журнал аварий alarm_events",
+    "get_alarm_history": "журнал аварий alarm_events",
+    "analyze_incident": "анализ инцидентов, alarm_analytics",
+    "get_maintenance_status": "данные ТО, моточасы из Redis",
+    "execute_code": "sandbox, БД PostgreSQL",
+    "query_data": "архив метрик, БД PostgreSQL",
+    "search_knowledge": "база знаний SmartGen",
+}
+
+_FOLLOWUP_MAP = {
+    "get_system_summary": [
+        "Полный отчёт с экономикой или тренд мощности за неделю?",
+        "Выгрузить сводку в Excel?",
+    ],
+    "get_full_report": [
+        "Выгрузить в Excel или сравнить с прошлой неделей?",
+        "Показать тренд мощности по часам?",
+    ],
+    "get_energy_report": [
+        "Посмотреть динамику выработки за неделю?",
+        "Сравнить эффективность МКЗ и ЯКЗ?",
+    ],
+    "get_economics_report": [
+        "Сравнить экономику с прошлой неделей?",
+        "Выгрузить экономический отчёт в Excel?",
+    ],
+    "get_history": [
+        "Выгрузить эти данные в Excel?",
+        "Показать за другой период?",
+    ],
+    "get_alarms": [
+        "Проанализировать причины аварий или показать историю?",
+    ],
+    "get_alarm_history": [
+        "Есть закономерность в повторении аварий?",
+    ],
+    "analyze_incident": [
+        "Выгрузить отчёт по инциденту в PDF?",
+        "Показать корреляцию с параметрами?",
+    ],
+    "get_maintenance_status": [
+        "Показать историю ТО или рассчитать ресурс?",
+    ],
+    "search_knowledge": [
+        "Найти ещё по теме или показать связанные коды?",
+    ],
+    "execute_code": [
+        "Нужен другой период или формат?",
+    ],
+    "query_data": [
+        "Построить график или выгрузить в Excel?",
+    ],
+}
+
+
+def _auto_enrich(text: str, tools_called: set[str]) -> str:
+    """Auto-append sources and follow-up question if LLM forgot."""
+    t = text
+    # 1. Sources — always add if missing
+    if "f4cc" not in t and "📌" not in t and "источник" not in t.lower() and tools_called:
+        srcs = list(dict.fromkeys(_SRC_MAP[tool] for tool in tools_called if tool in _SRC_MAP))
+        if srcs:
+            t = t.rstrip() + f"\n\n📌 Источники: {', '.join(srcs)}"
+    # 2. Follow-up — only if LLM didn't already ask a question
+    has_question = "?" in t[-200:] or "💬" in t
+    if not has_question and len(t) > 100 and tools_called:
+        import random
+        for tool in reversed(list(tools_called)):
+            if tool in _FOLLOWUP_MAP:
+                options = _FOLLOWUP_MAP[tool]
+                q = random.choice(options) if isinstance(options, list) else options
+                t = t.rstrip() + f"\n\n💬 {q}"
+                break
+    return t
+
+
+def _extract_dialog_button(text: str) -> tuple[str, dict | None]:
+    """Convert 💬 question at end of text into clarification button."""
+    m = re.search(r'💬\s*(.+?)$', text)
+    if not m:
+        return text, None
+    q = m.group(1).strip()
+    clean = text[:m.start()].rstrip()
+    # Split "X или Y?" into 2 buttons
+    parts = re.split(r'\s+или\s+', q.rstrip('?'))
+    if len(parts) >= 2:
+        opts = [p.strip().rstrip('?.!') for p in parts if p.strip()]
+    else:
+        opts = [q.rstrip('?')]
+    if len(opts) == 1:
+        opts.append("Нет, спасибо")
+    return clean, {"question": q, "type": "single_select", "options": opts[:4]}
+
+
+class SanekV3Engine:
+    def __init__(self, provider: str, api_key: str, model: str, conv_id: str = ""):
+        self.provider = provider
+        self.api_key = api_key
+        self.model = model
+        self.conv_id = conv_id
+        self._assistant = SanekAssistant(provider=provider, api_key=api_key, model=model, conv_id=conv_id)
+
+    async def chat_stream(self, messages: list[dict], pending_action: Optional[dict] = None):
+        _tool_cache_clear()
+        _current_conv_id.set(self.conv_id)
+
+        if pending_action:
+            confirm = {"да","yes","подтверждаю","ок","ok","давай","выполняй","делай","go"}
+            last = ""
+            for m in reversed(messages):
+                if m.get("role") == "user":
+                    last = m.get("content", "").strip().lower()
+                    break
+            if any(w in last for w in confirm):
+                res = await tool_registry.execute(pending_action["tool"], pending_action["args"])
+                yield {"type": "done", "message": f"✅ Выполнено: {pending_action.get('description','')}\n\n{json.dumps(res, ensure_ascii=False)[:500]}", "actions": [{"tool": pending_action["tool"], "args": pending_action["args"]}], "pending_action": None}
+            else:
+                yield {"type": "done", "message": "❌ Отменено.", "actions": [], "pending_action": None}
+            return
+
+        yield {"type": "mode", "mode": "deep"}
+
+        topology = await _build_topology_compact()
+        memories = ""
+        try:
+            mem = await _load_memories(user_id=None)
+            if mem:
+                memories = f"\nПАМЯТЬ ОПЕРАТОРА:\n{mem}"
+        except Exception:
+            pass
+
+        user_msg = messages[-1].get("content", "") if messages else ""
+        learned = await _build_learned_context(user_msg)
+
+        prompt = SANEK_V3_PROMPT.format(topology_compact=topology, active_memories=memories, learned_context=f"\n{learned}" if learned else "")
+        full_messages = [{"role": "system", "content": prompt}] + messages
+
+        try:
+            hint = _detect_correction(messages)
+            if hint:
+                full_messages.append({"role": "system", "content": hint})
+        except Exception:
+            pass
+
+        use_openai = self.provider in ("openai", "grok")
+
+        if use_openai:
+            base_url = "https://api.x.ai/v1" if self.provider == "grok" else None
+            client = _get_openai_client(self.api_key, base_url, settings.AI_TIMEOUT)
+        tools_openai = tool_registry.get_openai_tools()
+
+        tracker = ToolCallTracker()
+        actions = []
+        tools_called: set[str] = set()
+
+        for iteration in range(MAX_ITERATIONS):
+            full_messages = _trim_context(full_messages, self.provider, self.model, 4096)
+
+            # SSE progress: let user know what's happening
+            if iteration == 0:
+                yield {"type": "thinking", "step": "analyzing_query", "detail": "Выбираю инструменты..."}
+            else:
+                yield {"type": "thinking", "step": "analyzing_results", "detail": f"Анализирую данные от {', '.join(tools_called)}..."}
+
+            if use_openai:
+                try:
+                    tp = "max_completion_tokens" if "gpt-5" in self.model else "max_tokens"
+                    response = await asyncio.wait_for(
+                        client.chat.completions.create(model=self.model, messages=full_messages, tools=tools_openai, temperature=0, **{tp: 2048}),
+                        timeout=30
+                    )
+                except asyncio.TimeoutError:
+                    yield {"type": "error", "message": "⏱ GPT думал слишком долго (>30с). Попробуйте ещё раз — обычно повторный запрос быстрее."}
+                    return
+                except Exception as e:
+                    yield {"type": "error", "message": _format_llm_error(self.provider, e)}
+                    return
+                choice = response.choices[0]
+            else:
+                try:
+                    v2r = await self._assistant.chat(full_messages, pending_action=None)
+                    t = _format_response(_validate_response(_strip_fluff(_humanize(v2r.get("message", ""))), tools_called))
+                    t = _auto_enrich(t, tools_called)
+                    cl, clar = _extract_clarification(t)
+                    if not clar:
+                        cl, clar = _extract_dialog_button(cl)
+                    done = {"type": "done", "message": cl, "actions": v2r.get("actions", []), "pending_action": v2r.get("pending_action")}
+                    if clar:
+                        done["clarification"] = clar
+                    yield done
+                    return
+                except asyncio.TimeoutError:
+                    yield {"type": "error", "message": "⏱ GPT думал слишком долго (>30с). Попробуйте ещё раз — обычно повторный запрос быстрее."}
+                    return
+                except Exception as e:
+                    yield {"type": "error", "message": _format_llm_error(self.provider, e)}
+                    return
+
+            if choice.message.tool_calls:
+                full_messages.append(choice.message.model_dump())
+                for tc in choice.message.tool_calls:
+                    yield {"type": "step", "tool": tc.function.name, "status": "running", "description": _step_description(tc.function.name, tc.function.arguments or "")}
+
+                async def _exec(tc):
+                    name = tc.function.name
+                    args = json.loads(tc.function.arguments) if tc.function.arguments else {}
+                    dup = tracker.check(name, args)
+                    if dup:
+                        return tc.id, name, args, {"error": dup}
+                    if tool_registry.is_dangerous(name):
+                        return tc.id, name, args, {"__pending__": {"tool": name, "args": args, "description": f"{name}: {json.dumps(args, ensure_ascii=False)[:200]}"}}
+                    try:
+                        result = await asyncio.wait_for(tool_registry.execute(name, args), timeout=TOOL_TIMEOUT)
+                    except asyncio.TimeoutError:
+                        result = {"error": f"Таймаут {TOOL_TIMEOUT}с"}
+                    except Exception as e:
+                        result = {"error": str(e)}
+                    return tc.id, name, args, result
+
+                # Parallel tool execution
+                results = await asyncio.gather(*[_exec(tc) for tc in choice.message.tool_calls], return_exceptions=True)
+                pending = None
+                for res in results:
+                    if isinstance(res, Exception):
+                        continue
+                    tc_id, name, args, result = res
+                    tools_called.add(name)
+                    if isinstance(result, dict) and "__pending__" in result:
+                        pending = result["__pending__"]
+                        full_messages.append({"role": "tool", "tool_call_id": tc_id, "content": json.dumps({"status": "pending_confirmation"})})
+                        yield {"type": "step", "tool": name, "status": "done"}
+                        continue
+                    yield {"type": "step", "tool": name, "status": "done"}
+                    actions.append({"tool": name, "args": args})
+                    summary = json.dumps(result, ensure_ascii=False, default=str)
+                    if len(summary) > 8000:
+                        summary = summary[:7000] + "\n...[сокращено]"
+                    full_messages.append({"role": "tool", "tool_call_id": tc_id, "content": summary})
+                if pending:
+                    yield {"type": "done", "message": f"⚙️ Предложено: {pending['description']}\n\nПодтвердить?", "actions": actions, "pending_action": pending}
+                    return
+                continue
+
+            # Final response from LLM
+            raw = choice.message.content or ""
+            t = _format_response(_validate_response(_strip_fluff(_humanize(raw)), tools_called))
+            t = _auto_append_downloads(t, full_messages)
+            t = _auto_enrich(t, tools_called)
+            cl, clar = _extract_clarification(t)
+            if not clar:
+                cl, clar = _extract_dialog_button(cl)
+            # If tokens were already streamed and text was modified by post-processing,
+            # send the full processed text; otherwise frontend already has it via tokens
+            done = {"type": "done", "message": cl, "actions": [{"tool": a["tool"], "args": a.get("args",{})} for a in actions], "pending_action": None}
+            if clar:
+                done["clarification"] = clar
+            yield done
+            return
+
+        yield {"type": "done", "message": "Лимит итераций. Задайте конкретнее.", "actions": [], "pending_action": None}
+
+
+# ═══════════ SSE ENDPOINT ═══════════
+
+async def chat_stream_v3(request, save_history: bool = True):
+    from fastapi.responses import StreamingResponse
+    from models.base import async_session
+    from models.ai_chat import AiChatMessage
+
+    body = await request.json()
+    message = body.get("message", "")
+    session_id = body.get("session_id") or str(uuid.uuid4())
+
+    if not message.strip():
+        async def empty():
+            yield f"data: {json.dumps({'type':'error','message':'Пустое сообщение'})}\n\n"
+        return StreamingResponse(empty(), media_type="text/event-stream")
+
+    try:
+        from api.ai_parser import _get_active_provider, _get_api_key, _get_model
+        provider = _get_active_provider()
+        api_key = _get_api_key(provider)
+        model = _get_model(provider)
+    except Exception:
+        provider = settings.AI_PROVIDER
+        km = {"openai": settings.OPENAI_API_KEY, "claude": settings.CLAUDE_API_KEY, "gemini": settings.GEMINI_API_KEY, "grok": settings.GROK_API_KEY}
+        mm = {"openai": settings.OPENAI_MODEL, "claude": settings.CLAUDE_MODEL, "gemini": settings.GEMINI_MODEL, "grok": settings.GROK_MODEL}
+        api_key = km.get(provider, "")
+        model = mm.get(provider, "")
+
+    messages = []
+    try:
+        async with async_session() as db:
+            rows = (await db.execute(select(AiChatMessage).where(AiChatMessage.session_id == session_id).order_by(AiChatMessage.created_at).limit(20))).scalars().all()
+            for row in rows:
+                if row.role in ("user", "assistant"):
+                    messages.append({"role": row.role, "content": row.content})
+    except Exception:
+        pass
+
+    messages.append({"role": "user", "content": message})
+    engine = SanekV3Engine(provider=provider, api_key=api_key, model=model, conv_id=session_id)
+
+    async def gen():
+        last_resp = ""
+        try:
+            async for event in engine.chat_stream(messages, None):
+                if event.get("type") == "done":
+                    last_resp = event.get("message", "")
+                    event["session_id"] = session_id
+                yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
+        except Exception as e:
+            logger.error("V3 stream: %s", e, exc_info=True)
+            yield f"data: {json.dumps({'type':'error','message':str(e)})}\n\n"
+        if save_history and session_id:
+            try:
+                async with async_session() as db:
+                    db.add(AiChatMessage(session_id=session_id, role="user", content=message))
+                    if last_resp:
+                        db.add(AiChatMessage(session_id=session_id, role="assistant", content=last_resp))
+                    await db.commit()
+            except Exception:
+                pass
+
+    return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

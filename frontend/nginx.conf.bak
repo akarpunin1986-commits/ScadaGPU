@@ -1,0 +1,75 @@
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+    index scada-v5.html;
+
+    resolver 127.0.0.11 valid=10s;
+    set $backend_upstream http://backend:8000;
+
+    # SSE streaming — BEFORE /api/ai/ to match first
+    # SSE streaming - BEFORE /api/ai/ to match first
+    location /api/ai/chat/stream {
+        proxy_pass $backend_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 180s;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header X-Accel-Buffering no;
+    }
+
+    # AI agent proxy
+    location /api/ai/ {
+        proxy_pass $backend_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 180s;
+        client_max_body_size 25m;
+    }
+
+    # Alarm analytics explain
+    location /api/alarm-analytics/ {
+        proxy_pass $backend_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 120s;
+    }
+
+    # API proxy
+    location /api/ {
+        proxy_pass $backend_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 30s;
+    }
+
+    # WebSocket proxy
+    location /ws/ {
+        proxy_pass $backend_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 86400s;
+    }
+
+    location /health {
+        proxy_pass $backend_upstream;
+    }
+
+    location / {
+        try_files $uri $uri/ /scada-v5.html;
+        add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
+        add_header Pragma "no-cache";
+        etag off;
+        if_modified_since off;
+        expires -1;
+    }
+}

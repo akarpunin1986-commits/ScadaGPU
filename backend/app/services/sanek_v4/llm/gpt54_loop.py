@@ -27,28 +27,15 @@ logger = logging.getLogger("sanek_v4.gpt54")
 _RETRY_WAITS = [3, 6, 12, 20, 30]
 _MAX_RETRIES = 5
 
-# ── Singleton OpenAI client (persistent TCP/TLS through VPN) ──
-_openai_client: openai.AsyncOpenAI | None = None
-
+# ── OpenAI client factory (fresh connections for VPN reliability) ──
 
 def _get_openai_client() -> openai.AsyncOpenAI:
-    global _openai_client
-    if _openai_client is None:
-        import httpx as _httpx
-        _openai_client = openai.AsyncOpenAI(
-            api_key=settings.OPENAI_API_KEY,
-            timeout=180,
-            max_retries=0,
-            http_client=_httpx.AsyncClient(
-                timeout=180,
-                limits=_httpx.Limits(
-                    max_connections=5,
-                    max_keepalive_connections=3,
-                    keepalive_expiry=300,  # 5 min keep-alive
-                ),
-            ),
-        )
-    return _openai_client
+    """Create OpenAI client. No connection pooling — each iteration gets fresh TCP."""
+    return openai.AsyncOpenAI(
+        api_key=settings.OPENAI_API_KEY,
+        timeout=300.0,      # 5min total timeout (GPT-5.4 can think 60-90s)
+        max_retries=0,
+    )
 
 
 class GPT54AgentLoop:
@@ -209,7 +196,7 @@ class GPT54AgentLoop:
                         continue
                     break
 
-                except (openai.APIError, openai.APITimeoutError) as e:
+                except (openai.APIError, openai.APITimeoutError, openai.APIConnectionError) as e:
                     last_error = e
                     err_str = str(e).lower()
                     is_retryable = "timeout" in err_str or "server" in err_str or "overloaded" in err_str

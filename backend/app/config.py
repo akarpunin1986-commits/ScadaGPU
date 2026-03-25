@@ -95,6 +95,8 @@ class Settings(BaseSettings):
     BITRIX24_SANEK_WEBHOOK_URL: str = ""
 
     # Task manager
+    B24_TASK_GROUP_ID: int = 46
+    B24_SANEK_USER_ID: int = 102
     TM_DEDUP_WINDOW_DAYS: int = 7
     TM_ESCALATION_COOLDOWN_HOURS: int = 24
     TM_HOURS_MONITOR_INTERVAL: int = 300

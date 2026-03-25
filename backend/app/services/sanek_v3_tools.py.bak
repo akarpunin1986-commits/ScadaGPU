@@ -1,0 +1,778 @@
+"""
+САНЁК v3 — Tool Layer.
+Прямой Redis/PostgreSQL. Tool Registry. Device-type agnostic.
+Сложные tools делегируют в v2 через execute_tool.
+Включает tools самообучения: get_action_effectiveness.
+"""
+from __future__ import annotations
+
+import asyncio, json, logging
+from datetime import datetime, timedelta
+from typing import Any, Callable, Optional
+
+from sqlalchemy import select, and_, or_, func, desc, text
+from sqlalchemy.orm import selectinload
+
+from config import settings
+from models.base import async_session
+from models.device import Device, DeviceType
+from models.site import Site
+from models.alarm_event import AlarmEvent
+from models.scada_event import ScadaEvent
+from models.metrics_data import MetricsData
+from models.maintenance import MaintenanceLog
+from models.maintenance_alert import MaintenanceAlert
+from models.ai_knowledge import AiKnowledgeChunk
+from models.sanek_memory import SanekMemory
+from models.sanek_action import SanekAction
+from models.gas_price import GasPrice
+from models.device_type_registry import DeviceTypeRegistry
+from models.sop_procedure import SopProcedure
+from services.reference_cache import definitions_cache
+
+logger = logging.getLogger("sanek.v3.tools")
+
+_API_BASE = "http://127.0.0.1:8000"
+
+# ═══════════ REDIS SINGLETON ═══════════
+
+_redis_client = None
+
+async def _get_redis():
+    """Lazy Redis singleton. Единственное определение для всего v3."""
+    global _redis_client
+    if _redis_client is None:
+        from redis.asyncio import Redis as AioRedis
+        _redis_client = AioRedis.from_url(settings.REDIS_URL, decode_responses=True)
+    return _redis_client
+
+
+# ═══════════ TOOL REGISTRY ═══════════
+
+class ToolRegistry:
+    def __init__(self):
+        self._tools: dict[str, dict] = {}
+        self._dangerous: set[str] = set()
+
+    def tool(self, name: str, description: str, parameters: dict,
+             required: list[str] = None, dangerous: bool = False):
+        def decorator(func: Callable):
+            self._tools[name] = {
+                "func": func,
+                "definition": {
+                    "name": name, "description": description,
+                    "parameters": {"type": "object", "properties": parameters, "required": required or []},
+                },
+            }
+            if dangerous:
+                self._dangerous.add(name)
+            return func
+        return decorator
+
+    async def execute(self, name: str, args: dict) -> dict:
+        entry = self._tools.get(name)
+        if not entry:
+            return {"error": f"Неизвестный tool: {name}"}
+        try:
+            return await entry["func"](**args)
+        except Exception as e:
+            logger.error("Tool %s error: %s", name, e, exc_info=True)
+            return {"error": f"Ошибка {name}: {str(e)}"}
+
+    def is_dangerous(self, name: str) -> bool:
+        return name in self._dangerous
+
+    def get_openai_tools(self) -> list[dict]:
+        return [{"type": "function", "function": t["definition"]} for t in self._tools.values()]
+
+    @property
+    def tool_names(self) -> set[str]:
+        return set(self._tools.keys())
+
+
+registry = ToolRegistry()
+
+
+# ═══════════ HELPERS ═══════════
+
+async def _get_cached_device_types() -> dict:
+    cached = definitions_cache.get("device_types")
+    if cached is not None:
+        return cached
+    async with async_session() as db:
+        rows = (await db.execute(select(DeviceTypeRegistry))).scalars().all()
+        result = {}
+        for r in rows:
+            result[r.type_code] = {
+                "display_name": r.display_name, "metrics_schema": r.metrics_schema or {},
+                "thresholds": r.thresholds or {}, "statuses": r.statuses or {},
+                "nominal_values": r.nominal_values or {},
+                "status_field": r.status_field, "running_status_code": r.running_status_code,
+            }
+    definitions_cache.set("device_types", result)
+    return result
+
+def _utc_to_msk(dt) -> str:
+    if not dt:
+        return ""
+    if isinstance(dt, str):
+        try:
+            dt = datetime.fromisoformat(dt.replace("Z", "").replace("+00:00", ""))
+        except Exception:
+            return dt
+    return (dt + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M MSK")
+
+
+# ═══════════════════════════════════════════════════
+# TOOLS: ДАННЫЕ
+# ═══════════════════════════════════════════════════
+
+@registry.tool(name="get_system_summary", description="Полная сводка ВСЕХ объектов: устройства, мощность, статусы, аварии. ИСПОЛЬЗУЙ для вопросов про объект/площадку (потребление/статус/сводка МКЗ/ЯКЗ).", parameters={})
+async def get_system_summary(**kwargs):
+    redis = await _get_redis()
+    device_types = await _get_cached_device_types()
+    async with async_session() as db:
+        sites = (await db.execute(select(Site).where(Site.is_active == True).options(selectinload(Site.devices)))).scalars().all()
+        active_alarms = (await db.execute(select(AlarmEvent).where(AlarmEvent.is_active == True))).scalars().all()
+        alarm_by_device = {}
+        for a in active_alarms:
+            alarm_by_device.setdefault(a.device_id, []).append({"code": a.alarm_code, "severity": a.severity, "message": a.message, "since": _utc_to_msk(a.occurred_at)})
+    result = {"sites": [], "total_alarms": len(active_alarms)}
+    for site in sites:
+        sd = {"id": site.id, "name": site.name, "code": site.code, "devices": [], "gen_power_kw": 0, "mains_power_kw": 0}
+        for device in site.devices:
+            if not device.is_active:
+                continue
+            raw = await redis.get(f"device:{device.id}:metrics")
+            m = json.loads(raw) if raw else {}
+            dtype = device.device_type.value
+            ti = device_types.get(dtype, {})
+            sf = ti.get("status_field", "gen_status")
+            sc = m.get(sf)
+            sl = ti.get("statuses", {}).get(str(sc), f"status={sc}")
+            rc = ti.get("running_status_code", 9)
+            running = (sc == rc and m.get("online", False))
+            pwr = m.get("power_total", 0) if dtype == "generator" else m.get("mains_total_p", 0)
+            if dtype == "generator" and running:
+                sd["gen_power_kw"] += pwr or 0
+            elif dtype == "ats":
+                sd["mains_power_kw"] = pwr or 0
+            di = {"id": device.id, "name": device.name, "type": dtype, "online": m.get("online", False), "status": sl, "is_running": running, "power_kw": round(pwr or 0, 1), "nominal_kw": ti.get("nominal_values", {}).get("power")}
+            if dtype == "generator":
+                di.update({"coolant_temp": m.get("coolant_temp"), "oil_pressure": m.get("oil_pressure"), "engine_speed": m.get("engine_speed"), "run_hours": m.get("run_hours")})
+            al = alarm_by_device.get(device.id, [])
+            if al:
+                di["alarms"] = al
+            if not m.get("online"):
+                di["warning"] = "НЕТ СВЯЗИ"
+            elif not running and dtype == "generator":
+                di["warning"] = f"ОСТАНОВЛЕН ({sl})"
+            sd["devices"].append(di)
+        sd["total_power_kw"] = round(sd["gen_power_kw"] + sd["mains_power_kw"], 1)
+        result["sites"].append(sd)
+    return result
+
+
+@registry.tool(name="get_metrics", description="Текущие метрики устройства из Redis.", parameters={"device_id": {"type": "integer", "description": "ID устройства"}}, required=["device_id"])
+async def get_metrics(device_id: int, **kwargs):
+    redis = await _get_redis()
+    raw = await redis.get(f"device:{device_id}:metrics")
+    if not raw:
+        return {"error": f"Нет данных для device_id={device_id}"}
+    metrics = json.loads(raw)
+    dtype = metrics.get("device_type", "generator")
+    types = await _get_cached_device_types()
+    thresholds = types.get(dtype, {}).get("thresholds", {})
+    assessments = {}
+    for mk, rules in thresholds.items():
+        v = metrics.get(mk)
+        if v is None:
+            continue
+        a = "normal"
+        if "critical" in rules and v >= rules["critical"]:
+            a = "critical"
+        elif "critical_low" in rules and v <= rules["critical_low"]:
+            a = "critical"
+        elif "warn" in rules and v >= rules["warn"]:
+            a = "warning"
+        elif "warn_low" in rules and v <= rules["warn_low"]:
+            a = "warning"
+        if a != "normal":
+            assessments[mk] = {"level": a, "value": v, "thresholds": rules}
+    if assessments:
+        metrics["_assessments"] = assessments
+    return metrics
+
+
+@registry.tool(name="get_alarms", description="Текущие АКТИВНЫЕ аварии.", parameters={"device_id": {"type": "integer", "description": "ID устройства (опц.)"}, "site_id": {"type": "integer", "description": "ID объекта (опц.)"}})
+async def get_alarms(device_id: int = None, site_id: int = None, **kwargs):
+    async with async_session() as db:
+        q = select(AlarmEvent).where(AlarmEvent.is_active == True)
+        if device_id:
+            q = q.where(AlarmEvent.device_id == device_id)
+        alarms = (await db.execute(q.order_by(AlarmEvent.occurred_at.desc()))).scalars().all()
+        if site_id and not device_id:
+            sdi = set((await db.execute(select(Device.id).where(Device.site_id == site_id))).scalars().all())
+            alarms = [a for a in alarms if a.device_id in sdi]
+        dids = {a.device_id for a in alarms}
+        dn = {}
+        if dids:
+            devs = (await db.execute(select(Device).where(Device.id.in_(dids)))).scalars().all()
+            dn = {d.id: d.name for d in devs}
+        return {"alarms": [{"device_id": a.device_id, "device_name": dn.get(a.device_id, f"#{a.device_id}"), "alarm_code": a.alarm_code, "severity": a.severity, "message": a.message, "since": _utc_to_msk(a.occurred_at), "duration_min": round((datetime.utcnow() - a.occurred_at).total_seconds() / 60, 1) if a.occurred_at else 0} for a in alarms], "count": len(alarms)}
+
+
+@registry.tool(name="get_alarm_history", description="Архив аварий за период.", parameters={"device_id": {"type": "integer", "description": "ID устройства (опц.)"}, "last_hours": {"type": "integer", "description": "За N часов (168)"}, "limit": {"type": "integer", "description": "Макс записей (100)"}})
+async def get_alarm_history(device_id: int = None, last_hours: int = 168, limit: int = 100, **kwargs):
+    async with async_session() as db:
+        cutoff = datetime.utcnow() - timedelta(hours=last_hours)
+        q = select(AlarmEvent).where(or_(AlarmEvent.occurred_at >= cutoff, AlarmEvent.is_active == True))
+        if device_id:
+            q = q.where(AlarmEvent.device_id == device_id)
+        alarms = (await db.execute(q.order_by(AlarmEvent.occurred_at.desc()).limit(limit))).scalars().all()
+        dids = {a.device_id for a in alarms}
+        dn = {d.id: d.name for d in (await db.execute(select(Device).where(Device.id.in_(dids)))).scalars().all()} if dids else {}
+        return [{"device_id": a.device_id, "device_name": dn.get(a.device_id, f"#{a.device_id}"), "alarm_code": a.alarm_code, "severity": a.severity, "message": a.message, "occurred_at": _utc_to_msk(a.occurred_at), "cleared_at": _utc_to_msk(a.cleared_at), "is_active": a.is_active} for a in alarms]
+
+
+@registry.tool(name="get_events", description="Журнал событий: запуски, остановки, переключения.", parameters={"device_id": {"type": "integer", "description": "ID (опц.)"}, "site_id": {"type": "integer", "description": "ID объекта (опц.)"}, "last_hours": {"type": "integer", "description": "N часов (24)"}, "limit": {"type": "integer", "description": "Макс (100)"}})
+async def get_events(device_id: int = None, site_id: int = None, last_hours: int = 24, limit: int = 100, **kwargs):
+    async with async_session() as db:
+        cutoff = datetime.utcnow() - timedelta(hours=last_hours)
+        q = select(ScadaEvent).where(ScadaEvent.created_at >= cutoff)
+        if device_id:
+            q = q.where(ScadaEvent.device_id == device_id)
+        elif site_id:
+            q = q.where(ScadaEvent.device_id.in_((await db.execute(select(Device.id).where(Device.site_id == site_id))).scalars().all()))
+        return [{"device_id": e.device_id, "category": e.category, "event_code": e.event_code, "message": e.message, "time": _utc_to_msk(e.created_at)} for e in (await db.execute(q.order_by(ScadaEvent.created_at.desc()).limit(limit))).scalars().all()]
+
+
+@registry.tool(name="get_history", description="История метрик с downsampling.", parameters={"device_id": {"type": "integer", "description": "ID устройства"}, "last_hours": {"type": "integer", "description": "N часов (24)"}, "fields": {"type": "string", "description": "Поля через запятую (опц.)"}}, required=["device_id"])
+async def get_history(device_id: int, last_hours: int = 24, fields: str = None, **kwargs):
+    async with async_session() as db:
+        cutoff = datetime.utcnow() - timedelta(hours=last_hours)
+        device = await db.get(Device, device_id)
+        if not device:
+            return {"error": f"Устройство {device_id} не найдено"}
+        dtype = device.device_type.value
+        if not fields:
+            fields = {"generator": "power_total,coolant_temp,oil_pressure,engine_speed,energy_kwh", "ats": "mains_total_p,busbar_p,energy_kwh"}.get(dtype, "power_total")
+        fl = [f.strip() for f in fields.split(",")]
+        # Smart downsampling: always aggregate to keep response small
+        if last_hours > 168:
+            bucket = "day"
+        elif last_hours > 48:
+            bucket = "hour"
+        else:
+            bucket = "hour"  # 24h => hourly = max 24 points
+        tt = func.date_trunc(bucket, MetricsData.timestamp)
+        agg_cols = [tt.label("bucket")]
+        for f in fl:
+            if hasattr(MetricsData, f):
+                col = getattr(MetricsData, f)
+                if f == "energy_kwh":
+                    agg_cols.append(func.min(col).label(f"{f}_min"))
+                    agg_cols.append(func.max(col).label(f"{f}_max"))
+                else:
+                    agg_cols.append(func.avg(col).label(f))
+                    agg_cols.append(func.min(col).label(f"{f}_min"))
+                    agg_cols.append(func.max(col).label(f"{f}_max"))
+        rows = (await db.execute(select(*agg_cols).where(and_(MetricsData.device_id == device_id, MetricsData.timestamp >= cutoff)).group_by(tt).order_by(tt))).all()
+        result = []
+        for r in rows:
+            point = {"timestamp": _utc_to_msk(r.bucket)}
+            for f in fl:
+                if f == "energy_kwh":
+                    point[f"energy_min"] = round(getattr(r, f"{f}_min", None) or 0, 2)
+                    point[f"energy_max"] = round(getattr(r, f"{f}_max", None) or 0, 2)
+                    point[f"energy_delta"] = round((getattr(r, f"{f}_max", None) or 0) - (getattr(r, f"{f}_min", None) or 0), 2)
+                else:
+                    point[f] = round(getattr(r, f, None) or 0, 2)
+                    point[f"{f}_min"] = round(getattr(r, f"{f}_min", None) or 0, 2)
+                    point[f"{f}_max"] = round(getattr(r, f"{f}_max", None) or 0, 2)
+            result.append(point)
+        return result
+
+
+@registry.tool(name="get_maintenance_status", description="Статус ТО: моточасы, следующее ТО.", parameters={"device_id": {"type": "integer", "description": "ID устройства"}}, required=["device_id"])
+async def get_maintenance_status(device_id: int, **kwargs):
+    redis = await _get_redis()
+    raw = await redis.get(f"device:{device_id}:metrics")
+    rh = json.loads(raw).get("run_hours", 0) if raw else 0
+    async with async_session() as db:
+        ll = (await db.execute(select(MaintenanceLog).where(MaintenanceLog.device_id == device_id).order_by(MaintenanceLog.performed_at.desc()).limit(1))).scalar_one_or_none()
+        als = (await db.execute(select(MaintenanceAlert).where(and_(MaintenanceAlert.device_id == device_id, MaintenanceAlert.status != "resolved")))).scalars().all()
+    return {"device_id": device_id, "run_hours": rh, "last_maintenance": {"date": _utc_to_msk(ll.performed_at), "hours_at": ll.engine_hours} if ll else None, "alerts": [{"severity": str(a.severity), "message": a.message, "hours_remaining": a.hours_remaining} for a in als]}
+
+
+@registry.tool(name="get_economics_report", description="Экономика: газ, выработка, себестоимость.", parameters={"site_id": {"type": "integer", "description": "ID объекта"}, "last_days": {"type": "integer", "description": "N дней (7)"}}, required=["site_id"])
+async def get_economics_report(site_id: int, last_days: int = 7, **kwargs):
+    """Uses the same calculation as the dashboard economics endpoint."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(f"http://localhost:8000/api/economics/report/{site_id}", params={"last_days": last_days})
+            if resp.status_code == 200:
+                data = resp.json()
+                days = data.get("days", [])
+                totals = data.get("totals", {})
+                # Build readable daily breakdown
+                daily = []
+                for d in days:
+                    daily.append({
+                        "date": d.get("date", ""),
+                        "energy_kwh": round(d.get("energy_kwh", 0), 1),
+                        "gas_m3": round(d.get("gas_m3", 0), 1),
+                        "gas_cost_rub": round(d.get("cost_rub", 0) or 0, 0),
+                        "cost_per_kwh": d.get("cost_per_kwh", 0),
+                        "devices": d.get("devices", []),
+                    })
+                te = totals.get("energy_kwh", 0)
+                tg = totals.get("gas_m3", 0)
+                tc = totals.get("total_cost", 0) or 0
+                avg_cost = totals.get("avg_cost_per_kwh", 0) or 0
+                # Get grid price
+                async with async_session() as db:
+                    site = await db.get(Site, site_id)
+                    grid_price = getattr(site, 'grid_price_kwh', None) or 8.0
+                savings = round(te * grid_price - tc, 0) if te and tc else 0
+                sign = "+" if savings >= 0 else ""
+                effect = "ЭКОНОМИЯ" if savings >= 0 else "УБЫТОК"
+                diff_word = "дешевле" if savings >= 0 else "дороже"
+                diff_val = round(abs(avg_cost - grid_price), 2)
+                summary = f"{effect}: {sign}{savings} руб | Генерация {diff_word} сети на {diff_val} руб/кВт*ч"
+                return {
+                    "site_id": site_id,
+                    "period_days": last_days,
+                    "grid_price_per_kwh": grid_price,
+                    "daily": daily,
+                    "totals": {
+                        "energy_kwh": round(te, 1),
+                        "gas_m3": round(tg, 1),
+                        "gas_cost_rub": round(tc, 0),
+                        "avg_cost_per_kwh": round(avg_cost, 2),
+                        "savings_vs_grid_rub": savings,
+                        "summary": summary,
+                    },
+                }
+            else:
+                return {"error": f"Economics API returned {resp.status_code}"}
+    except Exception as e:
+        return {"error": f"Economics API error: {str(e)}"}
+
+
+@registry.tool(name="search_knowledge", description="Поиск в базе знаний (мануалы SmartGen).", parameters={"query": {"type": "string", "description": "Запрос"}}, required=["query"])
+async def search_knowledge(query: str, **kwargs):
+    try:
+        import chromadb
+        cl = chromadb.HttpClient(host="chromadb", port=8000)
+        col = cl.get_or_create_collection("scada_knowledge")
+        if col.count() > 0:
+            res = col.query(query_texts=[query], n_results=5)
+            if res and res.get("documents") and res["documents"][0]:
+                return {"results": [{"content": d[:1500], "source": (mt or {}).get("source", "")} for d, mt in zip(res["documents"][0], (res.get("metadatas") or [[]])[0] or [{}]*5)], "count": len(res["documents"][0]), "method": "vector"}
+    except Exception:
+        pass
+    async with async_session() as db:
+        words = [w for w in query.split() if len(w) >= 3]
+        if not words:
+            return {"results": [], "count": 0}
+        chunks = (await db.execute(select(AiKnowledgeChunk).where(or_(*[AiKnowledgeChunk.content.ilike(f"%{w}%") for w in words])).limit(5))).scalars().all()
+        return {"results": [{"title": c.title, "content": c.content[:1500], "source": c.source_filename} for c in chunks], "count": len(chunks), "method": "ilike"}
+
+
+@registry.tool(name="get_equipment_context", description="Контекст установки (ГПУ): состав, назначение, ответственный.", parameters={"unit_code": {"type": "string", "description": "mkz_gpu / yakz_gpu"}, "device_id": {"type": "integer", "description": "ID устройства → найдёт установку"}})
+async def get_equipment_context(unit_code: str = None, device_id: int = None, **kwargs):
+    from models.equipment_unit import EquipmentUnit
+    async with async_session() as db:
+        unit = None
+        if unit_code:
+            unit = (await db.execute(select(EquipmentUnit).where(EquipmentUnit.code == unit_code))).scalar_one_or_none()
+        elif device_id:
+            dev = await db.get(Device, device_id)
+            if dev and getattr(dev, 'unit_id', None):
+                unit = await db.get(EquipmentUnit, dev.unit_id)
+        if not unit:
+            return {"error": "Установка не найдена"}
+        devs = (await db.execute(select(Device).where(Device.unit_id == unit.id))).scalars().all()
+        return {"unit": {"id": unit.id, "name": unit.name, "type": unit.unit_type, "power_kw": unit.total_power_kw, "description": unit.description, "purpose": unit.purpose, "components": unit.components, "infrastructure": unit.infrastructure, "responsible": unit.responsible_person, "notes": unit.notes}, "devices": [{"id": d.id, "name": d.name, "type": d.device_type.value, "role": getattr(d, 'role_in_unit', None), "notes": getattr(d, 'instance_notes', None)} for d in devs]}
+
+
+# ═══════════ TOOLS: ДЕЙСТВИЯ ═══════════
+
+@registry.tool(name="propose_action", description="Предложить действие (требует подтверждения).", parameters={"device_id": {"type": "integer"}, "action_type": {"type": "string", "enum": ["set_power_limit", "start_generator", "stop_generator"]}, "params": {"type": "object"}, "reason": {"type": "string"}}, required=["device_id", "action_type", "reason"], dangerous=True)
+async def propose_action(device_id: int, action_type: str, reason: str, params: dict = None, **kwargs):
+    async with async_session() as db:
+        a = SanekAction(device_id=device_id, action_type=action_type, params=params or {}, reason=reason, status="proposed")
+        db.add(a)
+        await db.commit()
+        await db.refresh(a)
+        return {"action_id": a.id, "status": "proposed", "description": f"{action_type} device_id={device_id}: {reason}", "requires_confirmation": True}
+
+
+@registry.tool(name="execute_action", description="Выполнить подтверждённое действие.", parameters={"action_id": {"type": "integer"}}, required=["action_id"], dangerous=True)
+async def execute_action(action_id: int, **kwargs):
+    import httpx
+    # Snapshot ПЕРЕД действием (для outcome tracking)
+    before_snapshot = {}
+    async with async_session() as db:
+        action = await db.get(SanekAction, action_id)
+        if not action:
+            return {"error": f"Действие {action_id} не найдено"}
+        if action.status != "proposed":
+            return {"error": f"Статус {action.status}, ожидается proposed"}
+        action.status = "executing"
+        action.confirmed_at = datetime.utcnow()
+        await db.commit()
+
+        # Before-snapshot
+        redis = await _get_redis()
+        raw = await redis.get(f"device:{action.device_id}:metrics")
+        if raw:
+            m = json.loads(raw)
+            before_snapshot = {k: m.get(k) for k in ['power_total', 'coolant_temp', 'oil_pressure', 'gen_status', 'engine_speed']}
+
+    try:
+        async with httpx.AsyncClient(base_url=_API_BASE, timeout=15) as c:
+            if action.action_type == "set_power_limit":
+                result = (await c.post(f"/api/devices/{action.device_id}/power-limit", json=action.params)).json()
+            elif action.action_type in ("start_generator", "stop_generator"):
+                cmd = "start" if "start" in action.action_type else "stop"
+                result = (await c.post("/api/commands", json={"device_id": action.device_id, "function_code": 5, "address": 0 if cmd == "start" else 1, "value": 0xFF00})).json()
+            else:
+                result = {"error": f"Неизвестный тип: {action.action_type}"}
+    except Exception as e:
+        result = {"error": str(e)}
+
+    # Сохранить результат + before-snapshot
+    result_with_snapshot = {**result, "_before_snapshot": before_snapshot}
+    async with async_session() as db:
+        action = await db.get(SanekAction, action_id)
+        action.status = "completed" if "error" not in result else "failed"
+        action.executed_at = datetime.utcnow()
+        action.result = result_with_snapshot
+        if "error" in result:
+            action.error = result["error"]
+        await db.commit()
+
+    # ═══ SELF-LEARNING: Outcome Tracking ═══
+    if action.status == "completed":
+        try:
+            from services.outcome_tracker import ActionOutcomeTracker
+            tracker = ActionOutcomeTracker()
+            asyncio.create_task(tracker.schedule_tracking(action_id))
+        except Exception as e:
+            logger.warning("Outcome tracker: %s", e)
+
+    return result
+
+
+# ═══════════ TOOLS: ПАМЯТЬ ═══════════
+
+@registry.tool(name="remember", description="Запомнить инструкцию/факт/предпочтение.", parameters={"content": {"type": "string"}, "category": {"type": "string", "enum": ["instruction", "fact", "preference", "context"]}}, required=["content", "category"])
+async def remember(content: str, category: str = "instruction", **kwargs):
+    async with async_session() as db:
+        if (await db.execute(select(SanekMemory).where(and_(SanekMemory.content == content, SanekMemory.is_active == True)))).scalar_one_or_none():
+            return {"status": "already_exists"}
+        mem = SanekMemory(content=content, category=category, source="user")
+        db.add(mem)
+        await db.commit()
+        return {"status": "saved", "id": mem.id}
+
+
+@registry.tool(name="recall", description="Вспомнить сохранённое.", parameters={"query": {"type": "string"}, "category": {"type": "string", "enum": ["instruction", "fact", "preference", "context"]}})
+async def recall(query: str = None, category: str = None, **kwargs):
+    async with async_session() as db:
+        q = select(SanekMemory).where(SanekMemory.is_active == True).order_by(desc(SanekMemory.created_at)).limit(30)
+        if category:
+            q = q.where(SanekMemory.category == category)
+        if query:
+            words = [w for w in query.split() if len(w) >= 3]
+            if words:
+                q = q.where(or_(*(SanekMemory.content.ilike(f"%{w}%") for w in words)))
+        rows = (await db.execute(q)).scalars().all()
+        return {"memories": [{"id": r.id, "category": r.category, "content": r.content} for r in rows], "count": len(rows)}
+
+
+# ═══════════ TOOLS: САМООБУЧЕНИЕ ═══════════
+
+@registry.tool(name="get_action_effectiveness", description="Статистика эффективности действий: какие помогали, какие нет.", parameters={"action_type": {"type": "string", "description": "Тип действия (опц.)"}, "device_id": {"type": "integer", "description": "ID устройства (опц.)"}})
+async def get_action_effectiveness(action_type: str = None, device_id: int = None, **kwargs):
+    async with async_session() as db:
+        q = select(SanekAction).where(SanekAction.status == "completed")
+        if action_type:
+            q = q.where(SanekAction.action_type == action_type)
+        if device_id:
+            q = q.where(SanekAction.device_id == device_id)
+        actions = (await db.execute(q.order_by(SanekAction.executed_at.desc()).limit(50))).scalars().all()
+        stats = {"total": 0, "better": 0, "same": 0, "worse": 0, "unknown": 0}
+        for a in actions:
+            outcomes = getattr(a, 'outcome_analysis', None) or []
+            if not outcomes:
+                stats["unknown"] += 1
+                continue
+            last = outcomes[-1]
+            v = last.get('assessment', 'unknown')
+            stats[v] = stats.get(v, 0) + 1
+            stats["total"] += 1
+        stats["effectiveness_pct"] = round(stats["better"] / stats["total"] * 100, 1) if stats["total"] > 0 else 0
+        return stats
+
+
+# ═══════════ TOOLS: ДЕЛЕГИРОВАНИЕ В V2 ═══════════
+
+@registry.tool(name="analyze_incident", description="Глубокий анализ инцидента: аварии, метрики, потери.", parameters={"site_id": {"type": "integer"}, "device_id": {"type": "integer"}, "last_hours": {"type": "integer"}})
+async def analyze_incident(site_id: int = None, device_id: int = None, last_hours: int = 24, **kwargs):
+    from services.sanek import execute_tool as v2_exec
+    return await v2_exec("analyze_incident", {"site_id": site_id, "device_id": device_id, "last_hours": last_hours})
+
+
+@registry.tool(
+    name="get_energy_report",
+    description="Отчёт по энергии/потреблению за период. Выработка генераторов, потребление из сети, энергобаланс. ИСПОЛЬЗУЙ для вопросов: потребление/выработка/энергия за N часов/дней.",
+    parameters={
+        "site_id": {"type": "integer", "description": "ID объекта (3=МКЗ, 5=ЯКЗ). Если не указан — оба."},
+        "last_hours": {"type": "integer", "description": "За N часов (24)"},
+    }
+)
+async def get_energy_report(site_id: int = None, last_hours: int = 24, **kwargs):
+    async with async_session() as db:
+        cutoff = datetime.utcnow() - timedelta(hours=last_hours)
+        site_ids = [site_id] if site_id else [3, 5]
+        result = {"period_hours": last_hours, "sites": []}
+
+        for sid in site_ids:
+            site = await db.get(Site, sid)
+            if not site:
+                continue
+            devices = (await db.execute(
+                select(Device).where(and_(Device.site_id == sid, Device.is_active == True))
+            )).scalars().all()
+
+            site_data = {
+                "site_id": sid, "site_name": site.name, "site_code": site.code,
+                "generators": [], "ats": None,
+                "total_gen_energy_kwh": 0, "total_mains_energy_kwh": 0,
+            }
+
+            for dev in devices:
+                dtype = dev.device_type.value
+                p_field = "power_total" if dtype == "generator" else "mains_total_p"
+                p_col = getattr(MetricsData, p_field, MetricsData.power_total)
+
+                # Single query: all aggregates at once
+                row = (await db.execute(
+                    select(
+                        func.min(MetricsData.energy_kwh).label("e_min"),
+                        func.max(MetricsData.energy_kwh).label("e_max"),
+                        func.avg(p_col).label("p_avg"),
+                        func.min(p_col).label("p_min"),
+                        func.max(p_col).label("p_max"),
+                        func.count().label("cnt"),
+                    ).where(and_(
+                        MetricsData.device_id == dev.id,
+                        MetricsData.timestamp >= cutoff
+                    ))
+                )).one()
+
+                energy = round(float(row.e_max - row.e_min), 1) if row.e_max is not None and row.e_min is not None else 0
+
+                dev_data = {
+                    "device_id": dev.id,
+                    "name": dev.name,
+                    "type": dtype,
+                    "energy_kwh": energy,
+                    "power_avg_kw": round(float(row.p_avg), 1) if row.p_avg else 0,
+                    "power_min_kw": round(float(row.p_min), 1) if row.p_min else 0,
+                    "power_max_kw": round(float(row.p_max), 1) if row.p_max else 0,
+                    "records": row.cnt or 0,
+                }
+
+                if dtype == "generator":
+                    site_data["generators"].append(dev_data)
+                    site_data["total_gen_energy_kwh"] += energy
+                else:
+                    site_data["ats"] = dev_data
+                    site_data["total_mains_energy_kwh"] = energy
+
+            site_data["total_gen_energy_kwh"] = round(site_data["total_gen_energy_kwh"], 1)
+            site_data["total_mains_energy_kwh"] = round(site_data["total_mains_energy_kwh"], 1)
+            result["sites"].append(site_data)
+
+        return result
+
+
+@registry.tool(name="query_data", description="Универсальный SQL-запрос к metrics_data. Для аналитики, агрегации, трендов.", parameters={"device_ids": {"type": "array", "items": {"type": "integer"}, "description": "ID устройств"}, "fields": {"type": "array", "items": {"type": "string"}, "description": "Поля: power_total, energy_kwh, coolant_temp, oil_pressure, engine_speed, mains_total_p, busbar_p, frequency, run_hours"}, "last_hours": {"type": "integer", "description": "За N часов (24)"}, "aggregation": {"type": "string", "enum": ["avg","min","max","sum","count","none"], "description": "Агрегация (avg)"}, "group_by": {"type": "string", "enum": ["device","hour","day"], "description": "Группировка (device)"}}, required=["device_ids", "fields"])
+async def query_data(device_ids: list = None, fields: list = None, last_hours: int = 24, aggregation: str = "avg", group_by: str = "device", **kwargs):
+    async with async_session() as db:
+        cutoff = datetime.utcnow() - timedelta(hours=last_hours)
+        if not device_ids or not fields:
+            return {"error": "device_ids and fields required"}
+        valid_fields = {f for f in fields if hasattr(MetricsData, f)}
+        if not valid_fields:
+            return {"error": f"Invalid fields: {fields}"}
+        results = []
+        if group_by == "device":
+            for did in device_ids:
+                dev = await db.get(Device, did)
+                dname = dev.name if dev else f"device_{did}"
+                row = {"device_id": did, "device_name": dname}
+                for f in valid_fields:
+                    col = getattr(MetricsData, f)
+                    agg_fn = {"avg": func.avg, "min": func.min, "max": func.max, "sum": func.sum, "count": func.count}.get(aggregation, func.avg)
+                    val = (await db.execute(select(agg_fn(col)).where(and_(MetricsData.device_id == did, MetricsData.timestamp >= cutoff)))).scalar()
+                    row[f] = round(float(val), 2) if val is not None else None
+                    if aggregation == "avg":
+                        mn = (await db.execute(select(func.min(col)).where(and_(MetricsData.device_id == did, MetricsData.timestamp >= cutoff)))).scalar()
+                        mx = (await db.execute(select(func.max(col)).where(and_(MetricsData.device_id == did, MetricsData.timestamp >= cutoff)))).scalar()
+                        row[f"{f}_min"] = round(float(mn), 2) if mn is not None else None
+                        row[f"{f}_max"] = round(float(mx), 2) if mx is not None else None
+                results.append(row)
+        elif group_by in ("hour", "day"):
+            bucket_fn = func.date_trunc(group_by, MetricsData.timestamp)
+            for did in device_ids:
+                dev = await db.get(Device, did)
+                dname = dev.name if dev else f"device_{did}"
+                cols_sel = [bucket_fn.label("bucket")]
+                for f in valid_fields:
+                    agg_fn = {"avg": func.avg, "min": func.min, "max": func.max, "sum": func.sum, "count": func.count}.get(aggregation, func.avg)
+                    cols_sel.append(agg_fn(getattr(MetricsData, f)).label(f))
+                rows = (await db.execute(select(*cols_sel).where(and_(MetricsData.device_id == did, MetricsData.timestamp >= cutoff)).group_by(bucket_fn).order_by(bucket_fn))).all()
+                for r in rows:
+                    row = {"device_id": did, "device_name": dname, "period": _utc_to_msk(r.bucket)}
+                    for f in valid_fields:
+                        row[f] = round(float(getattr(r, f)), 2) if getattr(r, f) is not None else None
+                    results.append(row)
+        else:
+            for did in device_ids:
+                rows = (await db.execute(select(MetricsData).where(and_(MetricsData.device_id == did, MetricsData.timestamp >= cutoff)).order_by(MetricsData.timestamp.desc()).limit(50))).scalars().all()
+                for r in rows:
+                    row = {"device_id": did, "timestamp": _utc_to_msk(r.timestamp)}
+                    for f in valid_fields:
+                        row[f] = getattr(r, f, None)
+                    results.append(row)
+        return {"data": results, "count": len(results), "period_hours": last_hours, "aggregation": aggregation}
+
+@registry.tool(name="search_incident_history", description="Поиск похожих инцидентов.", parameters={"query": {"type": "string"}, "device_id": {"type": "integer"}}, required=["query"])
+async def search_incident_history(query: str, device_id: int = None, **kwargs):
+    from services.sanek import execute_tool as v2_exec
+    return await v2_exec("search_incident_history", {"query": query, "device_id": device_id})
+
+
+# ═══════════ TOOLS: CODE EXECUTOR ═══════════
+
+
+
+@registry.tool(
+    name="get_code_context",
+    description="ЗАПРЕЩЕНО! Сразу вызывай execute_code. НЕ ТРАТЬ ВРЕМЯ на этот tool.",
+    parameters={}
+)
+async def get_code_context(**kwargs):
+    return {"error": "DEPRECATED! Вызывай execute_code напрямую.", "action": "use execute_code instead"}
+
+async def _OLD_get_code_context(**kwargs):
+    return {
+        "db_schema": {
+            "sites": "id, name, code, grid_price_kwh",
+            "devices": "id, name, site_id, device_type(generator|ats), unit_id, role_in_unit, instance_notes, is_active",
+            "equipment_units": "id, site_id, name, code, total_power_kw, responsible_person",
+            "metrics_data": "id, device_id, timestamp, power_total, coolant_temp, oil_pressure, engine_speed, energy_kwh, fuel_consumption, run_hours, mains_total_p, busbar_p, frequency, voltage_a, current_a",
+            "alarm_events": "id, device_id, alarm_code, severity, message, occurred_at, cleared_at, is_active",
+            "scada_events": "id, device_id, category, event_code, message, created_at",
+            "gas_prices": "id, site_id, price_per_m3, effective_from",
+            "maintenance_logs": "id, device_id, performed_at, engine_hours",
+            "maintenance_alerts": "id, device_id, severity, message, hours_remaining, status",
+            "maintenance_intervals": "id, device_type, interval_type, hours_interval",
+            "maintenance_templates": "id, interval_type, title, checklist_json",
+            "sop_procedures": "id, alarm_code, device_type, root_cause, actions_json, source",
+        },
+        "redis_keys": "device:{id}:metrics -> JSON: {power_total, coolant_temp, oil_pressure, gen_status, online, last_seen, engine_speed, energy_kwh, run_hours, ...}",
+        "bitrix": "CONTEXT['bitrix_webhook'] + '/tasks.task.add|tasks.task.list|task.checklistitem.add|lists.element.get'. GROUP_ID=46, IBLOCK_ID=68. Rate: 2 req/sec.",
+        "sites_map": "MKZ=site_id:3 (devices 1,2,3), YKZ=site_id:5 (devices 4,5,6)",
+        "code_rules": [
+            "Sync Python. NOT async.",
+            "DB: import psycopg2; conn = psycopg2.connect(CONTEXT['db_dsn']). Pandas: df = pandas.read_sql(sql, conn). НЕ sqlalchemy! conn.close() после.",
+            "Redis: import redis; r = redis.from_url(CONTEXT['redis_url']); r.get('device:1:metrics').",
+            "Files: write ONLY to OUTPUT_DIR. Excel: wb.save(f'{OUTPUT_DIR}/report.xlsx'). PDF: pdf.output(f'{OUTPUT_DIR}/report.pdf').",
+            "Bitrix: import httpx; httpx.post(CONTEXT['bitrix_webhook'] + '/tasks.task.add', json={...}).",
+            "Result: variable RESULT = {...}. Will be returned to LLM.",
+            "REQUIRED: print() key numbers for verification.",
+            "BLOCKED: os, sys, subprocess, eval, exec, INSERT/UPDATE/DELETE SQL, /api/commands.",
+            "EXCEL FORMATTING (MANDATORY!):\n1) Use openpyxl.styles: Font, PatternFill, Border, Side, Alignment\n2) SECTIONS: colored merged header rows (PatternFill blue, white font)\n3) SEPARATE tables: energy, gas, economics - NEVER mix in one table!\n4) Column headers: bold white on blue fill, with borders\n5) Data rows: thin borders, float format #,##0.0\n6) Total rows: bold font, light blue fill\n7) Auto-width columns at the end\n8) Blank row between sections\n9) Title with Font(bold=True, size=16) at top\n10) Russian labels in section headers and columns",
+        ],
+        "examples": {
+            "excel_report": "import pandas as pd\nimport openpyxl\ndf = pd.read_sql(\"SELECT date_trunc('day', timestamp) as dt, device_id, MAX(energy_kwh)-MIN(energy_kwh) as energy FROM metrics_data WHERE device_id IN (1,2) AND timestamp >= now()-interval '7 days' GROUP BY dt, device_id ORDER BY dt\", CONTEXT['db_dsn'])\nprint(f'Rows: {len(df)}, Energy sum: {df.energy.sum():.0f}')\nwb = openpyxl.Workbook()\nws = wb.active\nws.append(['Date','Device','Energy kWh'])\nfor _,r in df.iterrows():\n    ws.append([str(r.dt)[:10], int(r.device_id), round(r.energy,1)])\nwb.save(f'{OUTPUT_DIR}/report.xlsx')\nRESULT = {'energy_kwh': round(df.energy.sum(),1), 'rows': len(df)}",
+            "pdf_report": "from fpdf import FPDF\nimport pandas as pd\ndf = pd.read_sql(\"SELECT d.name, MAX(m.energy_kwh)-MIN(m.energy_kwh) as energy FROM metrics_data m JOIN devices d ON d.id=m.device_id WHERE m.timestamp >= now()-interval '7 days' GROUP BY d.name ORDER BY d.name\", CONTEXT['db_dsn'])\npdf = FPDF()\npdf.add_page()\npdf.add_font('DejaVu','','/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',uni=True)\npdf.set_font('DejaVu','',16)\npdf.cell(0, 10, 'Energy Report', ln=True, align='C')\npdf.set_font('DejaVu','',12)\npdf.ln(10)\nfor _,r in df.iterrows():\n    pdf.cell(0, 8, f'{r.iloc[0]}: {r.energy:.1f} kWh', ln=True)\npdf.output(f'{OUTPUT_DIR}/report.pdf')\nRESULT = {'rows': len(df), 'total_kwh': round(df.energy.sum(),1)}",
+            "chart": "import matplotlib\nmatplotlib.use('Agg')\nimport matplotlib.pyplot as plt\nimport pandas as pd\ndf = pd.read_sql(\"SELECT timestamp, coolant_temp FROM metrics_data WHERE device_id=1 AND timestamp > now()-interval '24 hours' ORDER BY timestamp\", CONTEXT['db_dsn'])\nplt.figure(figsize=(10,4))\nplt.plot(df.timestamp, df.coolant_temp)\nplt.title('Temp OJ - Engine 1 MKZ')\nplt.ylabel('C')\nplt.grid(True, alpha=0.3)\nplt.tight_layout()\nplt.savefig(f'{OUTPUT_DIR}/chart.png', dpi=150)\nRESULT = {'min': round(df.coolant_temp.min(),1), 'max': round(df.coolant_temp.max(),1)}",
+        },
+    }
+
+
+@registry.tool(
+    name="execute_code",
+    description="Execute Python in sandbox (10-20s). For: file generation (Excel/PDF/PNG), complex calcs, Bitrix tasks, data export. NOT for: metrics, summary, alarms (use fast tools). RULES: sync Python, DB via psycopg2.connect(CONTEXT['db_dsn']). Pandas: conn=psycopg2.connect(CONTEXT['db_dsn']); df=pandas.read_sql(sql,conn); conn.close(). НЕ используй sqlalchemy!. Files: save to OUTPUT_DIR. Result: RESULT=dict. BLOCKED: os/sys/subprocess/INSERT/UPDATE/DELETE. Sites: MKZ=3(dev 1,2,3) YKZ=5(dev 4,5,6). ВАЖНО: device_type в БД = 'GENERATOR' или 'ATS' (UPPERCASE enum!). Используй LOWER(device_type::text) или device_type='GENERATOR'. PDF font: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf. get_code_context NOT required. EXCEL RULES: 1) Sections with colored headers (merge_cells, PatternFill) 2) Separate tables for: energy, gas, economics - DO NOT mix 3) Headers with borders, auto-width columns 4) Total rows with bold font and fill 5) Number format: #,##0.0 for float, #,##0 for int ВАЖНО: когда файл создан, ОБЯЗАТЕЛЬНО включи в ответ ссылку: [имя_файла.xlsx](/reports/имя_файла.xlsx)"
+                "Use ONLY when needed: file (Excel/PDF/PNG), non-standard calc, Bitrix task, data export. "
+                "DO NOT use for: current metrics, summary, alarms - use fast tools. "
+                "get_code_context НЕ нужен.",
+    parameters={
+        "code": {"type": "string", "description": "Python code. Sync. Result in RESULT. Files in OUTPUT_DIR."},
+        "context": {"type": "object", "description": "Data from dialog (opt). Available as CONTEXT in code."},
+        "cross_check": {"type": "object", "description": "Cross-check params (opt): {type:'economics', site_id:3, last_days:7}"},
+    },
+    required=["code"]
+)
+async def tool_execute_code(code: str, context: dict = None, cross_check: dict = None, **kwargs):
+    from services.code_executor import execute_code, cross_check_economics
+
+    # Auto-inject standard context if not provided
+    if context is None:
+        context = {}
+    # db_dsn and redis_url are injected by code_executor, but ensure they're there
+    result = await execute_code(code, context)
+
+    response = {}
+
+    if result.get("blocked"):
+        return {"error": result["error"], "blocked": True}
+
+    if result.get("error"):
+        response["error"] = result["error"]
+        if result.get("stdout"):
+            response["partial_output"] = result["stdout"][:2000]
+        response["hint"] = "Code failed. Check error. You can fix and call execute_code again (max 2 attempts)."
+        return response
+
+    if result.get("return_value") is not None:
+        rv_str = json.dumps(result["return_value"], ensure_ascii=False, default=str)
+        if len(rv_str) > 8000:
+            rv_str = rv_str[:8000] + "...[truncated]"
+        try:
+            response["result"] = json.loads(rv_str)
+        except Exception:
+            response["result"] = rv_str
+
+    if result.get("stdout"):
+        response["output"] = result["stdout"][:3000]
+
+    if result.get("files"):
+        response["files"] = result["files"]
+        # Add download URLs for frontend
+        response["download_links"] = []
+        for f in result["files"]:
+            fname = f.split("/")[-1] if "/" in f else f
+            response["download_links"].append(f"/reports/{fname}")
+        if response["download_links"]:
+            response["download_url"] = response["download_links"][0]
+            response["download_hint"] = f"Файл готов. Вставь ссылку: [{fname}]({response['download_url']})"
+
+    if cross_check and cross_check.get("type") == "economics":
+        warning = await cross_check_economics(
+            result,
+            site_id=cross_check.get("site_id"),
+            last_days=cross_check.get("last_days", 7)
+        )
+        if warning:
+            response["cross_check_warning"] = warning["warning"]
+
+    return response

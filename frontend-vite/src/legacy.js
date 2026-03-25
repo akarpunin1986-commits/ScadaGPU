@@ -59,7 +59,8 @@ import {
   _mceAddWI, _mceSaveWI, _mceEditWI, _mceDelWI,
   _mceAddSP, _mceSaveSP, _mceEditSP, _mceDelSP, _mceLinkEquip, _mceReparse,
   openTO, openTOTemplates, editTemplates, saveTemplates, completeTO,
-  addTOInterval, delTOInterval, createBxTaskFromTO
+  addTOInterval, delTOInterval, createBxTaskFromTO,
+  getNextTO, getTpl, saveTpl, getTOData, saveTOData
 } from './modules/tasks.js';
 
 import {
@@ -71,13 +72,15 @@ import {
   onSprControlTabOpen, readSprConfig, saveSprConfig, setSprLoadMode,
   backupSprConfig, openRestoreBackup, restoreBackup, downloadBackup, deleteBackup, smartReset,
   openPowerLimitModal, closePowerLimitModal, savePowerLimit, plQuickP,
-  renderAdminComms, loadAdminComms, renderAdminDecisions, loadAdminDecisions, renderAdminOfflineQueue
+  renderAdminComms, loadAdminComms, renderAdminDecisions, loadAdminDecisions, renderAdminOfflineQueue,
+  getBxUsers, getBxConfig, getAIConfig, updateQuickButtons
 } from './modules/settings.js';
 
 import {
   toggleSanek, sendToSanek, sanekHint, sanekNewSession, sanekConfirm,
   _snFeedback, _snLoadSession, _snSelectOption, _snShowHealthDetail,
-  _snToggleHistory, _snUpdateThemeColors, _snDeleteSession, _snInitTypingDetection
+  _snToggleHistory, _snUpdateThemeColors, _snDeleteSession, _snInitTypingDetection,
+  _snUpdateCtxBadge, _snFormatText, _snToggleThinking
 } from './modules/sanek.js';
 
 import {
@@ -113,6 +116,9 @@ window._updateChartTheme = updateChartTheme;
 
 // === Modal backdrop close ===
 document.querySelectorAll('.mbg').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('sh'); }));
+
+// === Boot: check auth → init app ===
+checkAuth().then(ok => { if (ok) initApp(); });
 
 // ===== Window exports for onclick handlers =====
 window.showM = showM;
@@ -268,6 +274,7 @@ window._snLoadSession = _snLoadSession;
 window._snSelectOption = _snSelectOption;
 window._snShowHealthDetail = _snShowHealthDetail;
 window._snToggleHistory = _snToggleHistory;
+window._snToggleThinking = _snToggleThinking;
 window._snUpdateThemeColors = _snUpdateThemeColors;
 window.showUserProfile = showUserProfile;
 window.selView = selView;
@@ -298,3 +305,19 @@ window._mntRenderEquipmentView = _mntRenderEquipmentView;
 window._snDeleteSession = _snDeleteSession;
 window.initApp = initApp;
 window.showEconomics = showEconomics;
+window.getNextTO = getNextTO;
+window.getTpl = getTpl;
+window.saveTpl = saveTpl;
+window.getTOData = getTOData;
+window.saveTOData = saveTOData;
+window.getBxUsers = getBxUsers;
+window.getBxConfig = getBxConfig;
+window.getAIConfig = getAIConfig;
+window.updateQuickButtons = updateQuickButtons;
+window._snUpdateCtxBadge = _snUpdateCtxBadge;
+window._snFormatText = _snFormatText;
+window.showArchive = showArchive;
+window.loadServerEvents = loadServerEvents;
+window.getDeviceIdForSlot = getDeviceIdForSlot;
+window.getGenSlots = getGenSlots;
+window.getDeviceIdsForSite = getDeviceIdsForSite;
